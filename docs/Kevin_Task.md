@@ -754,7 +754,7 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 
 Leyenda: `[ ]` pendiente · `[~]` en progreso · `[X]` completada
 
-Resumen global: **14 de 45 tareas completadas** (Fase 2 finalizada).
+Resumen global: **20 de 45 tareas completadas** (Fase 3 finalizada).
 
 | Estado | Tarea | Fase | Descripción corta |
 |---|---|---|---|
@@ -772,12 +772,12 @@ Resumen global: **14 de 45 tareas completadas** (Fase 2 finalizada).
 | `[X]` | K-012 | F2 | Tests integración MemoryService + Store |
 | `[X]` | K-013 | F2 | Test e2e: memory flow (save → query → recall) |
 | `[X]` | K-014 | F2 | Commit checkpoint Fase 2 |
-| `[ ]` | K-015 | F3 | Implementar ToolCallObserver.ts (registro) |
-| `[ ]` | K-016 | F3 | Implementar redacción de secrets |
-| `[ ]` | K-017 | F3 | Implementar inferencia de error_type |
-| `[ ]` | K-018 | F3 | Exponer métodos públicos de ToolCallObserver |
-| `[ ]` | K-019 | F3 | Tests integración ToolCallObserver con hooks |
-| `[ ]` | K-020 | F3 | Commit checkpoint Fase 3 |
+| `[X]` | K-015 | F3 | Implementar ToolCallObserver.ts (registro) |
+| `[X]` | K-016 | F3 | Implementar redacción de secrets |
+| `[X]` | K-017 | F3 | Implementar inferencia de error_type |
+| `[X]` | K-018 | F3 | Exponer métodos públicos de ToolCallObserver |
+| `[X]` | K-019 | F3 | Tests integración ToolCallObserver con hooks |
+| `[X]` | K-020 | F3 | Commit checkpoint Fase 3 |
 | `[ ]` | K-021 | F4 | Implementar Reflector.ts (esqueleto + heuristic) |
 | `[ ]` | K-022 | F4 | Implementar lección heurística por error_type |
 | `[ ]` | K-023 | F4 | Implementar redacción de paths y secrets |
