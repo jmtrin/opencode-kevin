@@ -754,7 +754,7 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 
 Leyenda: `[ ]` pendiente · `[~]` en progreso · `[X]` completada
 
-Resumen global: **6 de 45 tareas completadas** (Fase 1 finalizada, K-007 pendiente de commit).
+Resumen global: **7 de 45 tareas completadas** (Fase 1 finalizada).
 
 | Estado | Tarea | Fase | Descripción corta |
 |---|---|---|---|
@@ -764,7 +764,7 @@ Resumen global: **6 de 45 tareas completadas** (Fase 1 finalizada, K-007 pendien
 | `[X]` | K-004 | F1 | Implementar Migrate.ts (runner de migraciones) |
 | `[X]` | K-005 | F1 | Crear migrations/001_initial.sql |
 | `[X]` | K-006 | F1 | Tests unitarios de Store + Migrate |
-| `[ ]` | K-007 | F1 | Commit checkpoint Fase 1 |
+| `[X]` | K-007 | F1 | Commit checkpoint Fase 1 |
 | `[ ]` | K-008 | F2 | Implementar MemoryService.ts (CRUD base) |
 | `[ ]` | K-009 | F2 | Implementar búsqueda FTS5 en MemoryService |
 | `[ ]` | K-010 | F2 | Implementar scope session con expiración |
