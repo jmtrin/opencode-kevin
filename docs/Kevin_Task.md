@@ -754,7 +754,7 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 
 Leyenda: `[ ]` pendiente · `[~]` en progreso · `[X]` completada
 
-Resumen global: **7 de 45 tareas completadas** (Fase 1 finalizada).
+Resumen global: **14 de 45 tareas completadas** (Fase 2 finalizada).
 
 | Estado | Tarea | Fase | Descripción corta |
 |---|---|---|---|
@@ -765,13 +765,13 @@ Resumen global: **7 de 45 tareas completadas** (Fase 1 finalizada).
 | `[X]` | K-005 | F1 | Crear migrations/001_initial.sql |
 | `[X]` | K-006 | F1 | Tests unitarios de Store + Migrate |
 | `[X]` | K-007 | F1 | Commit checkpoint Fase 1 |
-| `[ ]` | K-008 | F2 | Implementar MemoryService.ts (CRUD base) |
-| `[ ]` | K-009 | F2 | Implementar búsqueda FTS5 en MemoryService |
-| `[ ]` | K-010 | F2 | Implementar scope session con expiración |
-| `[ ]` | K-011 | F2 | Implementar getRelevant con token budget |
-| `[ ]` | K-012 | F2 | Tests integración MemoryService + Store |
-| `[ ]` | K-013 | F2 | Test e2e: memory flow (save → query → recall) |
-| `[ ]` | K-014 | F2 | Commit checkpoint Fase 2 |
+| `[X]` | K-008 | F2 | Implementar MemoryService.ts (CRUD base) |
+| `[X]` | K-009 | F2 | Implementar búsqueda FTS5 en MemoryService |
+| `[X]` | K-010 | F2 | Implementar scope session con expiración |
+| `[X]` | K-011 | F2 | Implementar getRelevant con token budget |
+| `[X]` | K-012 | F2 | Tests integración MemoryService + Store |
+| `[X]` | K-013 | F2 | Test e2e: memory flow (save → query → recall) |
+| `[X]` | K-014 | F2 | Commit checkpoint Fase 2 |
 | `[ ]` | K-015 | F3 | Implementar ToolCallObserver.ts (registro) |
 | `[ ]` | K-016 | F3 | Implementar redacción de secrets |
 | `[ ]` | K-017 | F3 | Implementar inferencia de error_type |
