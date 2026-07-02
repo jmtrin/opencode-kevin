@@ -5,7 +5,7 @@ export interface ReflectionInput {
 	argsSummary: string;
 	stderr: string;
 	stdout: string;
-	exitCode: number;
+	exitCode?: number;
 	errorType: string;
 	sessionId: string;
 }

@@ -6,6 +6,7 @@ export interface ToolExecuteInput {
 	args?: Record<string, unknown>;
 	agent?: string;
 	sessionId?: string;
+	callID?: string;
 }
 
 export interface ToolExecuteOutput {
@@ -126,6 +127,7 @@ export class ToolCallObserver {
 	}
 
 	private key(input: ToolExecuteInput): string {
+		if (input.callID) return `callID::${input.callID}`;
 		const argsKey = JSON.stringify(input.args ?? {});
 		return `${input.sessionId ?? "unknown"}::${input.tool}::${argsKey}`;
 	}

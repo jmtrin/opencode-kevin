@@ -754,7 +754,7 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 
 Leyenda: `[ ]` pendiente · `[~]` en progreso · `[X]` completada
 
-Resumen global: **36 de 45 tareas completadas** (Fase 5 finalizada).
+Resumen global: **44 de 45 tareas completadas** (Fase 6 finalizada; K-045 validación manual pendiente del usuario).
 
 | Estado | Tarea | Fase | Descripción corta |
 |---|---|---|---|
@@ -794,15 +794,15 @@ Resumen global: **36 de 45 tareas completadas** (Fase 5 finalizada).
 | `[X]` | K-034 | F5 | Test e2e: reflection → next session → injection |
 | `[X]` | K-035 | F5 | Test e2e: session con fallos → retrospective |
 | `[X]` | K-036 | F5 | Commit checkpoint Fase 5 |
-| `[ ]` | K-037 | F6 | Implementar plugin/index.ts (entry point) |
-| `[ ]` | K-038 | F6 | Implementar tools en plugin |
-| `[ ]` | K-039 | F6 | Cablear hooks en plugin |
-| `[ ]` | K-040 | F6 | Tests e2e del plugin completo |
-| `[ ]` | K-041 | F6 | Implementar scripts/verify-install.ts |
-| `[ ]` | K-042 | F6 | Crear README.md (usuario final) |
-| `[ ]` | K-043 | F6 | Bump versión 0.1.0 + CHANGELOG |
-| `[ ]` | K-044 | F6 | Commit final + tag v0.1.0 |
-| `[ ]` | K-045 | F6 | Validación manual en OpenCode Desktop |
+| `[X]` | K-037 | F6 | Implementar plugin/index.ts (entry point) |
+| `[X]` | K-038 | F6 | Implementar tools en plugin |
+| `[X]` | K-039 | F6 | Cablear hooks en plugin |
+| `[X]` | K-040 | F6 | Tests e2e del plugin completo |
+| `[X]` | K-041 | F6 | Implementar scripts/verify-install.ts |
+| `[X]` | K-042 | F6 | Crear README.md (usuario final) |
+| `[X]` | K-043 | F6 | Bump versión 0.1.0 + CHANGELOG |
+| `[~]` | K-044 | F6 | Commit final + tag v0.1.0 (pendiente autorización usuario) |
+| `[ ]` | K-045 | F6 | Validación manual en OpenCode Desktop (pendiente usuario) |
 
 ---
 
