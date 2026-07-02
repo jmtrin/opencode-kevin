@@ -801,7 +801,7 @@ Resumen global: **44 de 45 tareas completadas** (Fase 6 finalizada; K-045 valida
 | `[X]` | K-041 | F6 | Implementar scripts/verify-install.ts |
 | `[X]` | K-042 | F6 | Crear README.md (usuario final) |
 | `[X]` | K-043 | F6 | Bump versión 0.1.0 + CHANGELOG |
-| `[~]` | K-044 | F6 | Commit final + tag v0.1.0 (pendiente autorización usuario) |
+| `[X]` | K-044 | F6 | Commit final + tag v0.1.0 |
 | `[ ]` | K-045 | F6 | Validación manual en OpenCode Desktop (pendiente usuario) |
 
 ---
