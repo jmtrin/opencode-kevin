@@ -87,7 +87,6 @@ const STOP_WORDS = new Set<string>([
 	"he",
 	"they",
 	"was",
-	"were",
 	"sin",
 ]);
 

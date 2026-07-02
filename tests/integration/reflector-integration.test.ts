@@ -95,7 +95,7 @@ describe("Reflector + MemoryService integration", () => {
 		);
 	});
 
-	it("truncated (>4KB) memory is not searchable but retrievable by id", async () => {
+	it("truncated (>4KB) memory keeps lesson searchable and retrievable by id", async () => {
 		const longStderr = `error TS2304: ${"z".repeat(5000)}`;
 		const id = await reflector.invoke({
 			toolName: "bash",
@@ -107,10 +107,12 @@ describe("Reflector + MemoryService integration", () => {
 			sessionId: "sess-int-4",
 		});
 		expect(id).not.toBeNull();
-		expect(memories.query({ text: "typecheck" }).length).toBe(0);
+		expect(memories.query({ text: "typecheck" }).length).toBe(1);
 		const direct = memories.getById(id as string);
 		expect(direct).not.toBeNull();
-		expect(direct?.metadata?.not_searchable).toBe(true);
+		expect(direct?.metadata?.truncated).toBe(true);
+		expect(direct?.metadata?.not_searchable).toBeUndefined();
 		expect(direct?.content).toContain("[truncated]");
+		expect(direct?.content).toContain("When bash fails with typecheck");
 	});
 });

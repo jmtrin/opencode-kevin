@@ -6,7 +6,7 @@ import { tool } from "@opencode-ai/plugin";
 import { ContextInjector } from "./ContextInjector.js";
 import { MemoryService } from "./MemoryService.js";
 import { Migrate } from "./Migrate.js";
-import { Reflector } from "./Reflector.js";
+import { ERROR_LINE_RE, Reflector } from "./Reflector.js";
 import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
@@ -57,6 +57,15 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		dir: opts.retrospectivesDir,
 	});
 	let currentSessionId: string | null = null;
+	let lastUserQuery: string | null = null;
+	const pending = new Set<Promise<unknown>>();
+	function fireAndForget(p: Promise<unknown>): void {
+		const tracked = p.catch(() => {});
+		pending.add(tracked);
+		tracked.finally(() => {
+			pending.delete(tracked);
+		});
+	}
 
 	return {
 		tool: {
@@ -67,12 +76,22 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					type: tool.schema.enum(["error", "pattern", "decision", "context"]),
 					content: tool.schema.string().min(1),
 					scope: tool.schema.enum(["project", "session"]).default("project"),
+					metadata: tool.schema
+						.record(tool.schema.string(), tool.schema.unknown())
+						.optional(),
+					relevanceScore: tool.schema.number().min(0).max(1).optional(),
+					sourceTool: tool.schema.string().optional(),
+					sourceSession: tool.schema.string().optional(),
 				},
 				async execute(args) {
 					const id = memoryService.save({
 						type: args.type,
 						content: args.content,
 						scope: args.scope,
+						metadata: args.metadata,
+						relevanceScore: args.relevanceScore,
+						sourceTool: args.sourceTool,
+						sourceSession: args.sourceSession,
 					});
 					return { title: "Memoria guardada", output: JSON.stringify({ id }) };
 				},
@@ -203,29 +222,35 @@ export const KevinPlugin: Plugin = async (input, options) => {
 
 		"tool.execute.after": async (hookInput, output) => {
 			const meta = (output.metadata ?? {}) as Record<string, unknown>;
-			const success =
-				meta.success === false
-					? false
-					: !(typeof meta.exitCode === "number" && meta.exitCode !== 0);
+			const outputText = String(output.output ?? "");
+			let success: boolean;
+			if (meta.success === false) {
+				success = false;
+			} else if (meta.success === true) {
+				success = true;
+			} else if (typeof meta.exitCode === "number" && meta.exitCode !== 0) {
+				success = false;
+			} else {
+				const combined = `${outputText}\n${String(meta.stderr ?? "")}`;
+				success = !ERROR_LINE_RE.test(combined);
+			}
 			const stderr = String(meta.stderr ?? "");
-			const stdout = String(meta.stdout ?? output.output ?? "");
+			const stdout = String(meta.stdout ?? outputText);
 			const exitCode =
 				typeof meta.exitCode === "number" ? meta.exitCode : undefined;
-			const agent: string | undefined = undefined;
 			observer.onAfter(
 				{
 					tool: hookInput.tool,
 					args: hookInput.args as Record<string, unknown>,
 					sessionId: hookInput.sessionID,
 					callID: hookInput.callID,
-					agent,
 				},
 				{ success, stdout, stderr, exitCode },
 			);
 			if (!success) {
 				const errorType = observer.inferErrorType(stderr, stdout, exitCode);
-				reflector
-					.invoke({
+				fireAndForget(
+					reflector.invoke({
 						toolName: hookInput.tool,
 						argsSummary: observer.summarizeArgs(
 							hookInput.args as Record<string, unknown>,
@@ -235,13 +260,25 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						exitCode,
 						errorType,
 						sessionId: hookInput.sessionID,
-					})
-					.catch(() => {});
+					}),
+				);
+			}
+		},
+
+		"chat.message": async (_hookInput, output) => {
+			const text = output.parts
+				.map((p) => p as { type?: string; text?: string })
+				.filter((p) => p.type === "text")
+				.map((p) => p.text ?? "")
+				.join(" ");
+			if (text.trim()) {
+				lastUserQuery = injector.deriveQuery([{ role: "user", content: text }]);
 			}
 		},
 
 		"experimental.chat.system.transform": async (_hookInput, output) => {
 			const memories = memoryService.getRelevant({
+				query: lastUserQuery ?? undefined,
 				maxTokens: SYSTEM_TRANSFORM_TOKENS,
 				scope: "project",
 			});
@@ -251,6 +288,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 
 		"experimental.session.compacting": async (_hookInput, output) => {
 			const memories = memoryService.getRelevant({
+				query: lastUserQuery ?? undefined,
 				maxTokens: COMPACTING_TOKENS,
 				scope: "project",
 			});
@@ -264,11 +302,12 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				if (info?.id) currentSessionId = info.id;
 			} else if (event.type === "session.idle") {
 				const sid = (event.properties as { sessionID?: string }).sessionID;
-				if (sid) retrospective.generate(sid).catch(() => {});
+				if (sid) fireAndForget(retrospective.generate(sid));
 			}
 		},
 
 		dispose: async () => {
+			await Promise.allSettled([...pending]);
 			store.close();
 		},
 	};

@@ -1,22 +1,15 @@
+import { randomBytes } from "node:crypto";
+
 // UUID v7 generator — timestamp-ordered IDs.
 // Format: xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx
 // First 48 bits: Unix timestamp (ms). Version nibble set to 7.
 // Variant nibble starts with binary 10.
 
 let lastTs = 0;
-let lastRandom: number[] = [];
+let lastRandom: Buffer = Buffer.alloc(10);
 
-function randomBytes(n: number): number[] {
-	const out: number[] = [];
-	for (let i = 0; i < n; i++) out.push(Math.floor(Math.random() * 256));
-	return out;
-}
-
-function toHex(bytes: number[]): string {
-	let out = "";
-	for (let i = 0; i < bytes.length; i++)
-		out += bytes[i].toString(16).padStart(2, "0");
-	return out;
+function toHex(bytes: Buffer): string {
+	return bytes.toString("hex");
 }
 
 export function uuidv7(): string {
@@ -37,7 +30,7 @@ export function uuidv7(): string {
 	lastTs = ts;
 
 	const rand = lastRandom;
-	const bytes: number[] = new Array(16).fill(0);
+	const bytes: Buffer = Buffer.alloc(16);
 
 	bytes[0] = Math.floor(ts / 2 ** 40) & 0xff;
 	bytes[1] = Math.floor(ts / 2 ** 32) & 0xff;

@@ -193,7 +193,7 @@ describe("Reflector.invoke", () => {
 		expect(saved[0].content).toContain("API_KEY=<redacted>");
 	});
 
-	it("truncates content > 4096 chars and marks not_searchable", async () => {
+	it("truncates context > 4KB but keeps lesson searchable", async () => {
 		const { saved, service } = createMock();
 		const r = new Reflector(service, { throttleMs: 0 });
 		const longStderr = `error TS2304: ${"x".repeat(5000)}`;
@@ -210,7 +210,9 @@ describe("Reflector.invoke", () => {
 		expect(saved[0].content.length).toBeLessThanOrEqual(
 			4096 + "... [truncated]".length,
 		);
-		expect(saved[0].metadata?.not_searchable).toBe(true);
+		expect(saved[0].metadata?.truncated).toBe(true);
+		expect(saved[0].metadata?.not_searchable).toBeUndefined();
+		expect(saved[0].content).toContain("When bash fails with typecheck");
 	});
 
 	it("does not set not_searchable when content is small", async () => {

@@ -64,6 +64,16 @@ const TYPE_PRIORITY: Record<MemoryType, number> = {
 };
 
 const SESSION_DEFAULT_TTL_HOURS = 24;
+const RELEVANCE_BUMP = 0.05;
+const RELEVANCE_MAX = 1.0;
+
+function sqliteUtcNowPlusHours(hours: number): string {
+	const d = new Date(Date.now() + hours * 3_600_000);
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
+		d.getUTCDate(),
+	)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
 
 function mapRow(row: MemoryRow, score?: number): Memory {
 	const mem: Memory = {
@@ -112,44 +122,28 @@ export class MemoryService {
 		const relevanceScore = input.relevanceScore ?? 0.5;
 		const metadata = input.metadata ? JSON.stringify(input.metadata) : null;
 
-		const expiresAt = input.expiresAt ?? null;
-
+		let expiresAt: string | null = input.expiresAt ?? null;
 		if (scope === "session" && !input.expiresAt) {
-			this.store
-				.prepare(
-					`INSERT INTO memories
-             (id, type, content, scope, relevance_score, source_tool, source_session, metadata, expires_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+${SESSION_DEFAULT_TTL_HOURS} hours'))`,
-				)
-				.run(
-					id,
-					input.type,
-					input.content,
-					scope,
-					relevanceScore,
-					input.sourceTool ?? null,
-					input.sourceSession ?? null,
-					metadata,
-				);
-		} else {
-			this.store
-				.prepare(
-					`INSERT INTO memories
+			expiresAt = sqliteUtcNowPlusHours(SESSION_DEFAULT_TTL_HOURS);
+		}
+
+		this.store
+			.prepare(
+				`INSERT INTO memories
              (id, type, content, scope, relevance_score, source_tool, source_session, metadata, expires_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				)
-				.run(
-					id,
-					input.type,
-					input.content,
-					scope,
-					relevanceScore,
-					input.sourceTool ?? null,
-					input.sourceSession ?? null,
-					metadata,
-					expiresAt,
-				);
-		}
+			)
+			.run(
+				id,
+				input.type,
+				input.content,
+				scope,
+				relevanceScore,
+				input.sourceTool ?? null,
+				input.sourceSession ?? null,
+				metadata,
+				expiresAt,
+			);
 
 		return id;
 	}
@@ -302,14 +296,7 @@ export class MemoryService {
 				.filter((m) => !isNotSearchable(m));
 		}
 
-		candidates.sort((a, b) => {
-			const pa = TYPE_PRIORITY[a.type];
-			const pb = TYPE_PRIORITY[b.type];
-			if (pa !== pb) return pa - pb;
-			if (b.relevanceScore !== a.relevanceScore)
-				return b.relevanceScore - a.relevanceScore;
-			return b.createdAt.localeCompare(a.createdAt);
-		});
+		candidates.sort((a, b) => TYPE_PRIORITY[a.type] - TYPE_PRIORITY[b.type]);
 
 		const result: Memory[] = [];
 		let used = 0;
@@ -318,6 +305,15 @@ export class MemoryService {
 			if (used + len > charBudget && result.length > 0) break;
 			result.push(mem);
 			used += len;
+		}
+
+		if (result.length > 0) {
+			const bump = this.store.prepare(
+				"UPDATE memories SET relevance_score = MIN(?, relevance_score + ?) WHERE id = ?",
+			);
+			this.store.transaction(() => {
+				for (const m of result) bump.run(RELEVANCE_MAX, RELEVANCE_BUMP, m.id);
+			});
 		}
 		return result;
 	}

@@ -116,13 +116,25 @@ export class ToolCallObserver {
 	}
 
 	inferErrorType(stderr: string, stdout: string, exitCode?: number): string {
-		const stderrLower = stderr.toLowerCase();
-		if (/error ts|tsc|\btypescript\b/.test(stderrLower)) return "typecheck";
-		if (/\b(lint|biome|eslint)\b/.test(stderrLower)) return "lint";
-		if (/\b(fail|vitest|jest|test failed)\b/.test(stderrLower)) return "test";
-		if (/error:|typeerror|referenceerror/.test(stderrLower)) return "runtime";
-		if ((exitCode === undefined || exitCode === -1) && stderr.trim() === "")
+		const combined = `${stderr}\n${stdout}`.toLowerCase();
+		if (
+			exitCode === 124 ||
+			/timed out|timeout|etimedout|\bkilled\b|sigterm|sigkill/.test(combined)
+		) {
 			return "timeout";
+		}
+		if (/error ts|tsc|\btypescript\b/.test(combined)) return "typecheck";
+		if (/\b(lint|biome|eslint)\b/.test(combined)) return "lint";
+		if (/\b(fail|vitest|jest|test failed)\b/.test(combined)) return "test";
+		if (/error:|typeerror|referenceerror|syntaxerror/.test(combined))
+			return "runtime";
+		if (
+			(exitCode === undefined || exitCode === -1) &&
+			stderr.trim() === "" &&
+			stdout.trim() === ""
+		) {
+			return "timeout";
+		}
 		return "unknown";
 	}
 

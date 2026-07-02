@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PluginInput } from "@opencode-ai/plugin";
+import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KevinPlugin } from "../../plugin/index.js";
 
@@ -33,13 +33,55 @@ afterEach(() => {
 	rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-function flush(): Promise<void> {
-	return new Promise((r) => setTimeout(r, 10));
+function makeCtx(sess: string): ToolContext {
+	return {
+		sessionID: sess,
+		messageID: "m",
+		agent: "test",
+		directory: tmpRoot,
+		worktree: tmpRoot,
+		abort: new AbortController().signal,
+		metadata() {},
+		ask() {
+			return Promise.resolve();
+		},
+	};
+}
+
+async function waitForAsync(
+	predicate: () => Promise<boolean>,
+	timeoutMs = 1000,
+): Promise<void> {
+	const start = Date.now();
+	while (Date.now() - start < timeoutMs) {
+		if (await predicate()) return;
+		await new Promise((r) => setTimeout(r, 5));
+	}
+	throw new Error(`waitForAsync timed out after ${timeoutMs}ms`);
+}
+
+async function queryMemories(
+	sess: string,
+	text: string,
+): Promise<
+	Array<{ id: string; type: string; content: string; scope: string }>
+> {
+	const r = await hooks.tool?.kevin_query.execute(
+		{ query: text, limit: 50 },
+		makeCtx(sess),
+	);
+	return JSON.parse((r as { output: string }).output) as Array<{
+		id: string;
+		type: string;
+		content: string;
+		scope: string;
+	}>;
 }
 
 describe("ciclo completo Observe -> Learn -> Share", () => {
 	it("session.created captura id, tool calls se registran, fallo genera leccion, system.transform inyecta, session.idle genera retrospective", async () => {
 		const sess = "complete-sess";
+		const ctx = makeCtx(sess);
 
 		await hooks.event?.({
 			event: {
@@ -84,29 +126,13 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 				},
 			},
 		);
-		await flush();
 
-		const queryResult = await hooks.tool?.kevin_query.execute(
-			{ query: "typecheck", limit: 10 },
-			{
-				sessionID: sess,
-				messageID: "m",
-				agent: "test",
-				directory: tmpRoot,
-				worktree: tmpRoot,
-				abort: new AbortController().signal,
-				metadata() {},
-				ask() {
-					return Promise.resolve();
-				},
-			},
-		);
-		const memories = JSON.parse(
-			(queryResult as { output: string }).output,
-		) as Array<{
-			content: string;
-		}>;
-		expect(memories.length).toBeGreaterThanOrEqual(1);
+		await waitForAsync(async () => {
+			const mems = await queryMemories(sess, "typecheck");
+			return mems.some((m) => m.content.includes("Verify types and imports"));
+		});
+
+		const memories = await queryMemories(sess, "typecheck");
 		const lesson = memories.find((m) =>
 			m.content.includes("Verify types and imports"),
 		);
@@ -124,11 +150,13 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		expect(sysOutput.system[0]).toContain("Verify types and imports");
 
 		await hooks.event?.({
-			event: { type: "session.idle", properties: { sessionID: sess } } as never,
+			event: {
+				type: "session.idle",
+				properties: { sessionID: sess },
+			} as never,
 		});
-		await flush();
-
 		const retroPath = join(tmpRoot, "retrospectives", `${sess}.md`);
+		await waitForAsync(async () => existsSync(retroPath));
 		expect(existsSync(retroPath)).toBe(true);
 	});
 
@@ -158,11 +186,86 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 			{ title: "read", output: "ok", metadata: { success: true } },
 		);
 		await hooks.event?.({
-			event: { type: "session.idle", properties: { sessionID: sess } } as never,
+			event: {
+				type: "session.idle",
+				properties: { sessionID: sess },
+			} as never,
 		});
-		await flush();
-		expect(existsSync(join(tmpRoot, "retrospectives", `${sess}.md`))).toBe(
-			false,
+		const retroPath = join(tmpRoot, "retrospectives", `${sess}.md`);
+		await waitForAsync(async () => !existsSync(retroPath), 200);
+		expect(existsSync(retroPath)).toBe(false);
+	});
+
+	it("chat.message fija lastUserQuery y system.transform inyecta solo lecciones relevantes (context-aware)", async () => {
+		const sess = "ctx-sess";
+		const ctx = makeCtx(sess);
+
+		await hooks.tool?.kevin_save.execute(
+			{
+				type: "error",
+				content:
+					"When bash fails with typecheck: error TS2304\nSuggestion: Verify types and imports before running.",
+				scope: "project",
+			},
+			ctx,
 		);
+		await hooks.tool?.kevin_save.execute(
+			{
+				type: "context",
+				content: "cooking pasta recipe dinner italian food",
+				scope: "project",
+			},
+			ctx,
+		);
+
+		await hooks["chat.message"]?.(
+			{ sessionID: sess },
+			{
+				message: {} as never,
+				parts: [
+					{ type: "text", text: "how do I fix the typecheck error?" },
+				] as never,
+			},
+		);
+
+		const sysOutput = { system: [] as string[] };
+		await hooks["experimental.chat.system.transform"]?.(
+			{ sessionID: sess, model: { provider: "x", id: "y" } as never },
+			sysOutput,
+		);
+		expect(sysOutput.system.length).toBe(1);
+		expect(sysOutput.system[0]).toContain("<kevin-context>");
+		expect(sysOutput.system[0]).toContain("Verify types and imports");
+		expect(sysOutput.system[0]).not.toContain("cooking pasta");
+	});
+
+	it("chat.message con query no relacionado no inyecta lecciones irrelevantes", async () => {
+		const sess = "ctx-sess-2";
+		const ctx = makeCtx(sess);
+
+		await hooks.tool?.kevin_save.execute(
+			{
+				type: "error",
+				content:
+					"When bash fails with typecheck: error TS2304\nSuggestion: Verify types and imports before running.",
+				scope: "project",
+			},
+			ctx,
+		);
+
+		await hooks["chat.message"]?.(
+			{ sessionID: sess },
+			{
+				message: {} as never,
+				parts: [{ type: "text", text: "cook pasta recipe dinner" }] as never,
+			},
+		);
+
+		const sysOutput = { system: [] as string[] };
+		await hooks["experimental.chat.system.transform"]?.(
+			{ sessionID: sess, model: { provider: "x", id: "y" } as never },
+			sysOutput,
+		);
+		expect(sysOutput.system.length).toBe(0);
 	});
 });

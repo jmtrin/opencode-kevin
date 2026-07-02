@@ -174,7 +174,7 @@ Kevin se suscribe a 6 hooks de OpenCode:
 
 **Throttle**: Reflector genera máximo 1 lección por minuto (configurable vía `throttleMs`).
 
-**Truncado**: contenidos > 4KB se truncan y marcan `not_searchable` (no aparecen en queries, pero sí por `getById`).
+**Truncado**: contenidos > 4KB conservan la lección searchable; solo el contexto adicional se trunca (`metadata.truncated = true`).
 
 ---
 

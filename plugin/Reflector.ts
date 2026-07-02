@@ -23,6 +23,11 @@ export interface HeuristicLessonInput {
 const DEFAULT_THROTTLE_MS = 60_000;
 const MAX_CONTENT_CHARS = 4096;
 const MAX_ERROR_LINE_CHARS = 500;
+const TRUNC_SUFFIX = "... [truncated]";
+const CONTEXT_PREFIX = "\n\nContext:\n";
+
+export const ERROR_LINE_RE =
+	/\b(error|failed|fail|cannot find|cannot resolve|TS\d{4,}|exception|traceback|panic|fatal|referenceerror|typeerror|syntaxerror|command failed|non-zero exit)\b/i;
 
 const SUGGESTIONS: Record<string, string> = {
 	typecheck: "Verify types and imports before running.",
@@ -43,7 +48,7 @@ const SECRET_VALUE_PATTERN = /\s*=\s*\S+(.*)$/;
 
 const PATH_PATTERNS: RegExp[] = [
 	/[a-z]:\\[^\s"'<>|*?:]+/gi,
-	/\/(?:home|users|var|tmp|opt|etc|root|usr)(?:\/[^\s"'<>|*?:]+)*/gi,
+	/\/(?:home|users|var|tmp|opt|etc|root|usr|app|work|workspace|code|repo|project|src|build|dist|packages|services|api|web|client|server|lib|node_modules)(?:\/[^\s"'<>|*?:]+)*/gi,
 ];
 
 export class Reflector {
@@ -77,16 +82,25 @@ export class Reflector {
 			firstErrorLine,
 		});
 
-		let content = lesson;
-		if (sourceOutput.length > 0) {
-			content = `${lesson}\n\nContext:\n${sourceOutput}`;
-		}
-
-		let finalContent = content;
 		const metadata: Record<string, unknown> = {};
-		if (content.length > MAX_CONTENT_CHARS) {
-			finalContent = `${content.slice(0, MAX_CONTENT_CHARS)}... [truncated]`;
-			metadata.not_searchable = true;
+		let finalContent: string;
+		if (sourceOutput.length > 0) {
+			const fullLen =
+				lesson.length + CONTEXT_PREFIX.length + sourceOutput.length;
+			if (fullLen <= MAX_CONTENT_CHARS) {
+				finalContent = `${lesson}${CONTEXT_PREFIX}${sourceOutput}`;
+			} else {
+				const budget =
+					MAX_CONTENT_CHARS -
+					lesson.length -
+					CONTEXT_PREFIX.length -
+					TRUNC_SUFFIX.length;
+				const truncated = sourceOutput.slice(0, Math.max(0, budget));
+				finalContent = `${lesson}${CONTEXT_PREFIX}${truncated}${TRUNC_SUFFIX}`;
+				metadata.truncated = true;
+			}
+		} else {
+			finalContent = lesson;
 		}
 
 		const id = this.memoryService.save({
@@ -138,7 +152,7 @@ export class Reflector {
 		const lines = text.split(/\r?\n/);
 		for (const line of lines) {
 			const trimmed = line.trim();
-			if (trimmed.length > 0 && /error|Error|FAIL/i.test(trimmed)) {
+			if (trimmed.length > 0 && ERROR_LINE_RE.test(trimmed)) {
 				return trimmed;
 			}
 		}
