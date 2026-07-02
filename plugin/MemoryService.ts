@@ -255,6 +255,39 @@ export class MemoryService {
 		return this.store.prepare(sql).all(...params) as MemoryRow[];
 	}
 
+	private queryRelevant(text: string, scope: MemoryScope | "all"): Memory[] {
+		const tokens = text
+			.trim()
+			.split(/\s+/)
+			.filter((t) => t.length > 0)
+			.map((t) => `"${t.replace(/"/g, '""')}"`);
+		if (tokens.length === 0) return [];
+		const match = tokens.join(" OR ");
+
+		let sql = `
+      SELECT m.id, m.type, m.content, m.scope, m.relevance_score,
+             m.source_tool, m.source_session, m.metadata,
+             m.created_at, m.updated_at, m.expires_at,
+             bm25(memories_fts) AS score
+      FROM memories_fts
+      JOIN memories m ON m.rowid = memories_fts.rowid
+      WHERE memories_fts MATCH ?
+        AND (m.expires_at IS NULL OR m.expires_at > datetime('now'))`;
+		const params: unknown[] = [match];
+		if (scope !== "all") {
+			sql += " AND m.scope = ?";
+			params.push(scope);
+		}
+		sql += " ORDER BY bm25(memories_fts) LIMIT 100";
+
+		const rows = this.store.prepare(sql).all(...params) as (MemoryRow & {
+			score: number;
+		})[];
+		return rows
+			.map((r) => mapRow(r, r.score))
+			.filter((m) => !isNotSearchable(m));
+	}
+
 	getRelevant(input: GetRelevantInput): Memory[] {
 		const maxTokens = input.maxTokens ?? 2000;
 		const charBudget = maxTokens * 4;
@@ -262,11 +295,7 @@ export class MemoryService {
 
 		let candidates: Memory[];
 		if (input.query && input.query.trim().length > 0) {
-			candidates = this.query({
-				text: input.query,
-				scope,
-				limit: 100,
-			});
+			candidates = this.queryRelevant(input.query, scope);
 		} else {
 			candidates = this.loadAll(scope)
 				.map((r) => mapRow(r))
