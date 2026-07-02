@@ -97,6 +97,12 @@ function sanitizeMatch(text: string): string {
 	return tokens.join(" ");
 }
 
+function isNotSearchable(mem: Memory): boolean {
+	return (
+		(mem.metadata as Record<string, unknown> | null)?.not_searchable === true
+	);
+}
+
 export class MemoryService {
 	constructor(private store: Store) {}
 
@@ -229,7 +235,9 @@ export class MemoryService {
 		const rows = this.store.prepare(sql).all(...params) as (MemoryRow & {
 			score: number;
 		})[];
-		return rows.map((r) => mapRow(r, r.score));
+		return rows
+			.map((r) => mapRow(r, r.score))
+			.filter((m) => !isNotSearchable(m));
 	}
 
 	private loadAll(scope: MemoryScope | "all"): MemoryRow[] {
@@ -260,7 +268,9 @@ export class MemoryService {
 				limit: 100,
 			});
 		} else {
-			candidates = this.loadAll(scope).map((r) => mapRow(r));
+			candidates = this.loadAll(scope)
+				.map((r) => mapRow(r))
+				.filter((m) => !isNotSearchable(m));
 		}
 
 		candidates.sort((a, b) => {

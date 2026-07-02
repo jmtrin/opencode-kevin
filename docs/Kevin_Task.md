@@ -754,7 +754,7 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 
 Leyenda: `[ ]` pendiente · `[~]` en progreso · `[X]` completada
 
-Resumen global: **20 de 45 tareas completadas** (Fase 3 finalizada).
+Resumen global: **27 de 45 tareas completadas** (Fase 4 finalizada, pendiente commit K-028).
 
 | Estado | Tarea | Fase | Descripción corta |
 |---|---|---|---|
@@ -778,14 +778,14 @@ Resumen global: **20 de 45 tareas completadas** (Fase 3 finalizada).
 | `[X]` | K-018 | F3 | Exponer métodos públicos de ToolCallObserver |
 | `[X]` | K-019 | F3 | Tests integración ToolCallObserver con hooks |
 | `[X]` | K-020 | F3 | Commit checkpoint Fase 3 |
-| `[ ]` | K-021 | F4 | Implementar Reflector.ts (esqueleto + heuristic) |
-| `[ ]` | K-022 | F4 | Implementar lección heurística por error_type |
-| `[ ]` | K-023 | F4 | Implementar redacción de paths y secrets |
-| `[ ]` | K-024 | F4 | Implementar throttle en Reflector |
-| `[ ]` | K-025 | F4 | Implementar truncado de content > 4KB |
-| `[ ]` | K-026 | F4 | Tests integración Reflector + MemoryService |
-| `[ ]` | K-027 | F4 | Test e2e: fallo → memoria error → recall |
-| `[ ]` | K-028 | F4 | Commit checkpoint Fase 4 |
+| `[X]` | K-021 | F4 | Implementar Reflector.ts (esqueleto + heuristic) |
+| `[X]` | K-022 | F4 | Implementar lección heurística por error_type |
+| `[X]` | K-023 | F4 | Implementar redacción de paths y secrets |
+| `[X]` | K-024 | F4 | Implementar throttle en Reflector |
+| `[X]` | K-025 | F4 | Implementar truncado de content > 4KB |
+| `[X]` | K-026 | F4 | Tests integración Reflector + MemoryService |
+| `[X]` | K-027 | F4 | Test e2e: fallo → memoria error → recall |
+| `[~]` | K-028 | F4 | Commit checkpoint Fase 4 |
 | `[ ]` | K-029 | F5 | Implementar ContextInjector (esqueleto + deriveQuery) |
 | `[ ]` | K-030 | F5 | Implementar onSystemTransform (pre-prompt) |
 | `[ ]` | K-031 | F5 | Implementar onCompacting |
