@@ -36,6 +36,11 @@ export class Retrospective {
 	}
 
 	async generate(sessionId: string): Promise<string | null> {
+		const existing = this.store
+			.prepare("SELECT file_path FROM retrospectives WHERE session_id = ?")
+			.get(sessionId) as { file_path?: string } | undefined;
+		if (existing?.file_path) return existing.file_path;
+
 		const counts = this.store
 			.prepare(
 				`SELECT
@@ -85,7 +90,7 @@ export class Retrospective {
 		const id = uuidv7();
 		this.store
 			.prepare(
-				`INSERT INTO retrospectives
+				`INSERT OR IGNORE INTO retrospectives
 				 (id, session_id, ts, failure_count, success_count, lessons_count, file_path, metadata)
 				 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?)`,
 			)

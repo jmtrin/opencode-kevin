@@ -99,12 +99,17 @@ function mapRow(row: MemoryRow, score?: number): Memory {
 }
 
 function sanitizeMatch(text: string): string {
-	const tokens = text
-		.trim()
+	const tokens = stripUnbalancedQuotes(text.trim())
 		.split(/\s+/)
 		.filter((t) => t.length > 0)
 		.map((t) => `"${t.replace(/"/g, '""')}"`);
 	return tokens.join(" ");
+}
+
+function stripUnbalancedQuotes(s: string): string {
+	const count = (s.match(/"/g) ?? []).length;
+	if (count % 2 === 0) return s;
+	return s.replace(/"/g, "");
 }
 
 function isNotSearchable(mem: Memory): boolean {
@@ -250,8 +255,7 @@ export class MemoryService {
 	}
 
 	private queryRelevant(text: string, scope: MemoryScope | "all"): Memory[] {
-		const tokens = text
-			.trim()
+		const tokens = stripUnbalancedQuotes(text.trim())
 			.split(/\s+/)
 			.filter((t) => t.length > 0)
 			.map((t) => `"${t.replace(/"/g, '""')}"`);

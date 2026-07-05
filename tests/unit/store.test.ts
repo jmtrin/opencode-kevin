@@ -76,8 +76,12 @@ describe("Store", () => {
 		store.close();
 	});
 
-	it("close can be called without error", () => {
+	it("close is idempotent and blocks further operations", () => {
 		const store = new Store({ path: ":memory:" });
+		store.close();
 		expect(() => store.close()).not.toThrow();
+		expect(() => store.prepare("SELECT 1")).toThrow(/closed/i);
+		expect(() => store.exec("SELECT 1")).toThrow(/closed/i);
+		expect(() => store.transaction(() => 1)).toThrow(/closed/i);
 	});
 });

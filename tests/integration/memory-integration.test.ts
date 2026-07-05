@@ -238,4 +238,25 @@ describe("MemoryService integration", () => {
 		expect(rec.length).toBe(1);
 		expect(rec[0].type).toBe("error");
 	});
+
+	it("query con un double-quote suelto no crashea FTS5 (F#30)", () => {
+		memories.save({
+			type: "error",
+			content: "typecheck error in auth.ts",
+			scope: "project",
+		});
+		const results = memories.query({ text: '"' });
+		expect(Array.isArray(results)).toBe(true);
+		expect(results.length).toBe(0);
+	});
+
+	it("query con frase con comillas balanceadas funciona (F#30)", () => {
+		memories.save({
+			type: "error",
+			content: 'error "cannot find module" in build',
+			scope: "project",
+		});
+		const results = memories.query({ text: '"cannot find module"' });
+		expect(results.length).toBeGreaterThanOrEqual(1);
+	});
 });

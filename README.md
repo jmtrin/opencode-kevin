@@ -1,22 +1,22 @@
 # Kevin
 
-> Observa y aprende: la capa de aprendizaje que OpenCode no tiene.
+> Observe and learn: the learning layer OpenCode was missing.
 
-Kevin es un plugin de [OpenCode](https://opencode.ai) que **observa** cada tool call del agente, **aprende** de sus fallos generando lecciones, y **comparte** proactivamente lo aprendido en futuras sesiones. No planifica, no orquesta, no compite con el ecosistema de plugins. Solo aprende.
+Kevin is an [OpenCode](https://opencode.ai) plugin that **observes** every agent tool call, **learns** from failures by generating lessons, and **shares** what it learned proactively in future sessions. It does not plan, orchestrate, or compete with the plugin ecosystem. It only learns.
 
-- **Local-first**: memoria en SQLite + FTS5, sin servicios externos.
-- **Sin red**: todo vive en `.kevin/kevin.db` dentro de tu proyecto.
-- **Standalone**: funciona sin ningún otro plugin. Con el ecosistema, aprende más rico.
+- **Local-first**: memory in SQLite + FTS5, no external services.
+- **No network**: everything lives in `.kevin/kevin.db` inside your project.
+- **Standalone**: works without any other plugin. With the ecosystem, it learns more richly.
 
 ---
 
-## Instalación
+## Installation
 
 ```bash
 npm install kevin
 ```
 
-Habilita Kevin en tu config de OpenCode:
+Enable Kevin in your OpenCode config:
 
 ```jsonc
 // ~/.config/opencode/opencode.json
@@ -28,26 +28,26 @@ Habilita Kevin en tu config de OpenCode:
 }
 ```
 
-Al iniciar OpenCode, Kevin crea `.kevin/kevin.db` y aplica las migraciones automáticamente.
+When OpenCode starts, Kevin creates `.kevin/kevin.db` and runs migrations automatically.
 
-### Requisitos
+### Requirements
 
 - Node.js >= 20
-- OpenCode con soporte de plugins (`@opencode-ai/plugin` >= 1.17)
+- OpenCode with plugin support (`@opencode-ai/plugin` >= 1.17)
 
-### Verificación
+### Verification
 
 ```bash
 npm run verify
 ```
 
-Comprueba Node, SQLite, migración, save/query del MemoryService, Reflector, ContextInjector y typecheck.
+Checks Node version, SQLite, migration, MemoryService save/query, Reflector, ContextInjector, and TypeScript strict mode.
 
 ---
 
-## Ecosistema (opcional)
+## Ecosystem (optional)
 
-Kevin funciona standalone, pero brilla con el resto del ecosistema de OpenCode. Ninguno es obligatorio:
+Kevin works standalone, but shines with the rest of the OpenCode ecosystem. None are required:
 
 ```jsonc
 {
@@ -56,71 +56,71 @@ Kevin funciona standalone, pero brilla con el resto del ecosistema de OpenCode. 
     "opencode-background-agents",       // Async delegation
     "opencode-scheduler",               // Cron jobs
     "opencode-dynamic-context-pruning", // Context pruning (DCP)
-    "kevin"                             // Capa de aprendizaje
+    "kevin"                             // Learning layer
   ]
 }
 ```
 
-| Plugin | Rol | Sinergia con Kevin |
+| Plugin | Role | Synergy with Kevin |
 |---|---|---|
-| `opencode-conductor` | Orquesta Tracks autónomos | Más tool calls → más fallos de los que aprender |
-| `opencode-background-agents` | Delegación async | Kevin observa work en background |
-| `opencode-scheduler` | Cron jobs | Kevin aprende de jobs recurrentes |
-| `opencode-dynamic-context-pruning` (DCP) | Poda tool outputs stale | DCP libera espacio → Kevin lo ocupa con lecciones útiles |
+| `opencode-conductor` | Orchestrates autonomous tracks | More tool calls → more failures to learn from |
+| `opencode-background-agents` | Async delegation | Kevin observes background work |
+| `opencode-scheduler` | Cron jobs | Kevin learns from recurring jobs |
+| `opencode-dynamic-context-pruning` (DCP) | Prunes stale tool outputs | DCP frees space → Kevin fills it with useful lessons |
 
-DCP y Kevin son complementarios: DCP poda lo stale, Kevin inyecta lo aprendido.
+DCP and Kevin are complementary: DCP prunes stale content, Kevin injects learned lessons.
 
 ---
 
-## Ciclo: Observa → Aprende → Comparte
+## Cycle: Observe → Learn → Share
 
 ```
-  Tool call (éxito o fallo)
+  Tool call (success or failure)
          │
          ▼
   ┌─────────────────┐
-  │   OBSERVA        │  ToolCallObserver registra cada llamada
+  │   OBSERVE        │  ToolCallObserver records every call
   │  ToolCallObserver│  (tool, args redacted, success, duration, error_type)
   └────────┬────────┘
-           │ si fallo
+           │ on failure
            ▼
   ┌─────────────────┐
-  │   APRENDE        │  Reflector genera una lección heurística
-  │   Reflector      │  redacta paths/secrets, throttled 1/min,
-  └────────┬────────┘  persiste memoria type:error
+  │   LEARN          │  Reflector generates a heuristic lesson
+  │   Reflector      │  redacts paths/secrets, throttled 1/min,
+  └────────┬────────┘  persists type:error memory
            │
            ▼
   ┌─────────────────┐
-  │   COMPARTE       │  ContextInjector inyecta lecciones relevantes
-  │ ContextInjector  │  pre-prompt (1500 tokens) y al compactar (2000 tokens)
+  │   SHARE          │  ContextInjector injects relevant lessons
+  │ ContextInjector  │  pre-prompt (1500 tokens) and on compacting (2000 tokens)
   └────────┬────────┘
            │ session.idle
            ▼
   ┌─────────────────┐
-  │  RETROSPECTIVE   │  Retrospective genera .kevin/retrospectives/<session>.md
-  └─────────────────┘  con resumen de fallos y lecciones de la sesión
+  │  RETROSPECTIVE   │  Retrospective generates .kevin/retrospectives/<session>.md
+  └─────────────────┘  with summary of failures and lessons
 ```
 
 ---
 
 ## Tools
 
-Kevin expone 5 tools invocables por el agente:
+Kevin exposes 5 tools callable by the agent:
 
 ### `kevin_save`
 
-Guarda una memoria explícita.
+Saves an explicit memory.
 
 ```
-kevin_save({ type: "decision", content: "Usamos vitest para tests", scope: "project" })
+kevin_save({ type: "decision", content: "We use vitest for tests", scope: "project" })
 // → { "id": "0195a3b2-..." }
 ```
 
-`type`: `error` | `pattern` | `decision` | `context`. `scope`: `project` (persiste) | `session` (TTL 24h).
+`type`: `error` | `pattern` | `decision` | `context`. `scope`: `project` (persists) | `session` (TTL 24h).
 
 ### `kevin_query`
 
-Busca memorias por texto (FTS5 + bm25).
+Searches memories by text (FTS5 + bm25).
 
 ```
 kevin_query({ query: "typecheck", type: "error", limit: 5 })
@@ -129,7 +129,7 @@ kevin_query({ query: "typecheck", type: "error", limit: 5 })
 
 ### `kevin_recall`
 
-Recupera memorias relevantes (greedy fill por relevancia). Sin `query`, retorna todas del scope.
+Retrieves relevant memories (greedy fill by relevance). Without `query`, returns all memories in scope.
 
 ```
 kevin_recall({ query: "auth", limit: 3 })
@@ -138,7 +138,7 @@ kevin_recall({ query: "auth", limit: 3 })
 
 ### `kevin_status`
 
-Conteos globales.
+Global counts.
 
 ```
 kevin_status({})
@@ -147,47 +147,47 @@ kevin_status({})
 
 ### `kevin_retrospective`
 
-Genera una retrospectiva de la sesión (usa la sesión actual si se omite `session_id`).
+Generates a retrospective for a session (uses current session if `session_id` is omitted).
 
 ```
 kevin_retrospective({ session_id: "sess-abc" })
 // → { "file_path": ".kevin/retrospectives/sess-abc.md" }
-// o → { "message": "No hubo fallos en la sesión sess-abc." }
+// or → { "message": "No failures in session sess-abc." }
 ```
 
 ---
 
 ## Hooks
 
-Kevin se suscribe a 6 hooks de OpenCode:
+Kevin subscribes to 6 OpenCode hooks:
 
-| Hook | Qué hace Kevin |
+| Hook | What Kevin does |
 |---|---|
-| `tool.execute.before` | Registra el inicio del tool call (callID + args redacted) |
-| `tool.execute.after` | Registra resultado; si fallo → Reflector.invoke asíncrono (throttled) |
-| `experimental.chat.system.transform` | Inyecta lecciones relevantes en `<kevin-context>` (1500 tokens) |
-| `experimental.session.compacting` | Reinyecta lecciones en `<kevin-memory>` tras compactar (2000 tokens) |
-| `event` (`session.created`) | Captura el `sessionID` actual |
-| `event` (`session.idle`) | Genera retrospective.md de la sesión |
+| `tool.execute.before` | Records tool call start (callID + redacted args) |
+| `tool.execute.after` | Records result; on failure → Reflector.invoke async (throttled) |
+| `experimental.chat.system.transform` | Injects relevant lessons in `<kevin-context>` (1500 tokens) |
+| `experimental.session.compacting` | Re-injects lessons in `<kevin-memory>` after compacting (2000 tokens) |
+| `event` (`session.created`) | Captures current `sessionID` |
+| `event` (`session.idle`) | Generates retrospective.md for the session |
 
-**Redacción**: paths absolutos (`C:\Users\...`, `/home/...`) → `<path>` y secrets (`API_KEY=`, `Bearer`, `token`) → `<redacted>` antes de persistir nada.
+**Redaction**: absolute paths (`C:\Users\...`, `/home/...`) → `<path>` and secrets (`API_KEY=`, `Bearer`, `token`) → `<redacted>` before persisting anything.
 
-**Throttle**: Reflector genera máximo 1 lección por minuto (configurable vía `throttleMs`).
+**Throttle**: Reflector generates at most 1 lesson per minute (configurable via `throttleMs`).
 
-**Truncado**: contenidos > 4KB conservan la lección searchable; solo el contexto adicional se trunca (`metadata.truncated = true`).
+**Truncation**: content > 4KB keeps the lesson searchable; only the additional context is truncated (`metadata.truncated = true`).
 
 ---
 
-## Configuración
+## Configuration
 
-Kevin acepta opciones vía el segundo argumento del plugin (avanzado):
+Kevin accepts options via the plugin's second argument (advanced):
 
 ```ts
 import { KevinPlugin } from "kevin";
 
 // defaults
 KevinPlugin(input, {
-  dbPath: ".kevin/kevin.db",     // o ":memory:" para tests
+  dbPath: ".kevin/kevin.db",     // or ":memory:" for tests
   migrationsDir: "./migrations",
   retrospectivesDir: ".kevin/retrospectives",
   throttleMs: 60_000,
@@ -196,7 +196,7 @@ KevinPlugin(input, {
 
 ---
 
-## Desarrollo
+## Development
 
 ```bash
 git clone <repo> && cd kevin
@@ -204,21 +204,21 @@ npm install
 npm run typecheck   # tsc --noEmit (strict)
 npm run lint        # biome check .
 npm test            # vitest run (unit + integration + e2e)
-npm run verify      # verificación post-install
+npm run verify      # post-install verification
 ```
 
-### Estructura
+### Structure
 
 ```
 plugin/
   index.ts              # Entry point: KevinPlugin
   Store.ts              # Wrapper better-sqlite3 (WAL, FK, transactions)
-  Migrate.ts            # Migraciones idempotentes
+  Migrate.ts            # Idempotent migrations
   MemoryService.ts      # save/query/getRelevant (FTS5 + bm25)
   ToolCallObserver.ts   # onBefore/onAfter + redact + inferErrorType
-  Reflector.ts          # Lecciones heurísticas + throttle + truncado
-  ContextInjector.ts    # deriveQuery + inyección pre-prompt/compacting
-  Retrospective.ts      # Genera retrospective.md + insert en tabla
+  Reflector.ts          # Heuristic lessons + throttle + truncation
+  ContextInjector.ts    # deriveQuery + pre-prompt/compacting injection
+  Retrospective.ts      # Generates retrospective.md + table insert
 migrations/
   001_initial.sql       # schema: memories, tool_calls, retrospectives
 tests/{unit,integration,e2e}/
@@ -242,6 +242,6 @@ scripts/
 
 ---
 
-## Licencia
+## License
 
 MIT

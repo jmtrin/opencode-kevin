@@ -140,6 +140,16 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		expect(lesson?.content.includes("C:\\Users")).toBe(false);
 		expect(lesson?.content.includes("<path>")).toBe(true);
 
+		await hooks["chat.message"]?.(
+			{ sessionID: sess },
+			{
+				message: {} as never,
+				parts: [
+					{ type: "text", text: "how do I fix the typecheck error?" },
+				] as never,
+			},
+		);
+
 		const sysOutput = { system: [] as string[] };
 		await hooks["experimental.chat.system.transform"]?.(
 			{ sessionID: sess, model: { provider: "x", id: "y" } as never },
@@ -267,5 +277,132 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 			sysOutput,
 		);
 		expect(sysOutput.system.length).toBe(0);
+	});
+
+	it("event session.next.tool.failed dispara reflection via toolCache cuando metadata del tool no marca fallo", async () => {
+		const sess = "event-fail-sess";
+
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ev-fail" },
+			{ args: { command: "npm run typecheck" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "ev-fail",
+				args: { command: "npm run typecheck" },
+			},
+			{
+				title: "bash",
+				output: "command finished",
+				metadata: {},
+			},
+		);
+		expect((await queryMemories(sess, "typecheck")).length).toBe(0);
+
+		await hooks.event?.({
+			event: {
+				type: "session.next.tool.failed",
+				properties: {
+					sessionID: sess,
+					callID: "ev-fail",
+					error: {
+						type: "unknown",
+						message: "error TS2304: Cannot find name 'foo'",
+					},
+				},
+			} as never,
+		});
+
+		await waitForAsync(async () => {
+			const mems = await queryMemories(sess, "typecheck");
+			return mems.some((m) => m.content.includes("Verify types and imports"));
+		});
+
+		const mems = await queryMemories(sess, "typecheck");
+		const lesson = mems.find((m) =>
+			m.content.includes("Verify types and imports"),
+		);
+		expect(lesson).toBeDefined();
+		expect(lesson?.content).toContain("When bash fails with typecheck");
+		expect(lesson?.content).toContain("TS2304: Cannot find name 'foo'");
+	});
+
+	it("event session.next.tool.success limpia toolCache sin disparar reflection", async () => {
+		const sess = "event-success-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ev-ok" },
+			{ args: { command: "echo hi" } },
+		);
+		await hooks.event?.({
+			event: {
+				type: "session.next.tool.success",
+				properties: { sessionID: sess, callID: "ev-ok" },
+			} as never,
+		});
+		await waitForAsync(
+			async () => (await queryMemories(sess, "echo")).length === 0,
+			200,
+		);
+		expect((await queryMemories(sess, "echo")).length).toBe(0);
+	});
+
+	it("chat.message con solo stop-words NO dispara bucket statico (lastUserQuery=null)", async () => {
+		const sess = "stop-words-sess";
+		const ctx = makeCtx(sess);
+
+		await hooks.tool?.kevin_save.execute(
+			{
+				type: "context",
+				content: "typecheck authentication routing completely unrelated xyz",
+				scope: "project",
+			},
+			ctx,
+		);
+
+		await hooks["chat.message"]?.(
+			{ sessionID: sess },
+			{
+				message: {} as never,
+				parts: [{ type: "text", text: "the the the how what why" }] as never,
+			},
+		);
+
+		const sysOutput = { system: [] as string[] };
+		await hooks["experimental.chat.system.transform"]?.(
+			{ sessionID: sess, model: { provider: "x", id: "y" } as never },
+			sysOutput,
+		);
+		expect(sysOutput.system.length).toBe(0);
+	});
+
+	it("heuristica F#28: stdout menciona error pero stderr vacio → success=true, no reflection", async () => {
+		const sess = "stderr-empty-sess";
+		const ctx = makeCtx(sess);
+
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ok-only" },
+			{ args: { command: "npm run build" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "ok-only",
+				args: { command: "npm run build" },
+			},
+			{
+				title: "bash",
+				output: "Build succeeded. Note: avoid panic in error paths.",
+				metadata: {},
+			},
+		);
+
+		await waitForAsync(
+			async () => (await queryMemories(sess, "panic")).length === 0,
+			200,
+		);
+		expect((await queryMemories(sess, "panic")).length).toBe(0);
 	});
 });

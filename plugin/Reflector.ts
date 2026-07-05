@@ -1,4 +1,5 @@
 import type { MemoryService } from "./MemoryService.js";
+import { redactPaths as redactPathsText } from "./redact.js";
 
 export interface ReflectionInput {
 	toolName: string;
@@ -46,10 +47,7 @@ const SECRET_PATTERNS: RegExp[] = [
 
 const SECRET_VALUE_PATTERN = /\s*=\s*\S+(.*)$/;
 
-const PATH_PATTERNS: RegExp[] = [
-	/[a-z]:\\[^\s"'<>|*?:]+/gi,
-	/\/(?:home|users|var|tmp|opt|etc|root|usr|app|work|workspace|code|repo|project|src|build|dist|packages|services|api|web|client|server|lib|node_modules)(?:\/[^\s"'<>|*?:]+)*/gi,
-];
+const PATH_PATTERNS_DEPRECATED = null;
 
 export class Reflector {
 	private lastReflectionTs = 0;
@@ -125,11 +123,7 @@ export class Reflector {
 	}
 
 	redactPaths(text: string): string {
-		let out = text;
-		for (const pat of PATH_PATTERNS) {
-			out = out.replace(pat, "<path>");
-		}
-		return out;
+		return redactPathsText(text);
 	}
 
 	redactSecrets(text: string): string {

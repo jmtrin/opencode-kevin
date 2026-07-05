@@ -133,4 +133,28 @@ describe("e2e — session with failures → retrospective.md", () => {
 		const result = await retrospective.generate("empty-session");
 		expect(result).toBeNull();
 	});
+
+	it("is idempotent: second generate returns same path without inserting a duplicate row", async () => {
+		callTool("write", { path: "/c.ts" }, false, {
+			stderr: "error TS2304: Cannot find name 'foo'",
+			exitCode: 1,
+		});
+		memories.save({
+			type: "error",
+			content: "When write fails with typecheck: TS2304",
+			scope: "project",
+			sourceSession: SESSION_ID,
+		});
+
+		const first = await retrospective.generate(SESSION_ID);
+		expect(first).not.toBeNull();
+
+		const second = await retrospective.generate(SESSION_ID);
+		expect(second).toBe(first);
+
+		const rows = store
+			.prepare("SELECT * FROM retrospectives WHERE session_id = ?")
+			.all(SESSION_ID);
+		expect(rows.length).toBe(1);
+	});
 });

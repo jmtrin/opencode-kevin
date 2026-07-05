@@ -59,12 +59,49 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	let currentSessionId: string | null = null;
 	let lastUserQuery: string | null = null;
 	const pending = new Set<Promise<unknown>>();
+	const toolCache = new Map<string, { tool: string; argsSummary: string }>();
+	const TOOL_CACHE_MAX = 500;
 	function fireAndForget(p: Promise<unknown>): void {
 		const tracked = p.catch(() => {});
 		pending.add(tracked);
 		tracked.finally(() => {
 			pending.delete(tracked);
 		});
+	}
+	function rememberToolCall(
+		callID: string,
+		tool: string,
+		args: Record<string, unknown> | undefined,
+	): void {
+		if (toolCache.size >= TOOL_CACHE_MAX) {
+			const oldest = toolCache.keys().next().value;
+			if (oldest) toolCache.delete(oldest);
+		}
+		toolCache.set(callID, {
+			tool,
+			argsSummary: observer.summarizeArgs(args ?? {}),
+		});
+	}
+	function handleToolFailed(
+		callID: string,
+		sessionID: string,
+		errorMessage: string,
+	): void {
+		const cached = toolCache.get(callID);
+		toolCache.delete(callID);
+		if (!cached) return;
+		const errorType = observer.inferErrorType(errorMessage, "", undefined);
+		fireAndForget(
+			reflector.invoke({
+				toolName: cached.tool,
+				argsSummary: cached.argsSummary,
+				stderr: errorMessage,
+				stdout: "",
+				exitCode: undefined,
+				errorType,
+				sessionId: sessionID,
+			}),
+		);
 	}
 
 	return {
@@ -131,11 +168,16 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				args: {
 					query: tool.schema.string().optional(),
 					limit: tool.schema.number().int().positive().default(5),
+					scope: tool.schema
+						.enum(["project", "session", "all"])
+						.optional()
+						.describe("project | session | all (default all)"),
 				},
 				async execute(args) {
 					const memories = memoryService.getRelevant({
 						query: args.query,
 						maxTokens: args.limit * 500,
+						scope: args.scope ?? "all",
 					});
 					return {
 						title: "Memorias relevantes",
@@ -209,6 +251,11 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		},
 
 		"tool.execute.before": async (hookInput, output) => {
+			rememberToolCall(
+				hookInput.callID,
+				hookInput.tool,
+				output.args as Record<string, unknown> | undefined,
+			);
 			observer.onBefore(
 				{
 					tool: hookInput.tool,
@@ -231,8 +278,8 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			} else if (typeof meta.exitCode === "number" && meta.exitCode !== 0) {
 				success = false;
 			} else {
-				const combined = `${outputText}\n${String(meta.stderr ?? "")}`;
-				success = !ERROR_LINE_RE.test(combined);
+				const stderr = String(meta.stderr ?? "");
+				success = !(stderr.length > 0 && ERROR_LINE_RE.test(stderr));
 			}
 			const stderr = String(meta.stderr ?? "");
 			const stdout = String(meta.stdout ?? outputText);
@@ -272,13 +319,15 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				.map((p) => p.text ?? "")
 				.join(" ");
 			if (text.trim()) {
-				lastUserQuery = injector.deriveQuery([{ role: "user", content: text }]);
+				const derived = injector.deriveQuery([{ role: "user", content: text }]);
+				lastUserQuery = derived.length > 0 ? derived : null;
 			}
 		},
 
 		"experimental.chat.system.transform": async (_hookInput, output) => {
+			if (!lastUserQuery) return;
 			const memories = memoryService.getRelevant({
-				query: lastUserQuery ?? undefined,
+				query: lastUserQuery,
 				maxTokens: SYSTEM_TRANSFORM_TOKENS,
 				scope: "project",
 			});
@@ -287,8 +336,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		},
 
 		"experimental.session.compacting": async (_hookInput, output) => {
+			const query = lastUserQuery;
+			if (!query) return;
 			const memories = memoryService.getRelevant({
-				query: lastUserQuery ?? undefined,
+				query,
 				maxTokens: COMPACTING_TOKENS,
 				scope: "project",
 			});
@@ -297,12 +348,28 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		},
 
 		event: async ({ event }) => {
-			if (event.type === "session.created") {
-				const info = (event.properties as { info?: { id?: string } }).info;
+			const type = (event as { type?: string }).type;
+			const props =
+				(event as { properties?: Record<string, unknown> }).properties ?? {};
+			if (type === "session.created") {
+				const info = props.info as { id?: string } | undefined;
 				if (info?.id) currentSessionId = info.id;
-			} else if (event.type === "session.idle") {
-				const sid = (event.properties as { sessionID?: string }).sessionID;
-				if (sid) fireAndForget(retrospective.generate(sid));
+			} else if (type === "session.idle") {
+				const sid = props.sessionID as string | undefined;
+				if (sid) {
+					toolCache.clear();
+					fireAndForget(retrospective.generate(sid));
+				}
+			} else if (type === "session.next.tool.failed") {
+				const callID = props.callID as string | undefined;
+				const sessionID = props.sessionID as string | undefined;
+				const error = props.error as { message?: string } | undefined;
+				if (callID && sessionID && error?.message) {
+					handleToolFailed(callID, sessionID, error.message);
+				}
+			} else if (type === "session.next.tool.success") {
+				const callID = props.callID as string | undefined;
+				if (callID) toolCache.delete(callID);
 			}
 		},
 

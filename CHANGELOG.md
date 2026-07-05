@@ -1,58 +1,76 @@
 # Changelog
 
-Todos los cambios notables de Kevin se documentan aquí.
+All notable changes to Kevin are documented here.
 
-El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.1] — 2026-07-02
 
-Hardening post-release: corrige los tres fallos críticos que impedían que Kevin aportara valor real (detección de fallos, inyección context-aware, uso de bm25) más 13 mejoras de robustez y privacidad.
+Post-release hardening: fixes the three critical issues that prevented Kevin from delivering real value (failure detection, context-aware injection, bm25 usage) plus 13 robustness and privacy improvements.
 
-### Corregido
+### Fixed
 
-- **F#1 — Detección de fallos robusta**: `tool.execute.after` ya no depende solo de `metadata.success`/`exitCode` (que los tools estándar no pueblan). Ahora aplica heurística sobre `output.output` + `stderr` con `ERROR_LINE_RE` para detectar fallos cuando el tool no marca `success` explícitamente. Kevin deja de ser "sordo" a los fallos.
-- **F#2 — Inyección context-aware**: nuevo hook `chat.message` extrae el texto del último mensaje del usuario (`deriveQuery` revive en producción) y lo pasa a `getRelevant` en `system.transform`/`compacting`. Las lecciones inyectadas ahora matchean el contexto actual, no un bucket estático.
-- **F#3 — bm25 respetado**: `getRelevant` usa stable sort por `TYPE_PRIORITY` preservando el orden bm25 de FTS5 dentro de cada tipo (antes re-ordenaba por `relevance_score` estático, ignorando el score bm25 computado).
-- **F#4 — `relevance_score` vivo**: bump de +0.05 (cap 1.0) al inyectar una memoria. La columna deja de ser ficción.
-- **F#5 — `redactPaths` ampliado**: whitelist Unix ampliada con `app|work|workspace|code|repo|project|src|build|dist|packages|services|api|web|client|server|lib|node_modules` (antes missing → privacy hole).
-- **F#6 — `dispose` graceful**: track de pending promises (`Set<Promise>`); `dispose` hace `await Promise.allSettled([...pending])` antes de `store.close()`. No más DB cerrada con writes en vuelo.
-- **F#7 — Lección siempre searchable**: contenidos >4KB ya NO se marcan `not_searchable`. La lección (~150-650 chars) se mantiene en `content`; solo el contexto adicional se trunca (`metadata.truncated = true`).
-- **F#8 — `inferErrorType` honesto**: timeout detecta `exitCode===124` y patrones `timed out|ETIMEDOUT|killed|SIGTERM|SIGKILL` antes del fallback.
-- **F#9 — `extractFirstErrorLine` específico**: regex `\b(error|failed|fail|cannot find|cannot resolve|TS\d{4,}|exception|traceback|panic|fatal|...)\b` (antes `/error|Error|FAIL/i` demasiado broad).
-- **F#12 — `kevin_save` completo**: acepta `metadata`, `relevanceScore`, `sourceTool`, `sourceSession` opcionales.
-- **F#13 — `save` sin interpolación**: TTL de session scope ahora es parámetro bound (`?`), no interpolación en SQL.
-- **F#15 — `STOP_WORDS` sin duplicado**: quitado "were" duplicado.
-- **F#16 — `uuidv7` con crypto**: usa `node:crypto.randomBytes` en vez de `Math.random()`.
+- **F#1 — Robust failure detection (hybrid)**: three complementary mechanisms: (1) `tool.execute.after` uses `metadata.success`/`exitCode` when present, plus `ERROR_LINE_RE` heuristic on `output.output`+`stderr` (fallback), (2) **NEW**: `event` hook listens to `session.next.tool.failed` (from SDK, with `error.message`) — when `tool.execute.after` missed the failure (free metadata with no populated success/exitCode), this event catches it definitively via `toolCache` lookup populated in `tool.execute.before`. (3) `session.next.tool.success` releases the cache. `toolCache` (Map<callID, {tool, argsSummary}>) with `TOOL_CACHE_MAX=500` and FIFO eviction. Internal Reflector throttle prevents duplicate lessons. Kevin is no longer deaf to failures.
+- **F#2 — Context-aware injection**: new `chat.message` hook extracts the last user message text (`deriveQuery` revived in production) and passes it to `getRelevant` in `system.transform`/`compacting`. Injected lessons now match the current context, not a static bucket.
+- **F#3 — bm25 respected**: `getRelevant` uses stable sort by `TYPE_PRIORITY` preserving the bm25 FTS5 order within each type (previously re-sorted by static `relevance_score`, ignoring the computed bm25 score).
+- **F#4 — `relevance_score` alive**: +0.05 bump (cap 1.0) when injecting a memory. The column is no longer fiction.
+- **F#5 — `redactPaths` expanded**: Unix whitelist expanded with `app|work|workspace|code|repo|project|src|build|dist|packages|services|api|web|client|server|lib|node_modules` (previously missing → privacy hole).
+- **F#6 — Graceful `dispose`**: tracks pending promises (`Set<Promise>`); `dispose` does `await Promise.allSettled([...pending])` before `store.close()`. No more DB closed with writes in flight.
+- **F#7 — Lesson always searchable**: content >4KB is NO longer marked `not_searchable`. The lesson (~150-650 chars) stays in `content`; only the additional context is truncated (`metadata.truncated = true`).
+- **F#8 — Honest `inferErrorType`**: timeout detects `exitCode===124` and patterns `timed out|ETIMEDOUT|killed|SIGTERM|SIGKILL` before the fallback.
+- **F#9 — Specific `extractFirstErrorLine`**: regex `\b(error|failed|fail|cannot find|cannot resolve|TS\d{4,}|exception|traceback|panic|fatal|...)\b` (previously `/error|Error|FAIL/i` too broad).
+- **F#12 — Complete `kevin_save`**: accepts optional `metadata`, `relevanceScore`, `sourceTool`, `sourceSession`.
+- **F#13 — `save` without interpolation**: session scope TTL is now a bound parameter (`?`), no SQL interpolation.
+- **F#15 — `STOP_WORDS` no duplicates**: removed duplicate "were".
+- **F#16 — `uuidv7` with crypto**: uses `node:crypto.randomBytes` instead of `Math.random()`.
+- **F#21 — Strict context-aware injection**: `system.transform`/`compacting` NO longer inject when there's no `lastUserQuery` (previously fell back to `loadAll` = static bucket). If `deriveQuery` returns `""` (only stop words), `lastUserQuery` resets to `null`. Behavior now consistent with `ContextInjector.onSystemTransform`.
+- **F#23 — Idempotent `Retrospective.generate`**: if a retrospective already exists for the session, returns the existing `file_path` without regenerating or inserting duplicates (previously a duplicate `session.idle` would create 2 rows and overwrite the file).
+- **F#25 — Defensive `Store.close()``: `closed` flag prevents double `db.close()` (which would throw "Database is closed" on abrupt shutdown); `prepare`/`transaction`/`exec` throw a clear error if called after `close()`.
+- **F#26 — Recursive redaction**: `redactValue` in `ToolCallObserver` recurses into nested objects/arrays applying `redactPaths` and `redactSecrets`, including paths/keys with secrets inside `env`/`config` blocks. Centralized in `plugin/redact.ts`.
+- **F#27 — `kevin_recall` scope**: exposes `scope?: 'project'|'session'|'all'` (default `'all'`). Session memories no longer inaccessible.
+- **F#28 — Heuristic stderr-only**: `ERROR_LINE_RE` only evaluated against `stderr` (not `stdout`). Default success=true if stderr is empty. No more false positives from prose mentioning 'panic'/'exception'.
+- **F#29 — Migration 002**: `CREATE UNIQUE INDEX` on `retrospectives(session_id)` + `INSERT OR IGNORE` in `Retrospective.generate`. Index on `memories(expires_at)`.
+- **F#30 — Safe FTS5 with quotes**: `stripUnbalancedQuotes` in `sanitizeMatch` prevents FTS5 crash on lone `"`.
 
-### Añadido
+### Added
 
-- Hook `chat.message` (context-aware injection).
-- Tests context-aware (plugin-complete +2): verifica que `chat.message` → `system.transform` inyecta SOLO lecciones relevantes y NO unrelated.
-- `waitForAsync` reemplaza `flush()` flaky en tests e2e (polling 5ms hasta 1000ms).
-- `ERROR_LINE_RE` exportado de `Reflector` para reutilización en `index.ts`.
+- `chat.message` hook (context-aware injection).
+- `event` hook listens to `session.next.tool.failed`/`session.next.tool.success` (event-driven failure detection via `toolCache` Map).
+- `toolCache` Map<callID, {tool, argsSummary}> with FIFO eviction (TOOL_CACHE_MAX=500), populated in `tool.execute.before`, consumed in `event session.next.tool.failed`.
+- `plugin/redact.ts`: centralized `redactPaths` helper.
+- `migrations/002_indexes.sql`: UNIQUE index on `retrospectives.session_id`, index on `memories.expires_at`.
+- Context-aware tests (plugin-complete +3): `chat.message` → `system.transform` injects ONLY relevant; unrelated query does not inject; stop-words-only does not trigger bucket.
+- Event-driven tests (plugin-complete +2): `session.next.tool.failed` triggers reflection via toolCache; `session.next.tool.success` clears cache.
+- Idempotency test (retrospective +1): second call returns same path, 0 duplicates.
+- `waitForAsync` replaces flaky `flush()` in e2e tests (polling 5ms up to 1000ms).
+- `ERROR_LINE_RE` exported from `Reflector` for reuse in `index.ts`.
+- Nested redaction tests (tool-call-observer +2): object args with paths/secrets, array args with paths.
+- `kevin_recall` scope tests (plugin-tools +1): `scope=session` returns only session memories.
+- Heuristic tests (plugin-complete +1): stdout mentions 'panic' but stderr empty → success=true.
+- Sanitize quote tests (memory-integration +2): lone `"` doesn't crash FTS5; balanced quotes pass through.
 
 ## [0.1.0] — 2026-07-02
 
-Primera versión pública. Plugin de OpenCode con paradigma "Observa y aprende".
+First public release. OpenCode plugin with the "Observe and learn" paradigm.
 
-### Añadido
+### Added
 
-- **Plugin Kevin**: entry point `KevinPlugin` (`plugin/index.ts`) que inicializa Store, aplica migraciones y orquesta los 5 componentes.
-- **Store** (`plugin/Store.ts`): wrapper sobre better-sqlite3 con WAL, foreign keys ON, transacciones y `prepare`/`exec`/`close`/`raw`.
-- **Migrate** (`plugin/Migrate.ts`): migraciones idempotentes que aplican `.sql` pendientes en una transacción.
-- **MemoryService** (`plugin/MemoryService.ts`): `save`/`getById`/`update`/`delete`/`query` (FTS5 con bm25) y `getRelevant` (greedy fill por presupuesto de tokens, FTS5 OR para relevancia). Filtrado de memorias `not_searchable` en `query`/`getRelevant`.
-- **ToolCallObserver** (`plugin/ToolCallObserver.ts`): `onBefore`/`onAfter` registran tool calls en la tabla `tool_calls`; `redactSecrets`, `summarizeArgs` e `inferErrorType` públicos. Soporte de `callID` como clave primaria de matching.
-- **Reflector** (`plugin/Reflector.ts`): genera lecciones heurísticas tras fallos con `generateHeuristicLesson` (templates por error_type), `redactPaths` (Windows/Unix, preserva `:line`), `redactSecrets`, throttle configurable (60s default), truncado >4KB con `metadata.not_searchable`.
-- **ContextInjector** (`plugin/ContextInjector.ts`): `deriveQuery` (extrae keywords del último mensaje del usuario, filtra stop words en/es), `onSystemTransform` (1500 tokens, `<kevin-context>`) y `onCompacting` (2000 tokens, `<kevin-memory>`).
-- **Retrospective** (`plugin/Retrospective.ts`): `generate(sessionId)` produce `.kevin/retrospectives/<session>.md` con resumen de fallos y lecciones, e inserta un row en la tabla `retrospectives`.
-- **Schema inicial** (`migrations/001_initial.sql`): tablas `memories` + `memories_fts` (FTS5 unicode61 remove_diacritics), `tool_calls`, `retrospectives` con triggers e índices.
+- **KevinPlugin**: entry point (`plugin/index.ts`) that initializes Store, applies migrations, and orchestrates all 5 components.
+- **Store** (`plugin/Store.ts`): wrapper around better-sqlite3 with WAL, foreign keys ON, transactions, and `prepare`/`exec`/`close`/`raw`.
+- **Migrate** (`plugin/Migrate.ts`): idempotent migrations applying pending `.sql` files in a transaction.
+- **MemoryService** (`plugin/MemoryService.ts`): `save`/`getById`/`update`/`delete`/`query` (FTS5 with bm25) and `getRelevant` (greedy fill by token budget, FTS5 OR for relevance). `not_searchable` memory filtering in `query`/`getRelevant`.
+- **ToolCallObserver** (`plugin/ToolCallObserver.ts`): `onBefore`/`onAfter` record tool calls in the `tool_calls` table; public `redactSecrets`, `summarizeArgs`, and `inferErrorType`. `callID` support as primary match key.
+- **Reflector** (`plugin/Reflector.ts`): generates heuristic lessons after failures with `generateHeuristicLesson` (templates by error_type), `redactPaths` (Windows/Unix, preserves `:line`), `redactSecrets`, configurable throttle (60s default), truncation >4KB with `metadata.not_searchable`.
+- **ContextInjector** (`plugin/ContextInjector.ts`): `deriveQuery` (extracts keywords from last user message, filters stop words in en/es), `onSystemTransform` (1500 tokens, `<kevin-context>`) and `onCompacting` (2000 tokens, `<kevin-memory>`).
+- **Retrospective** (`plugin/Retrospective.ts`): `generate(sessionId)` produces `.kevin/retrospectives/<session>.md` with failure summary and lessons, inserts a row in the `retrospectives` table.
+- **Initial schema** (`migrations/001_initial.sql`): tables `memories` + `memories_fts` (FTS5 unicode61 remove_diacritics), `tool_calls`, `retrospectives` with triggers and indexes.
 - **5 Tools**: `kevin_save`, `kevin_query`, `kevin_recall`, `kevin_status`, `kevin_retrospective` (Zod schemas).
-- **6 Hooks**: `tool.execute.before`, `tool.execute.after` (con reflection asíncrono), `experimental.chat.system.transform`, `experimental.session.compacting`, `event` (`session.created` captura id, `session.idle` genera retrospective).
-- **Script de verificación** (`scripts/verify-install.ts`): 7 checks (Node 20+, SQLite, migración, save/query, Reflector, ContextInjector, typecheck strict).
-- **Suite de tests**: 124 tests (unit + integration + e2e) cubriendo los 5 componentes y el ciclo completo observe → learn → share.
-- **Documentación**: `README.md`, `docs/Kevin_Plan.md`, `docs/Kevin_Task.md`, `docs/Kevin_Token_Impact.md`.
+- **6 Hooks**: `tool.execute.before`, `tool.execute.after` (with async reflection), `experimental.chat.system.transform`, `experimental.session.compacting`, `event` (`session.created` captures id, `session.idle` generates retrospective).
+- **Verification script** (`scripts/verify-install.ts`): 7 checks (Node 20+, SQLite, migration, save/query, Reflector, ContextInjector, strict typecheck).
+- **Test suite**: 124 tests (unit + integration + e2e) covering all 5 components and the complete observe → learn → share cycle.
+- **Documentation**: `README.md`, `docs/Kevin_Plan.md`, `docs/Kevin_Task.md`, `docs/Kevin_Token_Impact.md`.
 
-### Seguridad
+### Security
 
-- Redacción de paths absolutos y secrets antes de persistir cualquier tool call o lección.
-- Contenidos >4KB truncados y marcados `not_searchable` para no inflar búsquedas.
+- Redaction of absolute paths and secrets before persisting any tool call or lesson.
+- Content >4KB truncated and marked `not_searchable` to avoid bloating searches.

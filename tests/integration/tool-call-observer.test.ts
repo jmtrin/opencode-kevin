@@ -260,4 +260,41 @@ describe("ToolCallObserver — integration (before/after hooks)", () => {
 		const row = rowForSession("unknown");
 		expect(row).toBeDefined();
 	});
+
+	it("redacts nested file paths and secrets inside object args (F#26)", () => {
+		const input = {
+			tool: "bash",
+			sessionId: "s7",
+			args: {
+				command: "cat /home/user/secret.ts",
+				env: { API_KEY: "supersecret", NODE_ENV: "prod" },
+			},
+		};
+		observer.onBefore(input, {});
+		observer.onAfter(input, { success: true, exitCode: 0 });
+		const row = rowForSession("s7");
+		const metadata = JSON.parse(row.metadata) as {
+			command: string;
+			env: { API_KEY: string; NODE_ENV: string };
+		};
+		expect(metadata.command).not.toContain("/home/user/secret.ts");
+		expect(metadata.command).toContain("<path>");
+		expect(metadata.env.API_KEY).toBe("<redacted>");
+		expect(metadata.env.NODE_ENV).toBe("prod");
+		expect(row.args_summary).not.toContain("/home/user/secret.ts");
+	});
+
+	it("redacts paths inside array args (F#26)", () => {
+		const input = {
+			tool: "edit",
+			sessionId: "s8",
+			args: { files: ["/var/log/app.log", "/tmp/build/out.ts"] },
+		};
+		observer.onBefore(input, {});
+		observer.onAfter(input, { success: true, exitCode: 0 });
+		const row = rowForSession("s8");
+		const metadata = JSON.parse(row.metadata) as { files: string[] };
+		expect(metadata.files[0]).toBe("<path>");
+		expect(metadata.files[1]).toBe("<path>");
+	});
 });

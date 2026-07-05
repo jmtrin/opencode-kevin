@@ -135,6 +135,36 @@ describe("kevin_recall", () => {
 		expect(parsed.length).toBeGreaterThanOrEqual(1);
 		expect(parsed.some((m) => m.content.includes("retry"))).toBe(true);
 	});
+
+	it("expone scope=session y retorna memorias de session (F#27)", async () => {
+		await hooks.tool?.kevin_save.execute(
+			{
+				type: "decision",
+				content: "decision temporal de sesion:",
+				scope: "session",
+			},
+			ctx,
+		);
+		await hooks.tool?.kevin_save.execute(
+			{
+				type: "decision",
+				content: "decision persistente del proyecto",
+				scope: "project",
+			},
+			ctx,
+		);
+		const result = await hooks.tool?.kevin_recall.execute(
+			{ scope: "session", limit: 5 },
+			ctx,
+		);
+		const parsed = parse(result as { output: string }) as Array<{
+			content: string;
+		}>;
+		expect(parsed.length).toBeGreaterThanOrEqual(1);
+		const allSession = parsed.every((m) => m.content.includes("sesion:"));
+		expect(allSession).toBe(true);
+		expect(parsed.some((m) => m.content.includes("proyecto"))).toBe(false);
+	});
 });
 
 describe("kevin_status", () => {

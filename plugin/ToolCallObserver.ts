@@ -1,4 +1,5 @@
 import type { Store } from "./Store.js";
+import { redactPaths } from "./redact.js";
 import { uuidv7 } from "./uuid.js";
 
 export interface ToolExecuteInput {
@@ -101,13 +102,11 @@ export class ToolCallObserver {
 		const parts: string[] = [];
 		for (const [k, v] of Object.entries(args)) {
 			if (interestingKeys.includes(k)) {
-				parts.push(`${k}: ${this.redactSecrets(String(v))}`);
+				parts.push(`${k}: ${this.redactValue(v)}`);
 			} else if (this.looksSecret(k)) {
 				parts.push(`${k}: <redacted>`);
 			} else {
-				const s = this.redactSecrets(String(v));
-				const truncated = s.length > 200 ? `${s.slice(0, 200)}...` : s;
-				parts.push(`${k}: ${truncated}`);
+				parts.push(`${k}: ${this.redactValue(v, 200)}`);
 			}
 		}
 		let summary = parts.join(", ");
@@ -154,12 +153,36 @@ export class ToolCallObserver {
 		for (const [k, v] of Object.entries(args)) {
 			if (this.looksSecret(k)) {
 				out[k] = "<redacted>";
-			} else if (typeof v === "string") {
-				out[k] = this.redactSecrets(v);
 			} else {
-				out[k] = v;
+				out[k] = this.redactValue(v);
 			}
 		}
 		return out;
+	}
+
+	private redactValue(v: unknown, truncateAt?: number): unknown {
+		if (typeof v === "string") {
+			let s = redactPaths(v);
+			s = this.redactSecrets(s);
+			if (truncateAt !== undefined && s.length > truncateAt) {
+				s = `${s.slice(0, truncateAt)}...`;
+			}
+			return s;
+		}
+		if (Array.isArray(v)) {
+			return v.map((item) => this.redactValue(item));
+		}
+		if (v && typeof v === "object") {
+			const obj: Record<string, unknown> = {};
+			for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+				if (this.looksSecret(k)) {
+					obj[k] = "<redacted>";
+				} else {
+					obj[k] = this.redactValue(val);
+				}
+			}
+			return obj;
+		}
+		return v;
 	}
 }
