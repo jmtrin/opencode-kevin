@@ -1,723 +1,723 @@
-# Kevin — Lista de Tareas v0.1.0
+# Opencode-kevin — Task List v0.1.0
 
-**Versión:** 0.1.0
-**Fecha:** 2026-06-30
-**Estado:** Congelada (Fase 1 iniciada — 2026-07-01)
-**Dependencia:** `docs/Kevin_Plan.md`
-**Convención de IDs:** `K-XXX` (Kevin 0.1.0)
-**Total de tareas:** 45
+**Version:** 0.1.0
+**Date:** 2026-06-30
+**Status:** Frozen (Phase 1 started — 2026-07-01)
+**Dependency:** `docs/Kevin_Plan.md`
+**ID Convention:** `K-XXX` (Kevin 0.1.0)
+**Total tasks:** 45
 
 ---
 
-## Resumen
+## Summary
 
-| Fase | Tareas | Prioridad | Semanas |
+| Phase | Tasks | Priority | Weeks |
 |---|---|---|---|
-| F1 — Foundation | K-001 a K-007 | P0 | 1 |
-| F2 — Memory | K-008 a K-014 | P0 | 2 |
-| F3 — Observation | K-015 a K-020 | P0 | 3 |
-| F4 — Reflection | K-021 a K-028 | P0 | 4 |
+| F1 — Foundation | K-001 to K-007 | P0 | 1 |
+| F2 — Memory | K-008 to K-014 | P0 | 2 |
+| F3 — Observation | K-015 to K-020 | P0 | 3 |
+| F4 — Reflection | K-021 to K-028 | P0 | 4 |
 | F5 — Injection + Retrospective | K-029 to K-036 | P0 | 5 |
 | F6 — Plugin + Release | K-037 to K-045 | P0 | 6 |
 
 ---
 
-## Convenciones
+## Conventions
 
-- **Estimación:** S (≤4h), M (4-16h), L (16-40h).
-- **Dependencias:** IDs de tareas que deben estar completas antes.
-- **Riesgo:** 🟢 bajo · 🟡 medio · 🔴 alto.
-- **Verificación:** comando o acción que confirma que la tarea está bien hecha.
-- **Estado:** `[ ]` pendiente · `[~]` en progreso · `[X]` completada
+- **Estimation:** S (≤4h), M (4-16h), L (16-40h).
+- **Dependencies:** Task IDs that must be completed first.
+- **Risk:** 🟢 low · 🟡 medium · 🔴 high.
+- **Verification:** command or action confirming the task is done correctly.
+- **Status:** `[ ]` pending · `[~]` in progress · `[X]` completed
 
 ---
 
-# Fase 1 — Foundation (semana 1, P0)
+# Phase 1 — Foundation (week 1, P0)
 
-### K-001 — Crear estructura de proyecto y package.json
+### K-001 — Create project structure and package.json
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** —
-- **Riesgo:** 🟢
-- **Archivos:** `package.json`, `tsconfig.json`, `opencode.json`, `AGENTS.md`, `.gitignore`
-- **Descripción:** Inicializar proyecto Node 20+ con TypeScript strict. `package.json` con `name: "kevin"`, `version: "0.1.0"`, `type: "module"`, scripts `build/test/typecheck/lint/format/verify`, deps `@opencode-ai/plugin`, `better-sqlite3`, `zod`, devDeps `@biomejs/biome`, `@types/better-sqlite3`, `@types/node`, `tsx`, `typescript`, `vitest`. `tsconfig.json` con `target: ES2022`, `module: ESNext`, `moduleResolution: bundler`, `strict: true`, `types: ["node"]`. `opencode.json` con `"plugin": ["./plugin/index.ts"]`. `AGENTS.md` con comandos y arquitectura. `.gitignore` con `.kevin/`, `node_modules/`, `dist/`.
-- **Criterios de aceptación:**
-  - `npm install` funciona sin errores.
-  - `npm run typecheck` pasa (sin código aún, solo config).
-  - Estructura de directorios creada: `plugin/`, `migrations/`, `scripts/`, `tests/unit/`, `tests/integration/`, `tests/e2e/`, `docs/`.
-- **Verificación:** `Test-Path package.json` y `npm install` exit 0.
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** —
+- **Risk:** 🟢
+- **Files:** `package.json`, `tsconfig.json`, `opencode.json`, `AGENTS.md`, `.gitignore`
+- **Description:** Initialize Node 20+ project with TypeScript strict. `package.json` with `name: "kevin"`, `version: "0.1.0"`, `type: "module"`, scripts `build/test/typecheck/lint/format/verify`, deps `@opencode-ai/plugin`, `better-sqlite3`, `zod`, devDeps `@biomejs/biome`, `@types/better-sqlite3`, `@types/node`, `tsx`, `typescript`, `vitest`. `tsconfig.json` with `target: ES2022`, `module: ESNext`, `moduleResolution: bundler`, `strict: true`, `types: ["node"]`. `opencode.json` with `"plugin": ["./plugin/index.ts"]`. `AGENTS.md` with commands and architecture. `.gitignore` with `.kevin/`, `node_modules/`, `dist/`.
+- **Acceptance criteria:**
+  - `npm install` works without errors.
+  - `npm run typecheck` passes (no code yet, only config).
+  - Directory structure created: `plugin/`, `migrations/`, `scripts/`, `tests/unit/`, `tests/integration/`, `tests/e2e/`, `docs/`.
+- **Verification:** `Test-Path package.json` and `npm install` exit 0.
 
-### K-002 — Implementar `uuid.ts` (UUID v7)
+### K-002 — Implement `uuid.ts` (UUID v7)
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-001
-- **Riesgo:** 🟢
-- **Archivos:** `plugin/uuid.ts`
-- **Descripción:** Implementar generador UUID v7 (timestamp + random). Formato: `xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx`. Los primeros 48 bits son timestamp Unix en ms, los siguientes 12 bits incluyen version (7), el resto es random. IDs ordenables temporalmente.
-- **Criterios de aceptación:**
-  - `uuidv7()` retorna string de 36 chars con `-` en posiciones 8, 13, 18, 23.
-  - El char en posición 14 es `7` (version).
-  - Dos llamadas consecutivas: el segundo UUID es mayor que el primero (orden temporal).
-  - Tests unitarios pasan.
-- **Verificación:** `npx vitest run tests/unit/uuid.test.ts`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-001
+- **Risk:** 🟢
+- **Files:** `plugin/uuid.ts`
+- **Description:** Implement UUID v7 generator (timestamp + random). Format: `xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx`. First 48 bits are Unix timestamp in ms, next 12 bits include version (7), rest is random. Temporally sortable IDs.
+- **Acceptance criteria:**
+  - `uuidv7()` returns a 36-char string with `-` at positions 8, 13, 18, 23.
+  - The character at position 14 is `7` (version).
+  - Two consecutive calls: the second UUID is greater than the first (temporal order).
+  - Unit tests pass.
+- **Verification:** `npx vitest run tests/unit/uuid.test.ts`
 
-### K-003 — Implementar `Store.ts` (conexión SQLite)
+### K-003 — Implement `Store.ts` (SQLite connection)
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-002
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/Store.ts`
-- **Descripción:** Clase `Store` que abre conexión better-sqlite3. Constructor recibe `{ path: string }`. Configura `journal_mode = WAL` y `foreign_keys = ON`. Expone `prepare(sql)`, `transaction(fn)`, `close()`, `get raw()`.
-- **Criterios de aceptación:**
-  - `new Store({ path: ':memory:' })` funciona sin error.
-  - `store.prepare('SELECT 1 as v').get()` retorna `{ v: 1 }`.
-  - `store.transaction(() => { ... })` ejecuta en transacción.
-  - `store.close()` cierra sin error.
-  - WAL mode activado (verificar con `PRAGMA journal_mode`).
-  - Tests unitarios pasan.
-- **Verificación:** `npx vitest run tests/unit/store.test.ts`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-002
+- **Risk:** 🟡
+- **Files:** `plugin/Store.ts`
+- **Description:** `Store` class that opens a better-sqlite3 connection. Constructor receives `{ path: string }`. Configures `journal_mode = WAL` and `foreign_keys = ON`. Exposes `prepare(sql)`, `transaction(fn)`, `close()`, `get raw()`.
+- **Acceptance criteria:**
+  - `new Store({ path: ':memory:' })` works without error.
+  - `store.prepare('SELECT 1 as v').get()` returns `{ v: 1 }`.
+  - `store.transaction(() => { ... })` executes in a transaction.
+  - `store.close()` closes without error.
+  - WAL mode enabled (verify with `PRAGMA journal_mode`).
+  - Unit tests pass.
+- **Verification:** `npx vitest run tests/unit/store.test.ts`
 
-### K-004 — Implementar `Migrate.ts` (runner de migraciones)
+### K-004 — Implement `Migrate.ts` (migration runner)
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-003
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/Migrate.ts`
-- **Descripción:** Clase `Migrate` que recibe `Store` y `migrationsDir`. Método `run()` lee `schema_version` table, lista archivos `.sql` en `migrationsDir` ordenados alfabéticamente, aplica pendientes en transacción, inserta versión en `schema_version`. Si `schema_version` no existe, la crea. Idempotente.
-- **Criterios de aceptación:**
-  - `Migrate.run()` crea `schema_version` si no existe.
-  - Aplica migraciones pendientes en orden.
-  - Si todas aplicadas, retorna `{ from: '001', to: '001', applied: [] }`.
-  - Si una migración falla, rollback completo (transacción).
-  - Tests unitarios con mock de directorio.
-- **Verificación:** `npx vitest run tests/unit/migrate.test.ts`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-003
+- **Risk:** 🟡
+- **Files:** `plugin/Migrate.ts`
+- **Description:** `Migrate` class that receives `Store` and `migrationsDir`. Method `run()` reads `schema_version` table, lists `.sql` files in `migrationsDir` sorted alphabetically, applies pending ones in a transaction, inserts version in `schema_version`. Creates `schema_version` if it doesn't exist. Idempotent.
+- **Acceptance criteria:**
+  - `Migrate.run()` creates `schema_version` if it doesn't exist.
+  - Applies pending migrations in order.
+  - If all applied, returns `{ from: '001', to: '001', applied: [] }`.
+  - If a migration fails, full rollback (transaction).
+  - Unit tests with mock directory.
+- **Verification:** `npx vitest run tests/unit/migrate.test.ts`
 
-### K-005 — Crear `migrations/001_initial.sql`
+### K-005 — Create `migrations/001_initial.sql`
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-004
-- **Riesgo:** 🟢
-- **Archivos:** `migrations/001_initial.sql`
-- **Descripción:** Crear migración inicial con schema completo (ver `Kevin_Plan.md` §4): `schema_version`, `memories` (4 tipos, 2 scopes, relevance_score, expires_at, source_tool, source_session, metadata), `memories_fts` (FTS5 con `unicode61 remove_diacritics 1`, content='memories'), 3 triggers FTS5 (insert/delete/update), `tool_calls` (session_id, tool, args_summary, success, duration_ms, agent, error_type, metadata), `retrospectives` (session_id, failure_count, success_count, lessons_count, file_path). Índices en type, scope, relevance, created, session_id, tool, ts, success. Seed `INSERT OR IGNORE INTO schema_version VALUES ('001')`.
-- **Criterios de aceptación:**
-  - `Migrate.run()` aplica 001 sin error.
-  - Tablas `memories`, `memories_fts`, `tool_calls`, `retrospectives`, `schema_version` existen.
-  - FTS5 funcional: `INSERT INTO memories` → `SELECT * FROM memories_fts` retorna row.
-  - Triggers funcionan: delete en memories → row removido de FTS5.
-  - `tokenize='unicode61 remove_diacritics 1'` verificado con `SELECT * FROM memories_fts WHERE memories_fts MATCH 'autenticacion'` (encuentra "autenticación").
-- **Verificación:** `npx vitest run tests/unit/migrate.test.ts`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-004
+- **Risk:** 🟢
+- **Files:** `migrations/001_initial.sql`
+- **Description:** Create initial migration with full schema (see `Kevin_Plan.md` §4): `schema_version`, `memories` (4 types, 2 scopes, relevance_score, expires_at, source_tool, source_session, metadata), `memories_fts` (FTS5 with `unicode61 remove_diacritics 1`, content='memories'), 3 FTS5 triggers (insert/delete/update), `tool_calls` (session_id, tool, args_summary, success, duration_ms, agent, error_type, metadata), `retrospectives` (session_id, failure_count, success_count, lessons_count, file_path). Indexes on type, scope, relevance, created, session_id, tool, ts, success. Seed `INSERT OR IGNORE INTO schema_version VALUES ('001')`.
+- **Acceptance criteria:**
+  - `Migrate.run()` applies 001 without error.
+  - Tables `memories`, `memories_fts`, `tool_calls`, `retrospectives`, `schema_version` exist.
+  - FTS5 functional: `INSERT INTO memories` → `SELECT * FROM memories_fts` returns row.
+  - Triggers work: delete on memories → row removed from FTS5.
+  - `tokenize='unicode61 remove_diacritics 1'` verified with `SELECT * FROM memories_fts WHERE memories_fts MATCH 'autenticacion'` (finds "autenticación").
+- **Verification:** `npx vitest run tests/unit/migrate.test.ts`
 
-### K-006 — Tests unitarios de Store + Migrate integrados
+### K-006 — Integrated unit tests for Store + Migrate
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-005
-- **Riesgo:** 🟢
-- **Archivos:** `tests/unit/store.test.ts`, `tests/unit/migrate.test.ts`
-- **Descripción:** Tests completos: Store abre/cierra, prepared statements, transacciones (commit + rollback), WAL mode. Migrate crea schema_version, aplica 001, idempotente, rollback en fallo.
-- **Criterios de aceptación:**
-  - ≥90% coverage de Store.ts y Migrate.ts.
-  - Tests pasan con `:memory:` SQLite.
-- **Verificación:** `npx vitest run tests/unit/store.test.ts tests/unit/migrate.test.ts`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-005
+- **Risk:** 🟢
+- **Files:** `tests/unit/store.test.ts`, `tests/unit/migrate.test.ts`
+- **Description:** Comprehensive tests: Store opens/closes, prepared statements, transactions (commit + rollback), WAL mode. Migrate creates schema_version, applies 001, idempotent, rollback on failure.
+- **Acceptance criteria:**
+  - ≥90% coverage of Store.ts and Migrate.ts.
+  - Tests pass with `:memory:` SQLite.
+- **Verification:** `npx vitest run tests/unit/store.test.ts tests/unit/migrate.test.ts`
 
-### K-007 — Commit checkpoint Fase 1
+### K-007 — Phase 1 checkpoint commit
 
-- **Prioridad:** P0
-- **Estimación:** S (15m)
-- **Dependencias:** K-001 a K-006
-- **Riesgo:** 🟢
-- **Descripción:** Commit con todos los cambios de F1. Tag `kevin-f1-done`.
-- **Criterios de aceptación:**
-  - `npm run typecheck && npm run lint && npm test` pasan.
+- **Priority:** P0
+- **Estimation:** S (15m)
+- **Dependencies:** K-001 to K-006
+- **Risk:** 🟢
+- **Description:** Commit with all F1 changes. Tag `kevin-f1-done`.
+- **Acceptance criteria:**
+  - `npm run typecheck && npm run lint && npm test` pass.
   - `git tag kevin-f1-done`.
-- **Verificación:** `git tag --list kevin-f1-done`.
+- **Verification:** `git tag --list kevin-f1-done`.
 
 ---
 
-# Fase 2 — Memory (semana 2, P0)
+# Phase 2 — Memory (week 2, P0)
 
-### K-008 — Implementar `MemoryService.ts` (CRUD base)
+### K-008 — Implement `MemoryService.ts` (base CRUD)
 
-- **Prioridad:** P0
-- **Estimación:** M (6h)
-- **Dependencias:** K-007
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/MemoryService.ts`
-- **Descripción:** Clase `MemoryService` con `Store`. Métodos: `save(input)`: inserta en `memories`, retorna id. `getById(id)`: SELECT por PK. `update(id, fields)`: UPDATE dinámico. `delete(id)`: DELETE. Input con Zod schema: `type` enum 4 valores, `content` string, `scope` enum `project|session` default `project`, `relevanceScore` number default 0.5, `sourceTool` string optional, `sourceSession` string optional, `metadata` record optional, `expiresAt` string optional. Usa `uuidv7()` para generar IDs.
-- **Criterios de aceptación:**
-  - `save({ type: 'error', content: 'test' })` persiste y retorna UUID v7.
-  - `getById(id)` retorna la memoria con campos camelCase (`createdAt`, no `created_at`).
-  - `update(id, { content: 'updated' })` actualiza `updated_at`.
-  - `delete(id)` remueve de `memories` y `memories_fts` (vía trigger).
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/memory-service.test.ts`
+- **Priority:** P0
+- **Estimation:** M (6h)
+- **Dependencies:** K-007
+- **Risk:** 🟡
+- **Files:** `plugin/MemoryService.ts`
+- **Description:** `MemoryService` class with `Store`. Methods: `save(input)`: inserts into `memories`, returns id. `getById(id)`: SELECT by PK. `update(id, fields)`: dynamic UPDATE. `delete(id)`: DELETE. Input with Zod schema: `type` enum 4 values, `content` string, `scope` enum `project|session` default `project`, `relevanceScore` number default 0.5, `sourceTool` string optional, `sourceSession` string optional, `metadata` record optional, `expiresAt` string optional. Uses `uuidv7()` to generate IDs.
+- **Acceptance criteria:**
+  - `save({ type: 'error', content: 'test' })` persists and returns UUID v7.
+  - `getById(id)` returns the memory with camelCase fields (`createdAt`, not `created_at`).
+  - `update(id, { content: 'updated' })` updates `updated_at`.
+  - `delete(id)` removes from `memories` and `memories_fts` (via trigger).
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/memory-service.test.ts`
 
-### K-009 — Implementar búsqueda FTS5 en `MemoryService`
+### K-009 — Implement FTS5 search in `MemoryService`
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-008
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/MemoryService.ts`
-- **Descripción:** Método `query(input)`: busca en `memories_fts` con `MATCH ?`, join con `memories`, ordena por `bm25(memories_fts)` score, filtra por `type` y `scope` (si no es 'all'), filtra `expires_at`. Retorna array de `Memory` con `score` en metadata. Limit default 10.
-- **Criterios de aceptación:**
-  - `query({ text: 'auth' })` retorna memorias que contienen 'auth' en content.
-  - `query({ text: 'autenticacion' })` encuentra memorias con 'autenticación' (remove_diacritics).
-  - `query({ text: 'test', type: 'error' })` filtra por type.
-  - `query({ text: 'test', scope: 'project' })` filtra por scope.
-  - `query({ text: 'test', scope: 'all' })` no filtra por scope.
-  - Resultados ordenados por bm25 score (más relevantes primero).
-  - Memorias con `expires_at` pasado no aparecen.
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/memory-service.test.ts`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-008
+- **Risk:** 🟡
+- **Files:** `plugin/MemoryService.ts`
+- **Description:** Method `query(input)`: searches `memories_fts` with `MATCH ?`, join with `memories`, ordered by `bm25(memories_fts)` score, filtered by `type` and `scope` (if not 'all'), filters `expires_at`. Returns array of `Memory` with `score` in metadata. Default limit 10.
+- **Acceptance criteria:**
+  - `query({ text: 'auth' })` returns memories containing 'auth' in content.
+  - `query({ text: 'autenticacion' })` finds memories with 'autenticación' (remove_diacritics).
+  - `query({ text: 'test', type: 'error' })` filters by type.
+  - `query({ text: 'test', scope: 'project' })` filters by scope.
+  - `query({ text: 'test', scope: 'all' })` doesn't filter by scope.
+  - Results ordered by bm25 score (most relevant first).
+  - Memories with past `expires_at` don't appear.
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/memory-service.test.ts`
 
-### K-010 — Implementar `scope: 'session'` con expiración
+### K-010 — Implement `scope: 'session'` with expiration
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-009
-- **Riesgo:** 🟢
-- **Archivos:** `plugin/MemoryService.ts`
-- **Descripción:** `save` con `scope: 'session'` setea `expires_at` a 24h desde ahora por defecto (configurable). `query` y `getRelevant` filtran `expires_at IS NULL OR expires_at > datetime('now')`.
-- **Criterios de aceptación:**
-  - `save({ type: 'context', content: 'tmp', scope: 'session' })` setea `expires_at`.
-  - `save({ type: 'context', content: 'perm', scope: 'project' })` no setea `expires_at`.
-  - Query no retorna memorias session expiradas.
-  - Tests unitarios con mock de fecha.
-- **Verificación:** `npx vitest run tests/unit/memory-service.test.ts`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-009
+- **Risk:** 🟢
+- **Files:** `plugin/MemoryService.ts`
+- **Description:** `save` with `scope: 'session'` sets `expires_at` to 24h from now by default (configurable). `query` and `getRelevant` filter `expires_at IS NULL OR expires_at > datetime('now')`.
+- **Acceptance criteria:**
+  - `save({ type: 'context', content: 'tmp', scope: 'session' })` sets `expires_at`.
+  - `save({ type: 'context', content: 'perm', scope: 'project' })` doesn't set `expires_at`.
+  - Query doesn't return expired session memories.
+  - Unit tests with date mock.
+- **Verification:** `npx vitest run tests/unit/memory-service.test.ts`
 
-### K-011 — Implementar `getRelevant` con token budget
+### K-011 — Implement `getRelevant` with token budget
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-010
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/MemoryService.ts`
-- **Descripción:** Método `getRelevant(input)`: si hay `query`, hace FTS5 para narrow candidatos. Si no, carga todas (scope project). Ordena por `relevance_score` DESC + `created_at` DESC. Fill greedy respetando `maxTokens * 4` chars (aprox 1 token = 4 chars). Default `maxTokens: 2000`. Filtra expiradas.
-- **Criterios de aceptación:**
-  - `getRelevant({ query: 'auth', maxTokens: 500 })` retorna memorias relevantes sin exceder ~2000 chars total.
-  - Si no hay query, retorna top memorias por relevance_score.
-  - Prioriza `type: 'error'` y `type: 'pattern'` sobre `decision` y `context` (sort secondary).
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/memory-service.test.ts`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-010
+- **Risk:** 🟡
+- **Files:** `plugin/MemoryService.ts`
+- **Description:** Method `getRelevant(input)`: if `query` present, does FTS5 to narrow candidates. If not, loads all (scope project). Sorts by `relevance_score` DESC + `created_at` DESC. Greedy fill respecting `maxTokens * 4` chars (approx 1 token = 4 chars). Default `maxTokens: 2000`. Filters expired.
+- **Acceptance criteria:**
+  - `getRelevant({ query: 'auth', maxTokens: 500 })` returns relevant memories without exceeding ~2000 chars total.
+  - If no query, returns top memories by relevance_score.
+  - Prioritizes `type: 'error'` and `type: 'pattern'` over `decision` and `context` (secondary sort).
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/memory-service.test.ts`
 
-### K-012 — Tests integración MemoryService + Store
+### K-012 — MemoryService + Store integration tests
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-011
-- **Riesgo:** 🟢
-- **Archivos:** `tests/integration/memory-integration.test.ts`
-- **Descripción:** Test que usa Store real (`:memory:`) + Migrate + MemoryService. Flujo: migrar → save 3 memorias → query → update → delete → verificar FTS5 sincronizado.
-- **Criterios de aceptación:**
-  - Flujo completo save/query/update/delete funciona.
-  - FTS5 sincronizado tras cada operación (triggers).
-  - `npm test` pasa.
-- **Verificación:** `npx vitest run tests/integration/memory-integration.test.ts`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-011
+- **Risk:** 🟢
+- **Files:** `tests/integration/memory-integration.test.ts`
+- **Description:** Test using real Store (`:memory:`) + Migrate + MemoryService. Flow: migrate → save 3 memories → query → update → delete → verify FTS5 synchronized.
+- **Acceptance criteria:**
+  - Full save/query/update/delete flow works.
+  - FTS5 synchronized after each operation (triggers).
+  - `npm test` passes.
+- **Verification:** `npx vitest run tests/integration/memory-integration.test.ts`
 
-### K-013 — Test e2e: memory flow (save → query → recall)
+### K-013 — E2E test: memory flow (save → query → recall)
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-012
-- **Riesgo:** 🟢
-- **Archivos:** `tests/e2e/memory-flow.test.ts`
-- **Descripción:** Test e2e del flujo de memoria: (a) save memoria type:error "typecheck no-unused-vars", (b) save memoria type:decision "usamos vitest", (c) query "typecheck" retorna la primera, (d) query "vitest" retorna la segunda, (e) recall sin query retorna ambas dentro de budget.
-- **Criterios de aceptación:**
-  - Query por keyword retorna memoria correcta.
-  - Recall respeta token budget.
-  - FTS5 con diacríticos: save "autenticación" → query "autenticacion" la encuentra.
-- **Verificación:** `npx vitest run tests/e2e/memory-flow.test.ts`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-012
+- **Risk:** 🟢
+- **Files:** `tests/e2e/memory-flow.test.ts`
+- **Description:** E2E test of memory flow: (a) save type:error memory "typecheck no-unused-vars", (b) save type:decision memory "we use vitest", (c) query "typecheck" returns first, (d) query "vitest" returns second, (e) recall without query returns both within budget.
+- **Acceptance criteria:**
+  - Query by keyword returns correct memory.
+  - Recall respects token budget.
+  - FTS5 with diacritics: save "autenticación" → query "autenticacion" finds it.
+- **Verification:** `npx vitest run tests/e2e/memory-flow.test.ts`
 
-### K-014 — Commit checkpoint Fase 2
+### K-014 — Phase 2 checkpoint commit
 
-- **Prioridad:** P0
-- **Estimación:** S (15m)
-- **Dependencias:** K-008 a K-013
-- **Riesgo:** 🟢
-- **Criterios de aceptación:**
-  - `npm run typecheck && npm run lint && npm test` pasan.
+- **Priority:** P0
+- **Estimation:** S (15m)
+- **Dependencies:** K-008 to K-013
+- **Risk:** 🟢
+- **Acceptance criteria:**
+  - `npm run typecheck && npm run lint && npm test` pass.
   - `git tag kevin-f2-done`.
-- **Verificación:** `git tag --list kevin-f2-done`.
+- **Verification:** `git tag --list kevin-f2-done`.
 
 ---
 
-# Fase 3 — Observation (semana 3, P0)
+# Phase 3 — Observation (week 3, P0)
 
-### K-015 — Implementar `ToolCallObserver.ts` (registro)
+### K-015 — Implement `ToolCallObserver.ts` (recording)
 
-- **Prioridad:** P0
-- **Estimación:** M (6h)
-- **Dependencias:** K-014
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/ToolCallObserver.ts`
-- **Descripción:** Clase `ToolCallObserver` con `Store`. `onBefore(input, output)`: registra timestamp inicial en Map interno (session+tool → startTs). `onAfter(input, output)`: calcula duration_ms, inserta en `tool_calls` table con: id (uuidv7), session_id, tool, args_summary (redacted), success (output.success === true ? 1 : 0), duration_ms, agent (input.agent ?? null), error_type (inferido), metadata (JSON string con args completos redacted). Mantiene estado de timestamps por sesión.
-- **Criterios de aceptación:**
-  - Tras `onAfter`, fila existe en `tool_calls`.
-  - `duration_ms` es > 0 si hubo delay entre before y after.
-  - `success` es 1 si output.success true, 0 si false.
-  - Tests unitarios con mock de input/output.
-- **Verificación:** `npx vitest run tests/unit/tool-call-observer.test.ts`
+- **Priority:** P0
+- **Estimation:** M (6h)
+- **Dependencies:** K-014
+- **Risk:** 🟡
+- **Files:** `plugin/ToolCallObserver.ts`
+- **Description:** `ToolCallObserver` class with `Store`. `onBefore(input, output)`: records initial timestamp in internal Map (session+tool → startTs). `onAfter(input, output)`: calculates duration_ms, inserts into `tool_calls` table with: id (uuidv7), session_id, tool, args_summary (redacted), success (output.success === true ? 1 : 0), duration_ms, agent (input.agent ?? null), error_type (inferred), metadata (JSON string with complete redacted args). Maintains timestamp state per session.
+- **Acceptance criteria:**
+  - After `onAfter`, row exists in `tool_calls`.
+  - `duration_ms` is > 0 if there was delay between before and after.
+  - `success` is 1 if output.success is true, 0 if false.
+  - Unit tests with mock input/output.
+- **Verification:** `npx vitest run tests/unit/tool-call-observer.test.ts`
 
-### K-016 — Implementar redacción de secrets en `ToolCallObserver`
+### K-016 — Implement secret redaction in `ToolCallObserver`
 
-- **Prioridad:** P0
-- **Estimación:** M (3h)
-- **Dependencias:** K-015
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/ToolCallObserver.ts`
-- **Descripción:** Método `redactSecrets(text)`: reemplaza patrones por `<redacted>`. Patrones: `API_KEY=...`, `SECRET=...`, `PASSWORD=...`, `TOKEN=...`, `Bearer ...`, `token ...` (case-insensitive). Método `summarizeArgs(args)`: extrae paths (filePath, path, cwd) y comandos (command, cmd) sin secrets. Resto truncado a 200 chars.
-- **Criterios de aceptación:**
+- **Priority:** P0
+- **Estimation:** M (3h)
+- **Dependencies:** K-015
+- **Risk:** 🟡
+- **Files:** `plugin/ToolCallObserver.ts`
+- **Description:** Method `redactSecrets(text)` replaces patterns with `<redacted>`. Patterns: `API_KEY=...`, `SECRET=...`, `PASSWORD=...`, `TOKEN=...`, `Bearer ...`, `token ...` (case-insensitive). Method `summarizeArgs(args)` extracts paths (filePath, path, cwd) and commands (command, cmd) without secrets. Rest truncated to 200 chars.
+- **Acceptance criteria:**
   - `redactSecrets("API_KEY=abc123")` → `"API_KEY=<redacted>"`.
   - `redactSecrets("Bearer xyz")` → `"Bearer <redacted>"`.
   - `summarizeArgs({ filePath: "/foo/bar.ts", command: "npm test" })` → `"filePath: /foo/bar.ts, command: npm test"`.
   - `summarizeArgs({ apiKey: "secret" })` → `"apiKey: <redacted>"`.
-  - `tool_calls.args_summary` no contiene secrets.
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/tool-call-observer.test.ts -t "redact"`
+  - `tool_calls.args_summary` contains no secrets.
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/tool-call-observer.test.ts -t "redact"`
 
-### K-017 — Implementar inferencia de `error_type` en `ToolCallObserver`
+### K-017 — Implement `error_type` inference in `ToolCallObserver`
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-016
-- **Riesgo:** 🟢
-- **Archivos:** `plugin/ToolCallObserver.ts`
-- **Descripción:** Método `inferErrorType(stderr, stdout)`: retorna string categorizando el error. Reglas (case-insensitive, primera match gana): stderr contiene "error TS" o "tsc" → `typecheck`. stderr contiene "lint" o "biome" o "eslint" → `lint`. stderr contiene "FAIL" o "vitest" o "jest" o "test failed" → `test`. stderr contiene "Error:" o "TypeError" o "ReferenceError" → `runtime`. exitCode -1 y stderr vacío → `timeout`. Default → `unknown`.
-- **Criterios de aceptación:**
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-016
+- **Risk:** 🟢
+- **Files:** `plugin/ToolCallObserver.ts`
+- **Description:** Method `inferErrorType(stderr, stdout)`: returns string categorizing the error. Rules (case-insensitive, first match wins): stderr contains "error TS" or "tsc" → `typecheck`. stderr contains "lint" or "biome" or "eslint" → `lint`. stderr contains "FAIL" or "vitest" or "jest" or "test failed" → `test`. stderr contains "Error:" or "TypeError" or "ReferenceError" → `runtime`. exitCode -1 and empty stderr → `timeout`. Default → `unknown`.
+- **Acceptance criteria:**
   - `inferErrorType("error TS2304: Cannot find name", "")` → `"typecheck"`.
   - `inferErrorType("FAIL src/test.ts", "")` → `"test"`.
   - `inferErrorType("TypeError: x is undefined", "")` → `"runtime"`.
-  - `inferErrorType("", "")` con exitCode -1 → `"timeout"`.
+  - `inferErrorType("", "")` with exitCode -1 → `"timeout"`.
   - `inferErrorType("random output", "")` → `"unknown"`.
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/tool-call-observer.test.ts -t "error_type"`
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/tool-call-observer.test.ts -t "error_type"`
 
-### K-018 — Exponer métodos públicos de `ToolCallObserver` para el plugin
+### K-018 — Expose public methods of `ToolCallObserver` for the plugin
 
-- **Prioridad:** P0
-- **Estimación:** S (1h)
-- **Dependencias:** K-017
-- **Riesgo:** 🟢
-- **Archivos:** `plugin/ToolCallObserver.ts`
-- **Descripción:** Exponer `summarizeArgs(args)` y `inferErrorType(stderr, stdout)` como métodos públicos (para que el plugin los use al invocar Reflector). Asegurar que son deterministas y no tienen side effects.
-- **Criterios de aceptación:**
-  - Métodos son públicos y tipados.
-  - `npm run typecheck` pasa.
-- **Verificación:** `npm run typecheck`
+- **Priority:** P0
+- **Estimation:** S (1h)
+- **Dependencies:** K-017
+- **Risk:** 🟢
+- **Files:** `plugin/ToolCallObserver.ts`
+- **Description:** Expose `summarizeArgs(args)` and `inferErrorType(stderr, stdout)` as public methods (so the plugin can use them when invoking Reflector). Ensure they are deterministic and have no side effects.
+- **Acceptance criteria:**
+  - Methods are public and typed.
+  - `npm run typecheck` passes.
+- **Verification:** `npm run typecheck`
 
-### K-019 — Tests integración ToolCallObserver con hooks simulados
+### K-019 — Integration tests for ToolCallObserver with mocked hooks
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-018
-- **Riesgo:** 🟢
-- **Archivos:** `tests/integration/tool-call-observer.test.ts`
-- **Descripción:** Test que simula secuencia: `onBefore` → delay 10ms → `onAfter` con success=true, verifica fila en `tool_calls` con duration_ms > 0. Luego `onAfter` con success=false y stderr de typecheck, verifica `error_type = 'typecheck'`. Verifica redaction de secrets.
-- **Criterios de aceptación:**
-  - Filas en `tool_calls` con datos correctos.
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-018
+- **Risk:** 🟢
+- **Files:** `tests/integration/tool-call-observer.test.ts`
+- **Description:** Test simulating sequence: `onBefore` → 10ms delay → `onAfter` with success=true, verify row in `tool_calls` with duration_ms > 0. Then `onAfter` with success=false and typecheck stderr, verify `error_type = 'typecheck'`. Verify secret redaction.
+- **Acceptance criteria:**
+  - Rows in `tool_calls` with correct data.
   - `duration_ms > 0`.
-  - `error_type` correcto.
-  - No hay secrets en `args_summary`.
-- **Verificación:** `npx vitest run tests/integration/tool-call-observer.test.ts`
+  - Correct `error_type`.
+  - No secrets in `args_summary`.
+- **Verification:** `npx vitest run tests/integration/tool-call-observer.test.ts`
 
-### K-020 — Commit checkpoint Fase 3
+### K-020 — Phase 3 checkpoint commit
 
-- **Prioridad:** P0
-- **Estimación:** S (15m)
-- **Dependencias:** K-015 a K-019
-- **Riesgo:** 🟢
-- **Criterios de aceptación:**
-  - `npm run typecheck && npm run lint && npm test` pasan.
+- **Priority:** P0
+- **Estimation:** S (15m)
+- **Dependencies:** K-015 to K-019
+- **Risk:** 🟢
+- **Acceptance criteria:**
+  - `npm run typecheck && npm run lint && npm test` pass.
   - `git tag kevin-f3-done`.
-- **Verificación:** `git tag --list kevin-f3-done`.
+- **Verification:** `git tag --list kevin-f3-done`.
 
 ---
 
-# Fase 4 — Reflection (semana 4, P0)
+# Phase 4 — Reflection (week 4, P0)
 
-### K-021 — Implementar `Reflector.ts` (esqueleto + heuristic)
+### K-021 — Implement `Reflector.ts` (skeleton + heuristic)
 
-- **Prioridad:** P0
-- **Estimación:** M (6h)
-- **Dependencias:** K-020
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/Reflector.ts`
-- **Descripción:** Clase `Reflector` con `MemoryService`. Método `invoke(input)`: async, retorna `string | null` (memory_id). Flujo: (1) redact paths y secrets de stderr/stdout, (2) extraer first error line (primera línea que contiene "error" o "Error" o "FAIL"), (3) generar lección heurística con template, (4) si content > 4KB truncar y marcar `metadata.not_searchable = true`, (5) persistir como memoria `type: 'error'` con `source_tool` y `source_session`, (6) retornar memory_id.
-- **Criterios de aceptación:**
-  - `invoke(...)` con fallo typecheck → retorna memory_id (UUID v7).
-  - Memoria persistida con `type: 'error'`, `source_tool`, `source_session`.
-  - Content contiene la lección heurística.
-  - `npm run typecheck` pasa.
-- **Verificación:** `npx vitest run tests/unit/reflector.test.ts`
+- **Priority:** P0
+- **Estimation:** M (6h)
+- **Dependencies:** K-020
+- **Risk:** 🟡
+- **Files:** `plugin/Reflector.ts`
+- **Description:** `Reflector` class with `MemoryService`. Method `invoke(input)`: async, returns `string | null` (memory_id). Flow: (1) redact paths and secrets from stderr/stdout, (2) extract first error line (first line containing "error" or "Error" or "FAIL"), (3) generate heuristic lesson with template, (4) if content > 4KB truncate and mark `metadata.not_searchable = true`, (5) persist as `type: 'error'` memory with `source_tool` and `source_session`, (6) return memory_id.
+- **Acceptance criteria:**
+  - `invoke(...)` with typecheck failure → returns memory_id (UUID v7).
+  - Memory persisted with `type: 'error'`, `source_tool`, `source_session`.
+  - Content contains the heuristic lesson.
+  - `npm run typecheck` passes.
+- **Verification:** `npx vitest run tests/unit/reflector.test.ts`
 
-### K-022 — Implementar generación de lección heurística por error_type
+### K-022 — Implement heuristic lesson generation by error_type
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-021
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/Reflector.ts`
-- **Descripción:** Método `generateHeuristicLesson(input)`: genera string con template `"When {tool} fails with {errorType}: {firstErrorLine}\nSuggestion: {suggestion}"`. Suggestions por errorType: typecheck → "Verify types and imports before running.", lint → "Run linter and fix warnings before committing.", test → "Run tests and fix failures before proceeding.", runtime → "Check error message and stack trace for root cause.", timeout → "Check for infinite loops or long-running operations.", unknown → "Review the error output for details.". Si firstErrorLine > 500 chars, truncar con "...".
-- **Criterios de aceptación:**
-  - Lesson para typecheck contiene "Verify types and imports".
-  - Lesson para test contiene "Run tests and fix failures".
-  - Lesson para runtime contiene "Check error message".
-  - firstErrorLine truncada si > 500 chars.
-  - Tests unitarios para cada error_type.
-- **Verificación:** `npx vitest run tests/unit/reflector.test.ts -t "heuristic"`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-021
+- **Risk:** 🟡
+- **Files:** `plugin/Reflector.ts`
+- **Description:** Method `generateHeuristicLesson(input)`: generates string with template `"When {tool} fails with {errorType}: {firstErrorLine}\nSuggestion: {suggestion}"`. Suggestions per errorType: typecheck → "Verify types and imports before running.", lint → "Run linter and fix warnings before committing.", test → "Run tests and fix failures before proceeding.", runtime → "Check error message and stack trace for root cause.", timeout → "Check for infinite loops or long-running operations.", unknown → "Review the error output for details.". If firstErrorLine > 500 chars, truncate with "...".
+- **Acceptance criteria:**
+  - Lesson for typecheck contains "Verify types and imports".
+  - Lesson for test contains "Run tests and fix failures".
+  - Lesson for runtime contains "Check error message".
+  - firstErrorLine truncated if > 500 chars.
+  - Unit tests for each error_type.
+- **Verification:** `npx vitest run tests/unit/reflector.test.ts -t "heuristic"`
 
-### K-023 — Implementar redacción de paths y secrets en `Reflector`
+### K-023 — Implement path and secret redaction in `Reflector`
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-022
-- **Riesgo:** 🟢
-- **Archivos:** `plugin/Reflector.ts`
-- **Descripción:** Método `redactPaths(text)`: reemplaza paths absolutos. Windows: `C:\Users\...` → `<path>`. Unix: `/home/...`, `/Users/...`, `/var/...` → `<path>`. Regex case-insensitive. Método `redactSecrets(text)`: igual patrones que ToolCallObserver. Aplicar ambos al stderr/stdout antes de generar lección.
-- **Criterios de aceptación:**
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-022
+- **Risk:** 🟢
+- **Files:** `plugin/Reflector.ts`
+- **Description:** Method `redactPaths(text)`: replaces absolute paths. Windows: `C:\Users\...` → `<path>`. Unix: `/home/...`, `/Users/...`, `/var/...` → `<path>`. Case-insensitive regex. Method `redactSecrets(text)`: same patterns as ToolCallObserver. Apply both to stderr/stdout before generating lesson.
+- **Acceptance criteria:**
   - `redactPaths("Error at C:\\Users\\foo\\bar.ts:10")` → `"Error at <path>:10"`.
   - `redactPaths("Error at /home/foo/bar.ts:10")` → `"Error at <path>:10"`.
-  - Memoria `error` no contiene paths absolutos ni secrets.
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/reflector.test.ts -t "redact"`
+  - `error` memory contains no absolute paths or secrets.
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/reflector.test.ts -t "redact"`
 
-### K-024 — Implementar throttle en `Reflector`
+### K-024 — Implement throttle in `Reflector`
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-023
-- **Riesgo:** 🟢
-- **Archivos:** `plugin/Reflector.ts`
-- **Descripción:** `Reflector` mantiene `lastReflectionTs` interno. `invoke` verifica `Date.now() - lastReflectionTs > 60_000` (1 min). Si no ha pasado suficiente tiempo, retorna `null` (skip). Throttle es por instancia de Reflector (una por plugin). Configurable vía constructor option `throttleMs`.
-- **Criterios de aceptación:**
-  - Primera llamada a `invoke` → genera memoria.
-  - Segunda llamada inmediata → retorna `null` (throttled).
-  - Tercera llamada tras 61s → genera memoria.
-  - Tests unitarios con mock de Date.now.
-- **Verificación:** `npx vitest run tests/unit/reflector.test.ts -t "throttle"`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-023
+- **Risk:** 🟢
+- **Files:** `plugin/Reflector.ts`
+- **Description:** `Reflector` maintains internal `lastReflectionTs`. `invoke` checks `Date.now() - lastReflectionTs > 60_000` (1 min). If not enough time has passed, returns `null` (skip). Throttle is per Reflector instance (one per plugin). Configurable via constructor option `throttleMs`.
+- **Acceptance criteria:**
+  - First call to `invoke` → generates memory.
+  - Second immediate call → returns `null` (throttled).
+  - Third call after 61s → generates memory.
+  - Unit tests with Date.now mock.
+- **Verification:** `npx vitest run tests/unit/reflector.test.ts -t "throttle"`
 
-### K-025 — Implementar truncado de content > 4KB
+### K-025 — Implement content truncation > 4KB
 
-- **Prioridad:** P0
-- **Estimación:** S (1h)
-- **Dependencias:** K-024
-- **Riesgo:** 🟢
-- **Archivos:** `plugin/Reflector.ts`
-- **Descripción:** Si content > 4096 chars, truncar a 4096 + "... [truncated]" y setear `metadata: { not_searchable: true }`. Memorias con `not_searchable: true` se pueden recuperar por ID pero no aparecen en FTS5 queries (filtrar en MemoryService.query con `metadata NOT LIKE '%not_searchable%'` o check post-query).
-- **Criterios de aceptación:**
-  - Content > 4KB se trunca.
-  - `metadata` contiene `not_searchable: true`.
-  - Query FTS5 no retorna memorias `not_searchable`.
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/reflector.test.ts -t "trunc"`
+- **Priority:** P0
+- **Estimation:** S (1h)
+- **Dependencies:** K-024
+- **Risk:** 🟢
+- **Files:** `plugin/Reflector.ts`
+- **Description:** If content > 4096 chars, truncate to 4096 + "... [truncated]" and set `metadata: { not_searchable: true }`. Memories with `not_searchable: true` can be retrieved by ID but don't appear in FTS5 queries (filter in MemoryService.query with `metadata NOT LIKE '%not_searchable%'` or post-query check).
+- **Acceptance criteria:**
+  - Content > 4KB is truncated.
+  - `metadata` contains `not_searchable: true`.
+  - FTS5 query doesn't return `not_searchable` memories.
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/reflector.test.ts -t "trunc"`
 
-### K-026 — Tests integración Reflector + MemoryService
+### K-026 — Reflector + MemoryService integration tests
 
-- **Prioridad:** P0
-- **Estimación:** M (3h)
-- **Dependencias:** K-025
-- **Riesgo:** 🟡
-- **Archivos:** `tests/integration/reflector-integration.test.ts`
-- **Descripción:** Test que usa Store real (`:memory:`) + MemoryService + Reflector. Flujo: (a) invoke Reflector con fallo typecheck, (b) verificar memoria persistida en `memories`, (c) `kevin_query("typecheck")` la encuentra, (d) verificar content no tiene paths absolutos.
-- **Criterios de aceptación:**
-  - Memoria `type: error` persistida tras invoke.
-  - Query FTS5 la encuentra por keyword.
-  - Content redacted (sin paths absolutos).
-  - `source_tool` y `source_session` seteados.
-- **Verificación:** `npx vitest run tests/integration/reflector-integration.test.ts`
+- **Priority:** P0
+- **Estimation:** M (3h)
+- **Dependencies:** K-025
+- **Risk:** 🟡
+- **Files:** `tests/integration/reflector-integration.test.ts`
+- **Description:** Test using real Store (`:memory:`) + MemoryService + Reflector. Flow: (a) invoke Reflector with typecheck failure, (b) verify memory persisted in `memories`, (c) `kevin_query("typecheck")` finds it, (d) verify content has no absolute paths.
+- **Acceptance criteria:**
+  - `type: error` memory persisted after invoke.
+  - FTS5 query finds it by keyword.
+  - Content redacted (no absolute paths).
+  - `source_tool` and `source_session` set.
+- **Verification:** `npx vitest run tests/integration/reflector-integration.test.ts`
 
-### K-027 — Test e2e: fallo typecheck → memoria error → recall la retorna
+### K-027 — E2E test: typecheck failure → error memory → recall returns it
 
-- **Prioridad:** P0
-- **Estimación:** M (3h)
-- **Dependencias:** K-026
-- **Riesgo:** 🟡
-- **Archivos:** `tests/e2e/reflection-flow.test.ts`
-- **Descripción:** Test e2e: (a) simular tool call fallido con stderr "error TS2304: Cannot find name 'foo'", (b) invocar Reflector.invoke, (c) `memoryService.query({ text: 'typecheck' })` retorna la memoria, (d) `memoryService.getRelevant({ query: 'typecheck' })` la incluye, (e) content contiene "Verify types and imports".
-- **Criterios de aceptación:**
-  - Memoria generada y persistida.
-  - Query la encuentra.
-  - getRelevant la incluye.
-  - Content contiene suggestion correcta.
-- **Verificación:** `npx vitest run tests/e2e/reflection-flow.test.ts`
+- **Priority:** P0
+- **Estimation:** M (3h)
+- **Dependencies:** K-026
+- **Risk:** 🟡
+- **Files:** `tests/e2e/reflection-flow.test.ts`
+- **Description:** E2E test: (a) simulate failed tool call with stderr "error TS2304: Cannot find name 'foo'", (b) invoke Reflector.invoke, (c) `memoryService.query({ text: 'typecheck' })` returns the memory, (d) `memoryService.getRelevant({ query: 'typecheck' })` includes it, (e) content contains "Verify types and imports".
+- **Acceptance criteria:**
+  - Memory generated and persisted.
+  - Query finds it.
+  - getRelevant includes it.
+  - Content contains correct suggestion.
+- **Verification:** `npx vitest run tests/e2e/reflection-flow.test.ts`
 
-### K-028 — Commit checkpoint Fase 4
+### K-028 — Phase 4 checkpoint commit
 
-- **Prioridad:** P0
-- **Estimación:** S (15m)
-- **Dependencias:** K-021 a K-027
-- **Riesgo:** 🟢
-- **Criterios de aceptación:**
-  - `npm run typecheck && npm run lint && npm test` pasan.
+- **Priority:** P0
+- **Estimation:** S (15m)
+- **Dependencies:** K-021 to K-027
+- **Risk:** 🟢
+- **Acceptance criteria:**
+  - `npm run typecheck && npm run lint && npm test` pass.
   - `git tag kevin-f4-done`.
-- **Verificación:** `git tag --list kevin-f4-done`.
+- **Verification:** `git tag --list kevin-f4-done`.
 
 ---
 
-# Fase 5 — Injection + Retrospective (semana 5, P0)
+# Phase 5 — Injection + Retrospective (week 5, P0)
 
-### K-029 — Implementar `ContextInjector.ts` (esqueleto + deriveQuery)
+### K-029 — Implement `ContextInjector.ts` (skeleton + deriveQuery)
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-028
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/ContextInjector.ts`
-- **Descripción:** Clase `ContextInjector` con `MemoryService`. Método `deriveQuery(messages)`: extrae keywords del último mensaje del usuario. Stop words básicas (en/es: "the", "a", "el", "la", "de", "que", "for", "with", "how", "como"). Retorna string con keywords separadas por espacio (para FTS5 MATCH).
-- **Criterios de aceptación:**
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-028
+- **Risk:** 🟡
+- **Files:** `plugin/ContextInjector.ts`
+- **Description:** `ContextInjector` class with `MemoryService`. Method `deriveQuery(messages)`: extracts keywords from last user message. Basic stop words (en/es: "the", "a", "el", "la", "de", "que", "for", "with", "how", "como"). Returns keyword string separated by spaces (for FTS5 MATCH).
+- **Acceptance criteria:**
   - `deriveQuery([{ role: 'user', content: 'how do I handle authentication?' }])` → `"handle authentication"`.
   - `deriveQuery([{ role: 'user', content: 'implementa dark mode' }])` → `"implementa dark mode"`.
-  - Stop words filtradas.
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/context-injector.test.ts`
+  - Stop words filtered.
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/context-injector.test.ts`
 
-### K-030 — Implementar `ContextInjector.onSystemTransform` (pre-prompt)
+### K-030 — Implement `ContextInjector.onSystemTransform` (pre-prompt)
 
-- **Prioridad:** P0
-- **Estimación:** M (6h)
-- **Dependencias:** K-029
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/ContextInjector.ts`
-- **Descripción:** Método `onSystemTransform(input, output)`: (1) deriva query del último mensaje del usuario, (2) `memoryService.getRelevant({ query, maxTokens: 1500 })`, (3) si hay memorias, formatea como `<kevin-context>Lecciones relevantes:\n[type] content\n...</kevin-context>`, (4) añade a output (system prompt string o array). Si no hay memorias, no añade nada.
-- **Criterios de aceptación:**
-  - Con memorias relevantes: output incluye `<kevin-context>`.
-  - Sin memorias: output sin cambios.
-  - Presupuesto 1500 tokens (~6000 chars) respetado.
-  - Prioriza type: error y type: pattern.
-  - Tests unitarios con mock de MemoryService.
-- **Verificación:** `npx vitest run tests/unit/context-injector.test.ts`
+- **Priority:** P0
+- **Estimation:** M (6h)
+- **Dependencies:** K-029
+- **Risk:** 🟡
+- **Files:** `plugin/ContextInjector.ts`
+- **Description:** Method `onSystemTransform(input, output)`: (1) derives query from last user message, (2) `memoryService.getRelevant({ query, maxTokens: 1500 })`, (3) if there are memories, formats as `<kevin-context>Relevant Lessons:\n[type] content\n...</kevin-context>`, (4) adds to output (system prompt string or array). If no memories, adds nothing.
+- **Acceptance criteria:**
+  - With relevant memories: output includes `<kevin-context>`.
+  - Without memories: output unchanged.
+  - Budget of 1500 tokens (~6000 chars) respected.
+  - Prioritizes type: error and type: pattern.
+  - Unit tests with mock MemoryService.
+- **Verification:** `npx vitest run tests/unit/context-injector.test.ts`
 
-### K-031 — Implementar `ContextInjector.onCompacting`
+### K-031 — Implement `ContextInjector.onCompacting`
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-030
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/ContextInjector.ts`
-- **Descripción:** Método `onCompacting(input, output)`: (1) deriva query del contexto de la sesión (últimos mensajes), (2) `memoryService.getRelevant({ query, maxTokens: 2000 })`, (3) formatea como `<kevin-memory>\n[type] content\n...</kevin-memory>`, (4) añade a `output.context` (array). Si no hay memorias, no añade nada.
-- **Criterios de aceptación:**
-  - Con memorias: `output.context` incluye `<kevin-memory>`.
-  - Sin memorias: `output.context` sin cambios.
-  - Presupuesto 2000 tokens (~8000 chars) respetado.
-  - Tests unitarios.
-- **Verificación:** `npx vitest run tests/unit/context-injector.test.ts`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-030
+- **Risk:** 🟡
+- **Files:** `plugin/ContextInjector.ts`
+- **Description:** Method `onCompacting(input, output)`: (1) derives query from session context (recent messages), (2) `memoryService.getRelevant({ query, maxTokens: 2000 })`, (3) formats as `<kevin-memory>\n[type] content\n...</kevin-memory>`, (4) adds to `output.context` (array). If no memories, adds nothing.
+- **Acceptance criteria:**
+  - With memories: `output.context` includes `<kevin-memory>`.
+  - Without memories: `output.context` unchanged.
+  - Budget of 2000 tokens (~8000 chars) respected.
+  - Unit tests.
+- **Verification:** `npx vitest run tests/unit/context-injector.test.ts`
 
-### K-032 — Implementar `Retrospective.ts`
+### K-032 — Implement `Retrospective.ts`
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-028
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/Retrospective.ts`
-- **Descripción:** Clase `Retrospective` con `Store` y `MemoryService`. Método `generate(sessionId)`: (1) contar tool_calls de la sesión (success y failure), (2) si failure_count === 0, retornar `null`, (3) listar tools que fallaron con error_type y args_summary, (4) listar lecciones generadas (memories type:error con source_session = sessionId), (5) generar markdown, (6) guardar en `.kevin/retrospectives/{sessionId}.md`, (7) insertar en `retrospectives` table, (8) retornar file_path.
-- **Criterios de aceptación:**
-  - Con fallos: genera archivo `.md` y fila en `retrospectives`.
-  - Sin fallos: retorna `null`, no genera nada.
-  - Markdown contiene: "# Retrospective", "## Resumen", "## Tools que fallaron", "## Lecciones generadas".
-  - Tests unitarios con Store `:memory:`.
-- **Verificación:** `npx vitest run tests/unit/retrospective.test.ts`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-028
+- **Risk:** 🟡
+- **Files:** `plugin/Retrospective.ts`
+- **Description:** `Retrospective` class with `Store` and `MemoryService`. Method `generate(sessionId)`: (1) count session tool_calls (success and failure), (2) if failure_count === 0, return `null`, (3) list tools that failed with error_type and args_summary, (4) list generated lessons (type:error memories with source_session = sessionId), (5) generate markdown, (6) save in `.kevin/retrospectives/{sessionId}.md`, (7) insert into `retrospectives` table, (8) return file_path.
+- **Acceptance criteria:**
+  - With failures: generates `.md` file and row in `retrospectives`.
+  - Without failures: returns `null`, generates nothing.
+  - Markdown contains: "# Retrospective", "## Summary", "## Tools that failed", "## Generated Lessons".
+  - Unit tests with Store `:memory:`.
+- **Verification:** `npx vitest run tests/unit/retrospective.test.ts`
 
-### K-033 — Tests integración ContextInjector con hooks simulados
+### K-033 — ContextInjector integration tests with mocked hooks
 
-- **Prioridad:** P0
-- **Estimación:** M (3h)
-- **Dependencias:** K-031
-- **Riesgo:** 🟡
-- **Archivos:** `tests/integration/injection.test.ts`
-- **Descripción:** Test que simula: (a) guardar memoria error "typecheck no-unused-vars", (b) simular `onSystemTransform` con mensaje "fix the typecheck error", (c) verificar output incluye `<kevin-context>` con la memoria, (d) simular `onCompacting`, (e) verificar `output.context` incluye `<kevin-memory>`.
-- **Criterios de aceptación:**
-  - `onSystemTransform` inyecta lección relevante.
-  - `onCompacting` inyecta memorias.
-  - Si no hay memorias relevantes, no se inyecta nada.
-  - Token budget respetado.
-- **Verificación:** `npx vitest run tests/integration/injection.test.ts`
+- **Priority:** P0
+- **Estimation:** M (3h)
+- **Dependencies:** K-031
+- **Risk:** 🟡
+- **Files:** `tests/integration/injection.test.ts`
+- **Description:** Test simulating: (a) save error memory "typecheck no-unused-vars", (b) simulate `onSystemTransform` with message "fix the typecheck error", (c) verify output includes `<kevin-context>` with the memory, (d) simulate `onCompacting`, (e) verify `output.context` includes `<kevin-memory>`.
+- **Acceptance criteria:**
+  - `onSystemTransform` injects relevant lesson.
+  - `onCompacting` injects memories.
+  - If no relevant memories, nothing is injected.
+  - Token budget respected.
+- **Verification:** `npx vitest run tests/integration/injection.test.ts`
 
-### K-034 — Test e2e: reflection → next session → context injection
+### K-034 — E2E test: reflection → next session → context injection
 
-- **Prioridad:** P0
-- **Estimación:** L (6h)
-- **Dependencias:** K-033, K-027
-- **Riesgo:** 🟡
-- **Archivos:** `tests/e2e/context-injection.test.ts`
-- **Descripción:** Test e2e del ciclo completo: (a) sesión 1: simular fallo typecheck → Reflector genera memoria error, (b) sesión 2: simular `onSystemTransform` con mensaje "fix typecheck", (c) verificar que la lección de sesión 1 se inyecta en system prompt de sesión 2 sin que el usuario la pida.
-- **Criterios de aceptación:**
-  - Memoria error generada en sesión 1.
-  - Sesión 2: system prompt incluye `<kevin-context>` con la lección.
-  - La lección aparece antes de que el agente actúe (proactivo).
-- **Verificación:** `npx vitest run tests/e2e/context-injection.test.ts`
+- **Priority:** P0
+- **Estimation:** L (6h)
+- **Dependencies:** K-033, K-027
+- **Risk:** 🟡
+- **Files:** `tests/e2e/context-injection.test.ts`
+- **Description:** E2E test of the complete cycle: (a) session 1: simulate typecheck failure → Reflector generates error memory, (b) session 2: simulate `onSystemTransform` with message "fix typecheck", (c) verify that session 1's lesson is injected into session 2's system prompt without the user asking for it.
+- **Acceptance criteria:**
+  - Error memory generated in session 1.
+  - Session 2: system prompt includes `<kevin-context>` with the lesson.
+  - The lesson appears before the agent acts (proactive).
+- **Verification:** `npx vitest run tests/e2e/context-injection.test.ts`
 
-### K-035 — Test e2e: session with failures → retrospective.md
+### K-035 — E2E test: session with failures → retrospective.md
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-032
-- **Riesgo:** 🟢
-- **Archivos:** `tests/e2e/retrospective.test.ts`
-- **Descripción:** Test e2e: (a) registrar 5 tool calls (3 success, 2 failure), (b) invocar `Retrospective.generate(sessionId)`, (c) verificar archivo `.kevin/retrospectives/{sessionId}.md` existe, (d) verificar contenido tiene secciones correctas, (e) verificar fila en `retrospectives` table.
-- **Criterios de aceptación:**
-  - Archivo markdown existe.
-  - Contiene "## Resumen" con "5 (3 ok, 2 failed)".
-  - Contiene "## Tools que fallaron" con 2 entries.
-  - Fila en `retrospectives` con `file_path` seteado.
-- **Verificación:** `npx vitest run tests/e2e/retrospective.test.ts`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-032
+- **Risk:** 🟢
+- **Files:** `tests/e2e/retrospective.test.ts`
+- **Description:** E2E test: (a) register 5 tool calls (3 success, 2 failure), (b) invoke `Retrospective.generate(sessionId)`, (c) verify `.kevin/retrospectives/{sessionId}.md` file exists, (d) verify content has correct sections, (e) verify row in `retrospectives` table.
+- **Acceptance criteria:**
+  - Markdown file exists.
+  - Contains "## Summary" with "5 (3 ok, 2 failed)".
+  - Contains "## Tools that failed" with 2 entries.
+  - Row in `retrospectives` with `file_path` set.
+- **Verification:** `npx vitest run tests/e2e/retrospective.test.ts`
 
-### K-036 — Commit checkpoint Fase 5
+### K-036 — Phase 5 checkpoint commit
 
-- **Prioridad:** P0
-- **Estimación:** S (15m)
-- **Dependencias:** K-029 a K-035
-- **Riesgo:** 🟢
-- **Criterios de aceptación:**
-  - `npm run typecheck && npm run lint && npm test` pasan.
+- **Priority:** P0
+- **Estimation:** S (15m)
+- **Dependencies:** K-029 to K-035
+- **Risk:** 🟢
+- **Acceptance criteria:**
+  - `npm run typecheck && npm run lint && npm test` pass.
   - `git tag kevin-f5-done`.
-- **Verificación:** `git tag --list kevin-f5-done`.
+- **Verification:** `git tag --list kevin-f5-done`.
 
 ---
 
-# Fase 6 — Plugin + Release (semana 6, P0)
+# Phase 6 — Plugin + Release (week 6, P0)
 
-### K-037 — Implementar `plugin/index.ts` (entry point)
+### K-037 — Implement `plugin/index.ts` (entry point)
 
-- **Prioridad:** P0
-- **Estimación:** L (8h)
-- **Dependencias:** K-036
-- **Riesgo:** 🔴
-- **Archivos:** `plugin/index.ts`
-- **Descripción:** Implementar `KevinPlugin` como `Plugin` de `@opencode-ai/plugin`. En constructor: (1) inicializar Store con path `${ctx.directory}/.kevin/kevin.db`, (2) crear directorio `.kevin/` si no existe, (3) `Migrate.run()`, (4) inicializar MemoryService, ToolCallObserver, Reflector, ContextInjector, Retrospective, (5) mantener `currentSessionId` y `lastReflectionTs` como estado. Retornar objeto con `tool` (5 tools) y 6 hooks. Ver `Kevin_Plan.md` §6 para código de referencia.
-- **Criterios de aceptación:**
-  - `npm run typecheck` pasa.
-  - Plugin exporta `KevinPlugin` como `Plugin`.
-  - Estructura de retorno coincide con OpenCode plugin API.
-- **Verificación:** `npm run typecheck`
+- **Priority:** P0
+- **Estimation:** L (8h)
+- **Dependencies:** K-036
+- **Risk:** 🔴
+- **Files:** `plugin/index.ts`
+- **Description:** Implement `KevinPlugin` as `Plugin` from `@opencode-ai/plugin`. In constructor: (1) initialize Store with path `${ctx.directory}/.kevin/kevin.db`, (2) create `.kevin/` directory if it doesn't exist, (3) `Migrate.run()`, (4) initialize MemoryService, ToolCallObserver, Reflector, ContextInjector, Retrospective, (5) maintain `currentSessionId` and `lastReflectionTs` as state. Return object with `tool` (5 tools) and 6 hooks. See `Kevin_Plan.md` §6 for reference code.
+- **Acceptance criteria:**
+  - `npm run typecheck` passes.
+  - Plugin exports `KevinPlugin` as `Plugin`.
+  - Return structure matches OpenCode plugin API.
+- **Verification:** `npm run typecheck`
 
-### K-038 — Implementar tools en plugin (kevin_save, kevin_query, kevin_recall, kevin_status, kevin_retrospective)
+### K-038 — Implement plugin tools (kevin_save, kevin_query, kevin_recall, kevin_status, kevin_retrospective)
 
-- **Prioridad:** P0
-- **Estimación:** M (6h)
-- **Dependencias:** K-037
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/index.ts`
-- **Descripción:** Registrar 5 tools con `tool()` helper y Zod schemas. `kevin_save`: args type/content/scope, ejecuta `memoryService.save`, retorna id. `kevin_query`: args query/type/limit, ejecuta `memoryService.query`, retorna JSON. `kevin_recall`: args query/limit, ejecuta `memoryService.getRelevant`, retorna JSON. `kevin_status`: sin args, cuenta memories/tool_calls/retrospectives, retorna JSON. `kevin_retrospective`: args session_id optional, ejecuta `retrospective.generate`, retorna file_path o mensaje.
-- **Criterios de aceptación:**
-  - 5 tools registradas con schemas Zod correctos.
-  - `kevin_save` con args válidos persiste memoria.
-  - `kevin_query` retorna resultados JSON.
-  - `kevin_status` retorna counts.
-  - `kevin_retrospective` retorna file_path o "no failures".
-  - Tests unitarios de cada tool.
-- **Verificación:** `npx vitest run tests/unit/plugin-tools.test.ts`
+- **Priority:** P0
+- **Estimation:** M (6h)
+- **Dependencies:** K-037
+- **Risk:** 🟡
+- **Files:** `plugin/index.ts`
+- **Description:** Register 5 tools with `tool()` helper and Zod schemas. `kevin_save`: args type/content/scope, executes `memoryService.save`, returns id. `kevin_query`: args query/type/limit, executes `memoryService.query`, returns JSON. `kevin_recall`: args query/limit, executes `memoryService.getRelevant`, returns JSON. `kevin_status`: no args, counts memories/tool_calls/retrospectives, returns JSON. `kevin_retrospective`: args session_id optional, executes `retrospective.generate`, returns file_path or message.
+- **Acceptance criteria:**
+  - 5 tools registered with correct Zod schemas.
+  - `kevin_save` with valid args persists memory.
+  - `kevin_query` returns JSON results.
+  - `kevin_status` returns counts.
+  - `kevin_retrospective` returns file_path or "no failures".
+  - Unit tests for each tool.
+- **Verification:** `npx vitest run tests/unit/plugin-tools.test.ts`
 
-### K-039 — Cablear hooks en plugin (tool.execute, system.transform, compacting, session)
+### K-039 — Wire hooks in plugin (tool.execute, system.transform, compacting, session)
 
-- **Prioridad:** P0
-- **Estimación:** M (4h)
-- **Dependencias:** K-038
-- **Riesgo:** 🟡
-- **Archivos:** `plugin/index.ts`
-- **Descripción:** Cablear 6 hooks: `tool.execute.before` → `observer.onBefore`. `tool.execute.after` → `observer.onAfter` + si `output.success === false` y throttle OK, invocar `reflector.invoke` asíncrono (no await, `.catch(() => {})`). `experimental.chat.system.transform` → `injector.onSystemTransform`. `experimental.session.compacting` → `injector.onCompacting`. `session.created` → capturar `sessionID`. `session.idle` → `retrospective.generate(currentSessionId)`.
-- **Criterios de aceptación:**
-  - 6 hooks cableados.
-  - Reflection es asíncrona (no bloquea hook).
-  - Throttle aplicado (1 reflection/min).
-  - `session.created` captura sessionID.
-  - `session.idle` genera retrospective si hubo fallos.
-  - Tests integración.
-- **Verificación:** `npx vitest run tests/integration/plugin-hooks.test.ts`
+- **Priority:** P0
+- **Estimation:** M (4h)
+- **Dependencies:** K-038
+- **Risk:** 🟡
+- **Files:** `plugin/index.ts`
+- **Description:** Wire 6 hooks: `tool.execute.before` → `observer.onBefore`. `tool.execute.after` → `observer.onAfter` + if `output.success === false` and throttle OK, invoke `reflector.invoke` asynchronously (no await, `.catch(() => {})`). `experimental.chat.system.transform` → `injector.onSystemTransform`. `experimental.session.compacting` → `injector.onCompacting`. `session.created` → capture `sessionID`. `session.idle` → `retrospective.generate(currentSessionId)`.
+- **Acceptance criteria:**
+  - 6 hooks wired.
+  - Reflection is asynchronous (doesn't block hook).
+  - Throttle applied (1 reflection/min).
+  - `session.created` captures sessionID.
+  - `session.idle` generates retrospective if there were failures.
+  - Integration tests.
+- **Verification:** `npx vitest run tests/integration/plugin-hooks.test.ts`
 
-### K-040 — Tests e2e del plugin completo (todos los flujos)
+### K-040 — E2E tests of the complete plugin (all flows)
 
-- **Prioridad:** P0
-- **Estimación:** L (8h)
-- **Dependencias:** K-039
-- **Riesgo:** 🔴
-- **Archivos:** `tests/e2e/plugin-complete.test.ts`
-- **Descripción:** Test e2e que simula el ciclo completo del plugin: (a) session.created → captura sessionID, (b) tool.execute.before/after con success=true → registra tool_call, (c) tool.execute.after con success=false (typecheck error) → registra + dispara reflection (throttle OK), (d) verificar memoria error persistida, (e) experimental.chat.system.transform con mensaje "fix typecheck" → inyecta lección, (f) session.idle → genera retrospective. Usar Store `:memory:` y mocks de OpenCode context.
-- **Criterios de aceptación:**
-  - Ciclo completo funciona end-to-end.
-  - tool_calls registrados.
-  - Memoria error generada tras fallo.
-  - Lección inyectada en system prompt.
-  - Retrospective generada.
-  - `npm run typecheck && npm run lint && npm test` pasan.
-- **Verificación:** `npx vitest run tests/e2e/plugin-complete.test.ts`
+- **Priority:** P0
+- **Estimation:** L (8h)
+- **Dependencies:** K-039
+- **Risk:** 🔴
+- **Files:** `tests/e2e/plugin-complete.test.ts`
+- **Description:** E2E test simulating the complete plugin cycle: (a) session.created → captures sessionID, (b) tool.execute.before/after with success=true → records tool_call, (c) tool.execute.after with success=false (typecheck error) → records + triggers reflection (throttle OK), (d) verify error memory persisted, (e) experimental.chat.system.transform with message "fix typecheck" → injects lesson, (f) session.idle → generates retrospective. Use Store `:memory:` and OpenCode context mocks.
+- **Acceptance criteria:**
+  - Complete cycle works end-to-end.
+  - tool_calls recorded.
+  - Error memory generated after failure.
+  - Lesson injected into system prompt.
+  - Retrospective generated.
+  - `npm run typecheck && npm run lint && npm test` pass.
+- **Verification:** `npx vitest run tests/e2e/plugin-complete.test.ts`
 
-### K-041 — Implementar `scripts/verify-install.ts`
+### K-041 — Implement `scripts/verify-install.ts`
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-040
-- **Riesgo:** 🟢
-- **Archivos:** `scripts/verify-install.ts`
-- **Descripción:** Script que verifica: (a) Node 20+, (b) SQLite funciona (`new Database(':memory:')`), (c) migración 001 aplica sin error, (d) `MemoryService.save` + `query` funcionan, (e) `Reflector.invoke` genera memoria, (f) `ContextInjector` inyecta lección, (g) typecheck pasa. Retorna checkmark por cada verificación. Exit 0 si todo OK, exit 1 si algo falla.
-- **Criterios de aceptación:**
-  - `npm run verify` retorna checkmarks.
-  - Exit 0 si todo pasa.
-  - Exit 1 si algo falla con mensaje claro.
-- **Verificación:** `npm run verify`
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-040
+- **Risk:** 🟢
+- **Files:** `scripts/verify-install.ts`
+- **Description:** Script that verifies: (a) Node 20+, (b) SQLite works (`new Database(':memory:')`), (c) migration 001 applies without error, (d) `MemoryService.save` + `query` work, (e) `Reflector.invoke` generates memory, (f) `ContextInjector` injects lesson, (g) typecheck passes. Returns checkmark for each verification. Exit 0 if all OK, exit 1 if something fails.
+- **Acceptance criteria:**
+  - `npm run verify` returns checkmarks.
+  - Exit 0 if everything passes.
+  - Exit 1 if something fails with a clear message.
+- **Verification:** `npm run verify`
 
-### K-042 — Crear `README.md` (usuario final)
+### K-042 — Create `README.md` (end-user)
 
-- **Prioridad:** P0
-- **Estimación:** S (2h)
-- **Dependencias:** K-041
-- **Riesgo:** 🟢
-- **Archivos:** `README.md`
-- **Descripción:** README con: (a) qué es Kevin ("Observa y aprende"), (b) instalación (`npm install` + `opencode.json` config), (c) ecosistema recomendado (conductor, background-agents, scheduler, DCP — opcionales), (d) tools disponibles con ejemplos, (e) hooks que Kevin suscribe, (f) cómo funciona el ciclo Observe→Learn→Share, (g) roadmap futuro (v0.2 embeddings, v0.3 cross-project).
-- **Criterios de aceptación:**
-  - README describe qué es Kevin y cómo instalarlo.
-  - Incluye `opencode.json` de ejemplo.
-  - Incluye stack recomendado.
-  - Ejemplos de uso de cada tool.
-- **Verificación:** revisión manual.
+- **Priority:** P0
+- **Estimation:** S (2h)
+- **Dependencies:** K-041
+- **Risk:** 🟢
+- **Files:** `README.md`
+- **Description:** README with: (a) what is Kevin ("Observe and Learn"), (b) installation (`npm install` + `opencode.json` config), (c) recommended ecosystem (conductor, background-agents, scheduler, DCP — optional), (d) available tools with examples, (e) hooks Kevin subscribes to, (f) how the Observe→Learn→Share cycle works, (g) future roadmap (v0.2 embeddings, v0.3 cross-project).
+- **Acceptance criteria:**
+  - README describes what Kevin is and how to install it.
+  - Includes example `opencode.json`.
+  - Includes recommended stack.
+  - Usage examples for each tool.
+- **Verification:** manual review.
 
-### K-043 — Bump versión 0.1.0 + CHANGELOG
+### K-043 — Bump version 0.1.0 + CHANGELOG
 
-- **Prioridad:** P0
-- **Estimación:** S (30m)
-- **Dependencias:** K-042
-- **Riesgo:** 🟢
-- **Archivos:** `package.json`, `CHANGELOG.md`
-- **Descripción:** Confirmar `package.json` version `0.1.0`. Crear `CHANGELOG.md` con entrada `[0.1.0]` (ver `Kevin_Plan.md` §13).
-- **Criterios de aceptación:**
+- **Priority:** P0
+- **Estimation:** S (30m)
+- **Dependencies:** K-042
+- **Risk:** 🟢
+- **Files:** `package.json`, `CHANGELOG.md`
+- **Description:** Confirm `package.json` version `0.1.0`. Create `CHANGELOG.md` with `[0.1.0]` entry (see `Kevin_Plan.md` §13).
+- **Acceptance criteria:**
   - `package.json` version `0.1.0`.
-  - `CHANGELOG.md` entrada `[0.1.0]` completa.
-- **Verificación:** `node -e "console.log(require('./package.json').version)"` retorna `0.1.0`.
+  - `CHANGELOG.md` `[0.1.0]` entry complete.
+- **Verification:** `node -e "console.log(require('./package.json').version)"` returns `0.1.0`.
 
-### K-044 — Commit final + tag v0.1.0
+### K-044 — Final commit + tag v0.1.0
 
-- **Prioridad:** P0
-- **Estimación:** S (15m)
-- **Dependencias:** K-043
-- **Riesgo:** 🟢
-- **Criterios de aceptación:**
-  - `npm run typecheck && npm run lint && npm test` pasan.
-  - `npm run verify` pasa.
+- **Priority:** P0
+- **Estimation:** S (15m)
+- **Dependencies:** K-043
+- **Risk:** 🟢
+- **Acceptance criteria:**
+  - `npm run typecheck && npm run lint && npm test` pass.
+  - `npm run verify` passes.
   - `git tag v0.1.0`.
-- **Verificación:** `git tag --list v0.1.0`.
+- **Verification:** `git tag --list v0.1.0`.
 
-### K-045 — Validación manual en OpenCode Desktop
+### K-045 — Manual validation in OpenCode Desktop
 
-- **Prioridad:** P0
-- **Estimación:** S (1h)
-- **Dependencias:** K-044
-- **Riesgo:** 🟡
-- **Descripción:** Validación manual: (a) instalar plugin en OpenCode Desktop, (b) ejecutar `kevin_save type:"decision" content:"test decision"` → OK, (c) ejecutar `kevin_query query:"test"` → retorna la memoria, (d) ejecutar `kevin_status` → muestra counts, (e) provocar un fallo (e.g. bash con comando inválido) → verificar que `kevin_recall query:"error"` retorna lección generada, (f) iniciar nueva sesión → verificar que system prompt incluye `<kevin-context>` si hay lecciones relevantes.
-- **Criterios de aceptación:**
-  - Plugin carga en Desktop sin error.
-  - Tools accesibles y funcionales.
-  - Reflection automática tras fallo.
-  - Inyección proactiva en nueva sesión.
-- **Verificación:** inspección manual en OpenCode Desktop.
+- **Priority:** P0
+- **Estimation:** S (1h)
+- **Dependencies:** K-044
+- **Risk:** 🟡
+- **Description:** Manual validation: (a) install plugin in OpenCode Desktop, (b) run `kevin_save type:"decision" content:"test decision"` → OK, (c) run `kevin_query query:"test"` → returns the memory, (d) run `kevin_status` → shows counts, (e) trigger a failure (e.g. bash with invalid command) → verify `kevin_recall query:"error"` returns generated lesson, (f) start new session → verify system prompt includes `<kevin-context>` if there are relevant lessons.
+- **Acceptance criteria:**
+  - Plugin loads in Desktop without error.
+  - Tools accessible and functional.
+  - Automatic reflection after failure.
+  - Proactive injection in new session.
+- **Verification:** manual inspection in OpenCode Desktop.
 
 ---
 
-## Dependencias críticas
+## Critical Dependencies
 
 ```
 K-001 ──→ K-002 ──→ K-003 ──→ K-004 ──→ K-005 ──→ K-006 ──→ K-007
@@ -740,91 +740,91 @@ K-029 ──→ K-030 ──→ K-031     K-032                                 
 K-037 ──→ K-038 ──→ K-039 ──→ K-040 ──→ K-041 ──→ K-042 ──→ K-043 ──→ K-044 ──→ K-045
 ```
 
-**Ruta crítica**:
+**Critical path**:
 ```
 K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
     → K-021 → K-024 → K-029 → K-033 → K-037 → K-040 → K-041 → K-044 → K-045
 ```
 
-**Longitud ruta crítica**: ~16 tareas. Duración estimada: ~5-6 semanas (1 dev, ~120h).
+**Critical path length**: ~16 tasks. Estimated duration: ~5-6 weeks (1 dev, ~120h).
 
 ---
 
-## Estado de implementación
+## Implementation Status
 
-Leyenda: `[ ]` pendiente · `[~]` en progreso · `[X]` completada
+Legend: `[ ]` pending · `[~]` in progress · `[X]` completed
 
-Resumen global: **44 de 45 tareas completadas** (Fase 6 finalizada; K-045 validación manual pendiente del usuario).
+Global summary: **44 of 45 tasks completed** (Phase 6 finished; K-045 manual validation pending user).
 
-| Estado | Tarea | Fase | Descripción corta |
+| Status | Task | Phase | Short description |
 |---|---|---|---|
-| `[X]` | K-001 | F1 | Crear estructura de proyecto y package.json |
-| `[X]` | K-002 | F1 | Implementar uuid.ts (UUID v7) |
-| `[X]` | K-003 | F1 | Implementar Store.ts (conexión SQLite) |
-| `[X]` | K-004 | F1 | Implementar Migrate.ts (runner de migraciones) |
-| `[X]` | K-005 | F1 | Crear migrations/001_initial.sql |
-| `[X]` | K-006 | F1 | Tests unitarios de Store + Migrate |
-| `[X]` | K-007 | F1 | Commit checkpoint Fase 1 |
-| `[X]` | K-008 | F2 | Implementar MemoryService.ts (CRUD base) |
-| `[X]` | K-009 | F2 | Implementar búsqueda FTS5 en MemoryService |
-| `[X]` | K-010 | F2 | Implementar scope session con expiración |
-| `[X]` | K-011 | F2 | Implementar getRelevant con token budget |
-| `[X]` | K-012 | F2 | Tests integración MemoryService + Store |
-| `[X]` | K-013 | F2 | Test e2e: memory flow (save → query → recall) |
-| `[X]` | K-014 | F2 | Commit checkpoint Fase 2 |
-| `[X]` | K-015 | F3 | Implementar ToolCallObserver.ts (registro) |
-| `[X]` | K-016 | F3 | Implementar redacción de secrets |
-| `[X]` | K-017 | F3 | Implementar inferencia de error_type |
-| `[X]` | K-018 | F3 | Exponer métodos públicos de ToolCallObserver |
-| `[X]` | K-019 | F3 | Tests integración ToolCallObserver con hooks |
-| `[X]` | K-020 | F3 | Commit checkpoint Fase 3 |
-| `[X]` | K-021 | F4 | Implementar Reflector.ts (esqueleto + heuristic) |
-| `[X]` | K-022 | F4 | Implementar lección heurística por error_type |
-| `[X]` | K-023 | F4 | Implementar redacción de paths y secrets |
-| `[X]` | K-024 | F4 | Implementar throttle en Reflector |
-| `[X]` | K-025 | F4 | Implementar truncado de content > 4KB |
-| `[X]` | K-026 | F4 | Tests integración Reflector + MemoryService |
-| `[X]` | K-027 | F4 | Test e2e: fallo → memoria error → recall |
-| `[X]` | K-028 | F4 | Commit checkpoint Fase 4 |
-| `[X]` | K-029 | F5 | Implementar ContextInjector (esqueleto + deriveQuery) |
-| `[X]` | K-030 | F5 | Implementar onSystemTransform (pre-prompt) |
-| `[X]` | K-031 | F5 | Implementar onCompacting |
-| `[X]` | K-032 | F5 | Implementar Retrospective.ts |
-| `[X]` | K-033 | F5 | Tests integración ContextInjector con hooks |
-| `[X]` | K-034 | F5 | Test e2e: reflection → next session → injection |
-| `[X]` | K-035 | F5 | Test e2e: session con fallos → retrospective |
-| `[X]` | K-036 | F5 | Commit checkpoint Fase 5 |
-| `[X]` | K-037 | F6 | Implementar plugin/index.ts (entry point) |
-| `[X]` | K-038 | F6 | Implementar tools en plugin |
-| `[X]` | K-039 | F6 | Cablear hooks en plugin |
-| `[X]` | K-040 | F6 | Tests e2e del plugin completo |
-| `[X]` | K-041 | F6 | Implementar scripts/verify-install.ts |
-| `[X]` | K-042 | F6 | Crear README.md (usuario final) |
-| `[X]` | K-043 | F6 | Bump versión 0.1.0 + CHANGELOG |
-| `[X]` | K-044 | F6 | Commit final + tag v0.1.0 |
-| `[ ]` | K-045 | F6 | Validación manual en OpenCode Desktop (pendiente usuario) |
+| `[X]` | K-001 | F1 | Create project structure and package.json |
+| `[X]` | K-002 | F1 | Implement uuid.ts (UUID v7) |
+| `[X]` | K-003 | F1 | Implement Store.ts (SQLite connection) |
+| `[X]` | K-004 | F1 | Implement Migrate.ts (migration runner) |
+| `[X]` | K-005 | F1 | Create migrations/001_initial.sql |
+| `[X]` | K-006 | F1 | Unit tests for Store + Migrate |
+| `[X]` | K-007 | F1 | Phase 1 checkpoint commit |
+| `[X]` | K-008 | F2 | Implement MemoryService.ts (base CRUD) |
+| `[X]` | K-009 | F2 | Implement FTS5 search in MemoryService |
+| `[X]` | K-010 | F2 | Implement session scope with expiration |
+| `[X]` | K-011 | F2 | Implement getRelevant with token budget |
+| `[X]` | K-012 | F2 | MemoryService + Store integration tests |
+| `[X]` | K-013 | F2 | E2E test: memory flow (save → query → recall) |
+| `[X]` | K-014 | F2 | Phase 2 checkpoint commit |
+| `[X]` | K-015 | F3 | Implement ToolCallObserver.ts (recording) |
+| `[X]` | K-016 | F3 | Implement secret redaction |
+| `[X]` | K-017 | F3 | Implement error_type inference |
+| `[X]` | K-018 | F3 | Expose public methods of ToolCallObserver |
+| `[X]` | K-019 | F3 | Integration tests ToolCallObserver with hooks |
+| `[X]` | K-020 | F3 | Phase 3 checkpoint commit |
+| `[X]` | K-021 | F4 | Implement Reflector.ts (skeleton + heuristic) |
+| `[X]` | K-022 | F4 | Implement heuristic lesson by error_type |
+| `[X]` | K-023 | F4 | Implement path and secret redaction |
+| `[X]` | K-024 | F4 | Implement throttle in Reflector |
+| `[X]` | K-025 | F4 | Implement content truncation > 4KB |
+| `[X]` | K-026 | F4 | Reflector + MemoryService integration tests |
+| `[X]` | K-027 | F4 | E2E test: failure → error memory → recall |
+| `[X]` | K-028 | F4 | Phase 4 checkpoint commit |
+| `[X]` | K-029 | F5 | Implement ContextInjector (skeleton + deriveQuery) |
+| `[X]` | K-030 | F5 | Implement onSystemTransform (pre-prompt) |
+| `[X]` | K-031 | F5 | Implement onCompacting |
+| `[X]` | K-032 | F5 | Implement Retrospective.ts |
+| `[X]` | K-033 | F5 | Integration tests ContextInjector with hooks |
+| `[X]` | K-034 | F5 | E2E test: reflection → next session → injection |
+| `[X]` | K-035 | F5 | E2E test: session with failures → retrospective |
+| `[X]` | K-036 | F5 | Phase 5 checkpoint commit |
+| `[X]` | K-037 | F6 | Implement plugin/index.ts (entry point) |
+| `[X]` | K-038 | F6 | Implement plugin tools |
+| `[X]` | K-039 | F6 | Wire hooks in plugin |
+| `[X]` | K-040 | F6 | E2E tests of complete plugin |
+| `[X]` | K-041 | F6 | Implement scripts/verify-install.ts |
+| `[X]` | K-042 | F6 | Create README.md (end-user) |
+| `[X]` | K-043 | F6 | Bump version 0.1.0 + CHANGELOG |
+| `[X]` | K-044 | F6 | Final commit + tag v0.1.0 |
+| `[ ]` | K-045 | F6 | Manual validation in OpenCode Desktop (pending user) |
 
 ---
 
-## Próximos pasos sugeridos (orden de la ruta crítica)
+## Suggested Next Steps (critical path order)
 
-1. **K-001..K-007** — Fase 1: Foundation (project setup, Store, Migrate, schema, uuid).
-2. **K-008..K-014** — Fase 2: Memory (MemoryService CRUD + FTS5 + session scope).
-3. **K-015..K-020** — Fase 3: Observation (ToolCallObserver + hooks + redaction).
-4. **K-021..K-028** — Fase 4: Reflection (Reflector heurístico + hook fallos + throttle).
-5. **K-029..K-036** — Fase 5: Injection + Retrospective (ContextInjector + Retrospective + hooks).
-6. **K-037..K-045** — Fase 6: Plugin + Release (entry point, tools, e2e, verify, tag v0.1.0).
+1. **K-001..K-007** — Phase 1: Foundation (project setup, Store, Migrate, schema, uuid).
+2. **K-008..K-014** — Phase 2: Memory (MemoryService CRUD + FTS5 + session scope).
+3. **K-015..K-020** — Phase 3: Observation (ToolCallObserver + hooks + redaction).
+4. **K-021..K-028** — Phase 4: Reflection (heuristic Reflector + failure hook + throttle).
+5. **K-029..K-036** — Phase 5: Injection + Retrospective (ContextInjector + Retrospective + hooks).
+6. **K-037..K-045** — Phase 6: Plugin + Release (entry point, tools, e2e, verify, tag v0.1.0).
 
 ---
 
-## Referencias
+## References
 
-- `docs/Kevin_Plan.md` — Plan de implementación (arquitectura, schema, componentes, decisiones)
+- `docs/Kevin_Plan.md` — Implementation plan (architecture, schema, components, decisions)
 - https://opencode.ai/docs — OpenCode docs (intro, install, usage)
 - https://opencode.ai/docs/plugins — Plugin API, hooks, events
-- https://opencode.ai/docs/skills — Agent Skills nativo
+- https://opencode.ai/docs/skills — Native Agent Skills
 - https://opencode.ai/docs/agents — Primary/subagents, task tool
 - https://opencode.ai/docs/custom-tools — tool() helper, Zod schemas
-- https://opencode.ai/docs/ecosystem — Plugins comunitarios
-- https://github.com/WiseLibs/better-sqlite3 — SQLite para Node.js
+- https://opencode.ai/docs/ecosystem — Community plugins
+- https://github.com/WiseLibs/better-sqlite3 — SQLite for Node.js
 - https://github.com/sqlite/sqlite/blob/master/ext/fts5/doc/fts5.md — FTS5 docs

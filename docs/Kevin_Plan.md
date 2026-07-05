@@ -1,145 +1,145 @@
-# Kevin — Plan de Implementación v0.1.0
+# Opencode-kevin — Implementation Plan v0.1.0
 
-**Versión:** 0.1.0
-**Fecha:** 2026-06-30
-**Estado:** Congelado (Fase 1 iniciada — 2026-07-01)
-**Paradigma:** Observa y aprende
-**Tipo:** Documento de diseño + plan de implementación
+**Version:** 0.1.0
+**Date:** 2026-06-30
+**Status:** Frozen (Phase 1 started — 2026-07-01)
+**Paradigm:** Observe and Learn
+**Type:** Design document + implementation plan
 
 ---
 
-## 1. Resumen ejecutivo
+## 1. Executive Summary
 
-Kevin es un plugin de OpenCode que **observa** lo que el agente hace, **aprende** de sus errores, y **comparte** proactivamente lo aprendido en futuras sesiones. No compite con el ecosistema de plugins de OpenCode; se instala encima y aporta la única capa que nadie más da: aprendizaje de errores.
+Opencode-kevin is an OpenCode plugin that **observes** what the agent does, **learns** from its mistakes, and **shares** what it has learned proactively in future sessions. It does not compete with the OpenCode plugin ecosystem; it installs on top and provides the one layer nobody else offers: learning from errors.
 
-| Dimensión | Valor |
+| Dimension | Value |
 |---|---|
-| Paradigma | Observa y aprende |
-| Versión | 0.1.0 |
-| Plugins | 1 (`kevin`) |
-| Archivos fuente | ~10 |
-| Tareas para v0.1.0 | 45 |
-| Duración estimada | 5-6 semanas (~120h) |
-| Almacenamiento | SQLite local (`.kevin/kevin.db`) |
- Dependencias externas | better-sqlite3, @opencode-ai/plugin, zod |
+| Paradigm | Observe and Learn |
+| Version | 0.1.0 |
+| Plugins | 1 (`opencode-kevin`) |
+| Source files | ~10 |
+| Tasks for v0.1.0 | 45 |
+| Estimated duration | 5-6 weeks (~120h) |
+| Storage | Local SQLite (`.kevin/kevin.db`) |
+| External dependencies | better-sqlite3, @opencode-ai/plugin, zod |
 
-**Criterio de salida**: tras un fallo de typecheck, Kevin genera automáticamente una lección persistida; en la siguiente sesión, esa lección se inyecta en el system prompt antes de que el agente actúe, sin que el usuario la pida.
+**Exit criterion**: after a typecheck failure, Kevin automatically generates a persisted lesson; in the next session, that lesson is injected into the system prompt before the agent acts, without the user asking for it.
 
 ---
 
-## 2. Filosofía — "Observa y aprende"
+## 2. Philosophy — "Observe and Learn"
 
-### 2.1 Tesis
+### 2.1 Thesis
 
-> Kevin es la capa de aprendizaje que OpenCode no tiene. Observa cada tool call, reflexiona sobre los fallos generando lecciones, y las inyecta proactivamente en futuras ejecuciones. No planifica, no orquesta, no compite con el ecosistema. Solo aprende.
+> Kevin is the learning layer that OpenCode lacks. It observes every tool call, reflects on failures by generating lessons, and proactively injects them into future runs. It does not plan, does not orchestrate, does not compete with the ecosystem. It only learns.
 
-### 2.2 El ciclo core
+### 2.2 The core cycle
 
 ```
     ┌──────────┐
-    │ OBSERVA  │ tool.execute.before/after → registra en tool_calls
+    │ OBSERVES │ tool.execute.before/after → records in tool_calls
     └────┬─────┘
          │
          ▼
     ┌──────────┐
-    │ APRENDE  │ si fallo → Reflector genera memoria type:error
+    │  LEARNS  │ if failure → Reflector generates type:error memory
     └────┬─────┘
          │
          ▼
     ┌──────────┐
-    │ COMPARTE │ system.transform → inyecta lección antes del próximo prompt
+    │  SHARES  │ system.transform → injects lesson before next prompt
     └────┬─────┘
          │
          ▼
     ┌──────────┐
-    │ OBSERVA  │ (próxima sesión, ciclo se repite con contexto aprendido)
+    │ OBSERVES │ (next session, cycle repeats with learned context)
     └──────────┘
 ```
 
-### 2.3 Principios
+### 2.3 Principles
 
-| # | Principio | Implicación |
+| # | Principle | Implication |
 |---|---|---|
-| 1 | Observar, no orquestar | Kevin nunca invoca tools del agente; solo observa |
-| 2 | Aprender es el diferenciador | Toda funcionalidad responde a: "¿esto ayuda a aprender?" |
-| 3 | Local-first | Todo en SQLite local. Sin cloud, sin servicios externos |
-| 4 | Proactivo sobre reactivo | Kevin inyecta lecciones antes de que el agente las pida |
-| 5 | Delegar al ecosistema | Workflow, async, scheduling, observabilidad → plugins comunitarios |
-| 6 | Plan-as-graph compatible | Kevin no planifica; aprende de cualquier planificador |
+| 1 | Observe, don't orchestrate | Kevin never invokes agent tools; it only observes |
+| 2 | Learning is the differentiator | Every feature answers: "does this help learning?" |
+| 3 | Local-first | Everything in local SQLite. No cloud, no external services |
+| 4 | Proactive over reactive | Kevin injects lessons before the agent asks for them |
+| 5 | Delegate to the ecosystem | Workflow, async, scheduling, observability → community plugins |
+| 6 | Plan-as-graph compatible | Kevin doesn't plan; it learns from any planner |
 
-### 2.4 Lo que Kevin 0.1.0 NO hace
+### 2.4 What opencode-kevin 0.1.0 does NOT do
 
-| Función | Razón | Alternativa |
+| Function | Reason | Alternative |
 |---|---|---|
-| Loop engine / workflow | Ecosistema lo hace mejor | `opencode-conductor` |
-| Background / async | Ecosistema lo hace mejor | `opencode-background-agents` |
-| Cron scheduling | Ecosistema lo hace mejor | `opencode-scheduler` |
-| Skill discovery | OpenCode host nativo | Agent Skills (`/docs/skills`) |
-| Observabilidad remota | Ecosistema lo hace mejor | `opencode-sentry-monitor` |
-| Context pruning | Ecosistema lo hace mejor | `opencode-dynamic-context-pruning` |
-| Embeddings / búsqueda semántica | Complejidad ABI; deferred a v0.2 | FTS5 con `remove_diacritics` |
-| Pattern mining | Deferred a v0.2 | — |
-| Prompt mutation | Deferred a v0.3 | — |
-| Cross-project memory | Deferred a v0.3 | — |
+| Loop engine / workflow | Ecosystem does it better | `opencode-conductor` |
+| Background / async | Ecosystem does it better | `opencode-background-agents` |
+| Cron scheduling | Ecosystem does it better | `opencode-scheduler` |
+| Skill discovery | Native OpenCode host | Agent Skills (`/docs/skills`) |
+| Remote observability | Ecosystem does it better | `opencode-sentry-monitor` |
+| Context pruning | Ecosystem does it better | `opencode-dynamic-context-pruning` |
+| Embeddings / semantic search | ABI complexity; deferred to v0.2 | FTS5 with `remove_diacritics` |
+| Pattern mining | Deferred to v0.2 | — |
+| Prompt mutation | Deferred to v0.3 | — |
+| Cross-project memory | Deferred to v0.3 | — |
 
 ---
 
-## 3. Arquitectura
+## 3. Architecture
 
-### 3.1 Visión general
+### 3.1 Overview
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    USUARIO / LLM                              │
+│                    USER / LLM                                 │
 │              (OpenCode TUI / Desktop / IDE)                  │
 ├──────────────────────────────────────────────────────────────┤
 │                   OPENCODE HOST                               │
-│  Skills nativas · Agents (build, plan, general, explore)     │
+│  Native Skills · Agents (build, plan, general, explore)      │
 │  task tool · permissions · MCP · LSP · compaction            │
 ├──────────────────────────────────────────────────────────────┤
-│              KEVIN 0.1.0 — Observa y aprende                  │
+│              KEVIN 0.1.0 — Observe and Learn                  │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │  plugin/index.ts (entry point)                       │   │
 │  │  ├── Store.ts           SQLite connection            │   │
 │  │  ├── Migrate.ts         Migration runner             │   │
 │  │  ├── MemoryService.ts   CRUD + FTS5 search           │   │
-│  │  ├── ToolCallObserver.ts  Registra tool calls        │   │
+│  │  ├── ToolCallObserver.ts  Records tool calls         │   │
 │  │  ├── Reflector.ts         Heuristic + LLM reflection │   │
-│  │  ├── ContextInjector.ts   Inyecta lecciones pre-prompt│   │
-│  │  └── Retrospective.ts     Resumen de sesión          │   │
+│  │  ├── ContextInjector.ts   Injects lessons pre-prompt │   │
+│  │  └── Retrospective.ts     Session summary            │   │
 │  └──────────────────────────────────────────────────────┘   │
 ├──────────────────────────────────────────────────────────────┤
-│              ALMACENAMIENTO LOCAL                             │
+│              LOCAL STORAGE                                    │
 │  .kevin/                                                     │
 │  ├── kevin.db (SQLite + FTS5)                                │
-│  ├── retrospectives/ (markdown por sesión)                   │
+│  ├── retrospectives/ (markdown per session)                  │
 │  └── version                                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### 3.2 Estructura de archivos
+### 3.2 File structure
 
 ```
-kevin/
+opencode-kevin/
 ├── package.json
 ├── tsconfig.json
 ├── opencode.json
 ├── AGENTS.md
 ├── README.md
 ├── plugin/
-│   ├── index.ts              # Entry point: registra tools + hooks
-│   ├── Store.ts              # Conexión SQLite + helpers
-│   ├── Migrate.ts            # Runner de migraciones
+│   ├── index.ts              # Entry point: registers tools + hooks
+│   ├── Store.ts              # SQLite connection + helpers
+│   ├── Migrate.ts            # Migration runner
 │   ├── uuid.ts               # UUID v7 generator
 │   ├── MemoryService.ts      # CRUD memories + FTS5 search
-│   ├── ToolCallObserver.ts   # Hook tool.execute.* → registra tool_calls
+│   ├── ToolCallObserver.ts   # Hook tool.execute.* → records tool_calls
 │   ├── Reflector.ts          # Heuristic + optional LLM reflection
 │   ├── ContextInjector.ts    # Hook system.transform + compacting
-│   └── Retrospective.ts      # Hook session.idle → genera retrospective.md
+│   └── Retrospective.ts      # Hook session.idle → generates retrospective.md
 ├── migrations/
 │   └── 001_initial.sql       # Schema: memories, memories_fts, tool_calls, retrospectives
 ├── scripts/
-│   └── verify-install.ts     # Verificación post-install
+│   └── verify-install.ts     # Post-install verification
 ├── tests/
 │   ├── unit/
 │   │   ├── store.test.ts
@@ -159,45 +159,28 @@ kevin/
 │       ├── context-injection.test.ts
 │       └── retrospective.test.ts
 └── docs/
-    ├── Kevin_Plan.md         # Este documento
-    └── Kevin_Task.md         # Lista de tareas
+    ├── Kevin_Plan.md         # This document
+    └── Kevin_Task.md         # Task list
 ```
-
-### 3.3 Ecosistema recomendado (opcional, Kevin funciona sin ellos)
-
-```jsonc
-// ~/.config/opencode/opencode.json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "opencode-conductor",              // Workflow: Context → Spec → Plan → Implement
-    "opencode-background-agents",      // Async delegation
-    "opencode-scheduler",              // Cron jobs
-    "opencode-dynamic-context-pruning",// Context pruning
-    "kevin"                            // Capa de aprendizaje
-  ]
-}
-```
-
-Kevin 0.1.0 funciona **standalone** sin ningún otro plugin. Con los plugins del ecosistema, Kevin observa más contexto y aprende más rico, pero no depende de ellos.
+Opencode-kevin 0.1.0 works **standalone** without any other plugin. With ecosystem plugins, opencode-kevin observes more context and learns richer, but does not depend on them.
 
 ---
 
-## 4. Schema SQLite — `migrations/001_initial.sql`
+## 4. SQLite Schema — `migrations/001_initial.sql`
 
 ```sql
 -- ============================================================
--- Kevin 0.1.0 — Schema inicial
+-- Opencode-kevin 0.1.0 — Initial Schema
 -- ============================================================
 
--- Tabla de versiones para migraciones
+-- Migration versions table
 CREATE TABLE IF NOT EXISTS schema_version (
   version TEXT PRIMARY KEY,
   applied_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============================================================
--- memories: lecciones aprendidas
+-- memories: learned lessons
 -- ============================================================
 CREATE TABLE IF NOT EXISTS memories (
   id TEXT PRIMARY KEY,
@@ -218,14 +201,14 @@ CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);
 CREATE INDEX IF NOT EXISTS idx_memories_relevance ON memories(relevance_score DESC);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
 
--- FTS5: búsqueda full-text con remoción de diacríticos (mejor para español)
+-- FTS5: full-text search with diacritic removal (best for Spanish)
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
   content,
   content='memories',
   tokenize='unicode61 remove_diacritics 1'
 );
 
--- Triggers para mantener FTS5 sincronizado
+-- Triggers to keep FTS5 synchronized
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
   INSERT INTO memories_fts(rowid, content) VALUES (new.id, new.content);
 END;
@@ -240,7 +223,7 @@ CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
 END;
 
 -- ============================================================
--- tool_calls: observación de tool calls del agente
+-- tool_calls: agent tool call observation
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tool_calls (
   id TEXT PRIMARY KEY,
@@ -261,7 +244,7 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_ts ON tool_calls(ts);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_success ON tool_calls(success);
 
 -- ============================================================
--- retrospectives: resúmenes de sesión
+-- retrospectives: session summaries
 -- ============================================================
 CREATE TABLE IF NOT EXISTS retrospectives (
   id TEXT PRIMARY KEY,
@@ -275,18 +258,18 @@ CREATE TABLE IF NOT EXISTS retrospectives (
 );
 
 -- ============================================================
--- Seed: versión inicial
+-- Seed: initial version
 -- ============================================================
 INSERT OR IGNORE INTO schema_version (version) VALUES ('001');
 ```
 
 ---
 
-## 5. Componentes — especificación detallada
+## 5. Components — detailed specification
 
-### 5.1 `Store.ts` — Conexión SQLite
+### 5.1 `Store.ts` — SQLite Connection
 
-**Responsabilidad**: Abre conexión better-sqlite3, expone prepared statements, maneja transacciones.
+**Responsibility**: Opens better-sqlite3 connection, exposes prepared statements, manages transactions.
 
 ```typescript
 import Database from 'better-sqlite3';
@@ -307,49 +290,49 @@ export class Store {
 }
 ```
 
-**Métodos clave**:
-- `constructor({ path })` — abre DB, WAL mode, foreign keys ON
+**Key methods**:
+- `constructor({ path })` — opens DB, WAL mode, foreign keys ON
 - `prepare(sql)` — prepared statement
-- `transaction(fn)` — wrapper transaccional
-- `close()` — cierra conexión
+- `transaction(fn)` — transactional wrapper
+- `close()` — closes connection
 
-### 5.2 `Migrate.ts` — Runner de migraciones
+### 5.2 `Migrate.ts` — Migration Runner
 
-**Responsabilidad**: Lee `schema_version`, aplica migraciones pendientes desde `migrations/`, actualiza versión.
+**Responsibility**: Reads `schema_version`, applies pending migrations from `migrations/`, updates version.
 
 ```typescript
 export class Migrate {
   constructor(private store: Store, private migrationsDir: string) {}
 
   async run(): Promise<{ from: string; to: string; applied: string[] }> {
-    // 1. Crear schema_version si no existe
-    // 2. Leer versión actual
-    // 3. Listar migraciones .sql en migrationsDir ordenadas
-    // 4. Aplicar pendientes en transacción
-    // 5. Retornar resultado
+    // 1. Create schema_version if it doesn't exist
+    // 2. Read current version
+    // 3. List .sql migrations in migrationsDir sorted
+    // 4. Apply pending ones in a transaction
+    // 5. Return result
   }
 }
 ```
 
-**Comportamiento**:
-- Idempotente: si todas aplicadas, no hace nada
-- Transaccional: si una migración falla, rollback completo
-- Lee archivos `.sql` del directorio `migrations/`
+**Behavior**:
+- Idempotent: if all applied, does nothing
+- Transactional: if a migration fails, full rollback
+- Reads `.sql` files from the `migrations/` directory
 
-### 5.3 `uuid.ts` — Generador UUID v7
+### 5.3 `uuid.ts` — UUID v7 Generator
 
-**Responsabilidad**: Genera IDs ordenables temporalmente (UUID v7).
+**Responsibility**: Generates temporally sortable IDs (UUID v7).
 
 ```typescript
 export function uuidv7(): string {
   // Timestamp (48 bits) + random (12 bits version + 62 bits random)
-  // Formato: xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx
+  // Format: xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx
 }
 ```
 
 ### 5.4 `MemoryService.ts` — CRUD + FTS5
 
-**Responsabilidad**: Guarda, busca, actualiza y elimina memorias. Búsqueda FTS5 con `bm25` ranking.
+**Responsibility**: Saves, searches, updates, and deletes memories. FTS5 search with `bm25` ranking.
 
 ```typescript
 export class MemoryService {
@@ -387,7 +370,7 @@ export class MemoryService {
 }
 ```
 
-**Tipo `Memory`**:
+**`Memory` type**:
 ```typescript
 interface Memory {
   id: string;
@@ -404,7 +387,7 @@ interface Memory {
 }
 ```
 
-**Búsqueda FTS5**:
+**FTS5 Search**:
 ```sql
 SELECT m.*, bm25(memories_fts) as score
 FROM memories_fts
@@ -416,32 +399,32 @@ ORDER BY score
 LIMIT ?;
 ```
 
-**`getRelevant`**: estrategia greedy con token budget. Filtra expiradas, ordena por `relevance_score` DESC + `created_at` DESC, fill respetando `maxTokens * 4` chars.
+**`getRelevant`**: greedy strategy with token budget. Filters expired, orders by `relevance_score` DESC + `created_at` DESC, fill respecting `maxTokens * 4` chars.
 
-### 5.5 `ToolCallObserver.ts` — Observación
+### 5.5 `ToolCallObserver.ts` — Observation
 
-**Responsabilidad**: Hook `tool.execute.before/after`. Registra cada tool call en `tool_calls` table.
+**Responsibility**: Hook `tool.execute.before/after`. Records each tool call in the `tool_calls` table.
 
 ```typescript
 export class ToolCallObserver {
   constructor(private store: Store) {}
 
   onBefore(input: ToolExecuteInput, output: ToolExecuteOutput): void {
-    // Registrar intención (ts inicial)
+    // Record intention (initial ts)
   }
 
   onAfter(input: ToolExecuteInput, output: ToolExecuteOutput): void {
-    // Registrar resultado: tool, args_summary (redacted), success, duration_ms, agent
-    // Inferir error_type si success=0
+    // Record result: tool, args_summary (redacted), success, duration_ms, agent
+    // Infer error_type if success=0
   }
 
   private redactSecrets(text: string): string {
-    // Patrones: API_KEY=*, SECRET=*, PASSWORD=*, token *, bearer *
-    // Reemplazar por <redacted>
+    // Patterns: API_KEY=*, SECRET=*, PASSWORD=*, token *, bearer *
+    // Replace with <redacted>
   }
 
   private summarizeArgs(args: Record<string, unknown>): string {
-    // Resumen legible: paths, comandos, sin secrets
+    // Readable summary: paths, commands, no secrets
   }
 
   private inferErrorType(stderr: string, stdout: string): string | null {
@@ -449,21 +432,21 @@ export class ToolCallObserver {
     // lint: "lint" | "biome" | "eslint"
     // test: "test" | "vitest" | "jest" | "FAIL"
     // runtime: "Error:" | "TypeError" | "ReferenceError"
-    // timeout: exitCode -1 && stderr vacío
+    // timeout: exitCode -1 && empty stderr
     // unknown: default
   }
 }
 ```
 
-**Registro en `tool_calls`**:
+**Record in `tool_calls`**:
 ```sql
 INSERT INTO tool_calls (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata)
 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?);
 ```
 
-### 5.6 `Reflector.ts` — Reflexión sobre fallos
+### 5.6 `Reflector.ts` — Reflection on Failures
 
-**Responsabilidad**: Tras un tool call fallido, genera una memoria `type: error` con la lección aprendida.
+**Responsibility**: After a failed tool call, generates a `type: error` memory with the learned lesson.
 
 ```typescript
 export class Reflector {
@@ -478,16 +461,16 @@ export class Reflector {
     errorType: string;
     sessionId: string;
   }): Promise<string | null> {
-    // 1. Redact paths y secrets del output
-    // 2. Generar lección heurística
-    // 3. Si content > 4KB, truncar + metadata.not_searchable = true
-    // 4. Persistir como memoria type: error
-    // 5. Retornar memory_id o null si no aplica
+    // 1. Redact paths and secrets from output
+    // 2. Generate heuristic lesson
+    // 3. If content > 4KB, truncate + metadata.not_searchable = true
+    // 4. Persist as type: error memory
+    // 5. Return memory_id or null if not applicable
   }
 
   private generateHeuristicLesson(input: ReflectionInput): string {
     // Template: "When {tool} fails with {errorType}: {firstErrorLine}\nSuggestion: {suggestion}"
-    // Suggestions por errorType:
+    // Suggestions per errorType:
     //   typecheck → "Verify types and imports before running."
     //   lint → "Run linter and fix warnings before committing."
     //   test → "Run tests and fix failures before proceeding."
@@ -497,7 +480,7 @@ export class Reflector {
   }
 
   private redactPaths(text: string): string {
-    // Reemplazar paths absolutos por <path>
+    // Replace absolute paths with <path>
     // Windows: C:\... → <path>
     // Unix: /home/... → <path>
   }
@@ -508,83 +491,83 @@ export class Reflector {
 }
 ```
 
-**Throttle**: máximo 1 reflection por minuto (configurable). Si ya se reflexionó en el último minuto, skip.
+**Throttle**: maximum 1 reflection per minute (configurable). If a reflection already happened in the last minute, skip.
 
-**Fallback**: si no hay sub-agent disponible, siempre genera lección heurística. La lección heurística es funcional sin API costs.
+**Fallback**: if no sub-agent is available, always generates a heuristic lesson. The heuristic lesson is functional without API costs.
 
-### 5.7 `ContextInjector.ts` — Inyección proactiva
+### 5.7 `ContextInjector.ts` — Proactive Injection
 
-**Responsabilidad**: Inyecta lecciones aprendidas en el system prompt antes de cada mensaje del usuario, y al compactar.
+**Responsibility**: Injects learned lessons into the system prompt before each user message, and during compaction.
 
 ```typescript
 export class ContextInjector {
   constructor(private memoryService: MemoryService) {}
 
   onSystemTransform(input: SystemTransformInput, output: SystemTransformOutput): void {
-    // 1. Derivar query del último mensaje del usuario
-    // 2. Buscar memorias relevantes (priorizar type: error y type: pattern)
-    // 3. Presupuesto: 1500 tokens (~6000 chars)
-    // 4. Formatear como <kevin-context>Lecciones relevantes:\n...</kevin-context>
-    // 5. Añadir a output (system prompt)
+    // 1. Derive query from last user message
+    // 2. Search relevant memories (prioritize type: error and type: pattern)
+    // 3. Budget: 1500 tokens (~6000 chars)
+    // 4. Format as <kevin-context>Relevant Lessons:\n...</kevin-context>
+    // 5. Add to output (system prompt)
   }
 
   onCompacting(input: CompactingInput, output: CompactingOutput): void {
-    // 1. Derivar query del contexto de la sesión
-    // 2. Buscar memorias relevantes (todos los tipos)
-    // 3. Presupuesto: 2000 tokens (~8000 chars)
-    // 4. Formatear como <kevin-memory>\n...</kevin-memory>
-    // 5. Añadir a output.context
+    // 1. Derive query from session context
+    // 2. Search relevant memories (all types)
+    // 3. Budget: 2000 tokens (~8000 chars)
+    // 4. Format as <kevin-memory>\n...</kevin-memory>
+    // 5. Add to output.context
   }
 
   private deriveQuery(messages: Message[]): string {
-    // Extraer keywords del último mensaje del usuario
-    // Stop words básicas (en inglés y español)
+    // Extract keywords from last user message
+    // Basic stop words (English and Spanish)
   }
 
   private formatMemories(memories: Memory[], format: 'context' | 'memory'): string {
-    // context: <kevin-context>Lecciones relevantes:\n[type] content\n...</kevin-context>
+    // context: <kevin-context>Relevant Lessons:\n[type] content\n...</kevin-context>
     // memory: <kevin-memory>\n[type] content\n...</kevin-memory>
   }
 }
 ```
 
-**Comportamiento clave**:
-- Si no hay memorias relevantes, no añade nada (no contaminar el prompt)
-- Prioriza `type: error` y `type: pattern` sobre `decision` y `context`
-- Respeta el presupuesto de tokens
-- Filtra memorias expiradas (scope session)
+**Key behavior**:
+- If no relevant memories, adds nothing (don't contaminate the prompt)
+- Prioritizes `type: error` and `type: pattern` over `decision` and `context`
+- Respects the token budget
+- Filters expired memories (session scope)
 
-### 5.8 `Retrospective.ts` — Resumen de sesión
+### 5.8 `Retrospective.ts` — Session Summary
 
-**Responsabilidad**: Tras `session.idle`, si hubo fallos, genera un archivo markdown con el resumen.
+**Responsibility**: After `session.idle`, if there were failures, generates a markdown file with the summary.
 
 ```typescript
 export class Retrospective {
   constructor(private store: Store, private memoryService: MemoryService) {}
 
   async generate(sessionId: string): Promise<string | null> {
-    // 1. Contar tool_calls success/failure de la sesión
-    // 2. Si no hubo fallos, retornar null (no generar retrospective)
-    // 3. Listar tools que fallaron con error_type
-    // 4. Listar lecciones generadas (memories type:error con source_session = sessionId)
-    // 5. Generar markdown:
+    // 1. Count tool_calls success/failure for the session
+    // 2. If no failures, return null (don't generate retrospective)
+    // 3. List tools that failed with error_type
+    // 4. List generated lessons (memories type:error with source_session = sessionId)
+    // 5. Generate markdown:
     //    # Retrospective — Session {sessionId}
-    //    ## Resumen
+    //    ## Summary
     //    - Tool calls: {total} ({success} ok, {failure} failed)
-    //    ## Tools que fallaron
+    //    ## Tools that failed
     //    - {tool} ({error_type}): {args_summary}
-    //    ## Lecciones generadas
+    //    ## Generated Lessons
     //    - {content}
-    // 6. Guardar en .kevin/retrospectives/{sessionId}.md
-    // 7. Insertar en retrospectives table
-    // 8. Retornar file_path
+    // 6. Save in .kevin/retrospectives/{sessionId}.md
+    // 7. Insert into retrospectives table
+    // 8. Return file_path
   }
 }
 ```
 
 ---
 
-## 6. Plugin entry point — `plugin/index.ts`
+## 6. Plugin Entry Point — `plugin/index.ts`
 
 ```typescript
 import { type Plugin, tool } from '@opencode-ai/plugin';
@@ -597,22 +580,22 @@ import { ContextInjector } from './ContextInjector.js';
 import { Retrospective } from './Retrospective.js';
 
 export const KevinPlugin: Plugin = async (ctx) => {
-  // 1. Inicializar Store
+  // 1. Initialize Store
   const dbPath = `${ctx.directory}/.kevin/kevin.db`;
   const store = new Store({ path: dbPath });
 
-  // 2. Migrar
+  // 2. Migrate
   const migrate = new Migrate(store, `${ctx.directory}/migrations`);
   await migrate.run();
 
-  // 3. Inicializar componentes
+  // 3. Initialize components
   const memoryService = new MemoryService(store);
   const observer = new ToolCallObserver(store);
   const reflector = new Reflector(memoryService);
   const injector = new ContextInjector(memoryService);
   const retrospective = new Retrospective(store, memoryService);
 
-  // 4. Estado de sesión
+  // 4. Session state
   let currentSessionId: string | null = null;
   let lastReflectionTs = 0;
 
@@ -668,8 +651,8 @@ export const KevinPlugin: Plugin = async (ctx) => {
         description: 'Show Kevin learning status (memories, tool calls, retrospectives)',
         args: {},
         async execute() {
-          // Contar memories, tool_calls, retrospectives
-          // Retornar resumen JSON
+          // Count memories, tool_calls, retrospectives
+          // Return JSON summary
         },
       }),
 
@@ -697,12 +680,12 @@ export const KevinPlugin: Plugin = async (ctx) => {
     'tool.execute.after': async (input, output) => {
       observer.onAfter(input, output);
 
-      // Si fallo, disparar reflection asíncrono (throttled)
+      // If failure, trigger async reflection (throttled)
       if (output.success === false) {
         const now = Date.now();
         if (now - lastReflectionTs > 60_000) { // throttle 1/min
           lastReflectionTs = now;
-          // No await: asíncrono, no bloquea el hook
+          // No await: async, doesn't block the hook
           reflector.invoke({
             toolName: input.tool,
             argsSummary: observer.summarizeArgs(input.args),
@@ -739,40 +722,40 @@ export const KevinPlugin: Plugin = async (ctx) => {
 
 ---
 
-## 7. Tools expuestas — resumen
+## 7. Exposed Tools — Summary
 
-| Tool | Descripción | Args |
+| Tool | Description | Args |
 |---|---|---|
-| `kevin_save` | Guarda una memoria | `type`, `content`, `scope?` |
-| `kevin_query` | Busca memorias por texto (FTS5) | `query`, `type?`, `limit?` |
-| `kevin_recall` | Recupera memorias relevantes | `query?`, `limit?` |
-| `kevin_status` | Estado de aprendizaje | — |
-| `kevin_retrospective` | Genera/ve retrospectiva | `session_id?` |
+| `kevin_save` | Saves a memory | `type`, `content`, `scope?` |
+| `kevin_query` | Searches memories by text (FTS5) | `query`, `type?`, `limit?` |
+| `kevin_recall` | Recalls relevant memories | `query?`, `limit?` |
+| `kevin_status` | Learning status | — |
+| `kevin_retrospective` | Generates/views retrospective | `session_id?` |
 
 ---
 
-## 8. Hooks suscritos — resumen
+## 8. Subscribed Hooks — Summary
 
-| Hook | Componente | Comportamiento |
+| Hook | Component | Behavior |
 |---|---|---|
-| `tool.execute.before` | `ToolCallObserver` | Registra ts inicial de tool call |
-| `tool.execute.after` | `ToolCallObserver` + `Reflector` | Registra resultado; si fallo, dispara reflection asíncrono (throttled 1/min) |
-| `experimental.chat.system.transform` | `ContextInjector` | Inyecta lecciones relevantes pre-prompt (1500 tokens budget) |
-| `experimental.session.compacting` | `ContextInjector` | Inyecta memorias relevantes al compactar (2000 tokens budget) |
-| `session.created` | Plugin | Captura `sessionID` actual |
-| `session.idle` | `Retrospective` | Genera retrospective.md si hubo fallos |
+| `tool.execute.before` | `ToolCallObserver` | Records initial ts of tool call |
+| `tool.execute.after` | `ToolCallObserver` + `Reflector` | Records result; if failure, triggers async reflection (throttled 1/min) |
+| `experimental.chat.system.transform` | `ContextInjector` | Injects relevant lessons pre-prompt (1500 tokens budget) |
+| `experimental.session.compacting` | `ContextInjector` | Injects relevant memories during compaction (2000 tokens budget) |
+| `session.created` | Plugin | Captures current `sessionID` |
+| `session.idle` | `Retrospective` | Generates retrospective.md if there were failures |
 
 ---
 
-## 9. Configuración — archivos base
+## 9. Configuration — Base Files
 
 ### 9.1 `package.json`
 
 ```json
 {
-  "name": "kevin",
+  "name": "opencode-kevin",
   "version": "0.1.0",
-  "description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
+  "description": "Kevin — Observe and Learn: learning layer for OpenCode",
   "type": "module",
   "scripts": {
     "build": "tsc --outDir dist",
@@ -824,7 +807,7 @@ export const KevinPlugin: Plugin = async (ctx) => {
 }
 ```
 
-### 9.3 `opencode.json` (desarrollo)
+### 9.3 `opencode.json` (development)
 
 ```jsonc
 {
@@ -833,56 +816,56 @@ export const KevinPlugin: Plugin = async (ctx) => {
 }
 ```
 
-### 9.4 `AGENTS.md` (esqueleto)
+### 9.4 `AGENTS.md` (skeleton)
 
 ```markdown
 # Kevin — AGENTS.md
 
-## Comandos
+## Commands
 - `npm run typecheck` — TypeScript strict check
 - `npm run lint` — Biome check
 - `npm test` — Vitest (all tests)
 - `npm run verify` — Post-install verification
 
-## Arquitectura
-Kevin es 1 plugin con 7 componentes: Store, Migrate, MemoryService,
+## Architecture
+Kevin is 1 plugin with 7 components: Store, Migrate, MemoryService,
 ToolCallObserver, Reflector, ContextInjector, Retrospective.
 
-## Convenciones
+## Conventions
 - TypeScript strict, ESM modules
 - SQLite via better-sqlite3
-- Tests con vitest (unit, integration, e2e)
-- Lint con Biome
+- Tests with vitest (unit, integration, e2e)
+- Lint with Biome
 ```
 
 ---
 
-## 10. Testing strategy
+## 10. Testing Strategy
 
-### 10.1 Niveles
+### 10.1 Levels
 
-| Nivel | Cobertura | Tool | Cuándo |
+| Level | Coverage | Tool | When |
 |---|---|---|---|
-| Unit | ≥90% funciones puras | vitest | Cada fase |
-| Integration | ≥80% interacciones componente-componente | vitest + SQLite `:memory:` | Cada fase |
-| E2E | Flujos completos | vitest + SQLite temporal | Fin de proyecto |
+| Unit | ≥90% pure functions | vitest | Each phase |
+| Integration | ≥80% component-component interactions | vitest + SQLite `:memory:` | Each phase |
+| E2E | Complete flows | vitest + temporary SQLite | End of project |
 
-### 10.2 Tests críticos
+### 10.2 Critical Tests
 
-| Test | Descripción |
+| Test | Description |
 |---|---|
-| `store.test.ts` | Store abre, prepara, transacciona, cierra |
-| `migrate.test.ts` | Migración 001 aplica sin error, idempotente |
-| `memory-service.test.ts` | CRUD + FTS5 search + expiración session scope |
-| `tool-call-observer.test.ts` | Registra tool calls, redact secrets, infiere error_type |
+| `store.test.ts` | Store opens, prepares, transactions, closes |
+| `migrate.test.ts` | Migration 001 applies without error, idempotent |
+| `memory-service.test.ts` | CRUD + FTS5 search + session scope expiration |
+| `tool-call-observer.test.ts` | Records tool calls, redacts secrets, infers error_type |
 | `reflector.test.ts` | Heuristic lesson generation, redact paths/secrets, throttle |
-| `context-injector.test.ts` | Inyecta lecciones, respeta budget, no contamina si vacío |
-| `retrospective.test.ts` | Genera markdown, no genera si no fallos |
-| `reflection-loop.test.ts` (e2e) | Fallo typecheck → memoria error → recall la retorna |
-| `context-injection.test.ts` (e2e) | Memoria error → próxima sesión inyecta lección pre-prompt |
-| `retrospective.test.ts` (e2e) | Sesión con fallos → retrospective.md existe |
+| `context-injector.test.ts` | Injects lessons, respects budget, no contamination if empty |
+| `retrospective.test.ts` | Generates markdown, doesn't generate if no failures |
+| `reflection-loop.test.ts` (e2e) | Typecheck failure → error memory → recall returns it |
+| `context-injection.test.ts` (e2e) | Error memory → next session injects lesson pre-prompt |
+| `retrospective.test.ts` (e2e) | Session with failures → retrospective.md exists |
 
-### 10.3 Verificación continua
+### 10.3 Continuous Verification
 
 ```bash
 npm run typecheck && npm run lint && npm test
@@ -891,37 +874,37 @@ npm run verify
 
 ---
 
-## 11. Decisiones
+## 11. Decisions
 
-| # | Decisión | Resolución | Justificación |
+| # | Decision | Resolution | Justification |
 |---|---|---|---|
-| D1 | 1 plugin o múltiples | **1 plugin** | v0.1.0 simplicidad; split en v0.2 si crece |
-| D2 | Memoria: FTS5 o embeddings | **FTS5** con `remove_diacritics 1` | Sin riesgo ABI sqlite-vec; embeddings en v0.2 |
-| D3 | Reflection: LLM o heurístico | **Heurístico siempre**, LLM opcional | Funciona sin API costs; LLM enriquece si disponible |
-| D4 | Scope: project, session, o global | **project + session** | Global/cross-project en v0.3 |
-| D5 | Storage location | `.kevin/kevin.db` (project-level) | Local-first; sin global en v0.1.0 |
-| D6 | Throttle reflection | 1/min máximo | Evitar costos si LLM disponible |
-| D7 | Token budget injection | 1500 tokens pre-prompt, 2000 compacting | No contaminar contexto |
-| D8 | Retrospective trigger | `session.idle` solo si hubo fallos | No generar ruido si sesión OK |
-| D9 | FTS5 tokenizer | `unicode61 remove_diacritics 1` | Mejor para español que `unicode61` solo |
-| D10 | Version target | **0.1.0** | Fresh start, semver honesto |
+| D1 | 1 plugin or multiple | **1 plugin** | v0.1.0 simplicity; split in v0.2 if it grows |
+| D2 | Memory: FTS5 or embeddings | **FTS5** with `remove_diacritics 1` | No ABI risk with sqlite-vec; embeddings in v0.2 |
+| D3 | Reflection: LLM or heuristic | **Heuristic always**, LLM optional | Works without API costs; LLM enriches if available |
+| D4 | Scope: project, session, or global | **project + session** | Global/cross-project in v0.3 |
+| D5 | Storage location | `.kevin/kevin.db` (project-level) | Local-first; no global in v0.1.0 |
+| D6 | Throttle reflection | 1/min maximum | Avoid costs if LLM is available |
+| D7 | Token budget injection | 1500 tokens pre-prompt, 2000 compacting | Don't contaminate context |
+| D8 | Retrospective trigger | `session.idle` only if there were failures | Don't generate noise if session OK |
+| D9 | FTS5 tokenizer | `unicode61 remove_diacritics 1` | Better for Spanish than `unicode61` alone |
+| D10 | Version target | **0.1.0** | Fresh start, honest semver |
 
 ---
 
-## 12. Fases del plan
+## 12. Plan Phases
 
-| Fase | Duración | Tasks | Descripción |
+| Phase | Duration | Tasks | Description |
 |---|---|---|---|
-| F1 — Foundation | 1 sem | K-001 a K-007 | Project setup, Store, Migrate, schema, uuid |
-| F2 — Memory | 1 sem | K-008 a K-014 | MemoryService CRUD + FTS5 + session scope |
-| F3 — Observation | 1 sem | K-015 a K-020 | ToolCallObserver + hooks + redaction |
-| F4 — Reflection | 1 sem | K-021 a K-028 | Reflector heurístico + hook fallos + throttle |
-| F5 — Injection + Retrospective | 1 sem | K-029 to K-036 | ContextInjector + Retrospective + hooks |
-| F6 — Plugin + Release | 0.5-1 sem | K-037 to K-045 | Entry point, tools, e2e, verify, tag v0.1.0 |
+| F1 — Foundation | 1 week | K-001 to K-007 | Project setup, Store, Migrate, schema, uuid |
+| F2 — Memory | 1 week | K-008 to K-014 | MemoryService CRUD + FTS5 + session scope |
+| F3 — Observation | 1 week | K-015 to K-020 | ToolCallObserver + hooks + redaction |
+| F4 — Reflection | 1 week | K-021 to K-028 | Heuristic Reflector + failure hook + throttle |
+| F5 — Injection + Retrospective | 1 week | K-029 to K-036 | ContextInjector + Retrospective + hooks |
+| F6 — Plugin + Release | 0.5-1 week | K-037 to K-045 | Entry point, tools, e2e, verify, tag v0.1.0 |
 
-**Total: ~5-6 semanas, ~120h, 45 tareas**
+**Total: ~5-6 weeks, ~120h, 45 tasks**
 
-**Ruta crítica**:
+**Critical path**:
 ```
 K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
     → K-021 → K-024 → K-029 → K-033 → K-037 → K-041 → K-045
@@ -931,48 +914,48 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 
 ## 13. Versioning
 
-**Kevin v0.1.0** — primer release público.
+**Opencode-kevin v0.1.0** — first public release.
 
 ```markdown
 ## [0.1.0] - 2026-XX-XX
 
 ### Added
-- Plugin `kevin` con paradigma "Observa y aprende"
-- Memoria local-first SQLite + FTS5 (unicode61 remove_diacritics)
-- ToolCallObserver: registra tool calls via hooks
-- Reflector: genera lecciones heurísticas tras fallos
-- ContextInjector: inyecta lecciones pre-prompt y al compactar
-- Retrospective: genera resumen de sesión tras session.idle
+- `kevin` plugin with "Observe and Learn" paradigm
+- Local-first SQLite + FTS5 memory (unicode61 remove_diacritics)
+- ToolCallObserver: records tool calls via hooks
+- Reflector: generates heuristic lessons after failures
+- ContextInjector: injects lessons pre-prompt and during compaction
+- Retrospective: generates session summary after session.idle
 - Tools: kevin_save, kevin_query, kevin_recall, kevin_status, kevin_retrospective
 - Hooks: tool.execute.before/after, system.transform, session.compacting, session.idle
-- Stack recomendado: conductor, background-agents, scheduler, DCP (opcionales)
+- Recommended stack: conductor, background-agents, scheduler, DCP (optional)
 ```
 
 ---
 
-## 14. Roadmap futuro (post-v0.1.0)
+## 14. Future Roadmap (post-v0.1.0)
 
-| Versión | Feature | Descripción |
+| Version | Feature | Description |
 |---|---|---|
 | v0.2 | Embeddings + hybrid retrieval | sqlite-vec + BGE-M3 ONNX; BM25 + cosine + RRF |
-| v0.2 | Pattern mining | PatternMiner: secuencias de tool calls |
-| v0.3 | Prompt mutation HITL | Sugerencias de mutación de SKILL.md con human-in-the-loop |
-| v0.3 | Cross-project memory | Preferencias del usuario con consentimiento |
-| v0.4 | Skill quality index | Pass-rate, error types, drift detection por skill |
-| v0.4 | LLM reflection enriquecida | Sub-agent barato para reflection más rica |
+| v0.2 | Pattern mining | PatternMiner: tool call sequences |
+| v0.3 | Prompt mutation HITL | SKILL.md mutation suggestions with human-in-the-loop |
+| v0.3 | Cross-project memory | User preferences with consent |
+| v0.4 | Skill quality index | Pass-rate, error types, drift detection per skill |
+| v0.4 | Enriched LLM reflection | Cheap sub-agent for richer reflection |
 | v0.5 | Ecosystem deep integration | Conductor tracks, sentry events, background results |
 
 ---
 
-## 15. Referencias
+## 15. References
 
 - https://opencode.ai/docs — OpenCode docs (intro, install, usage)
 - https://opencode.ai/docs/plugins — Plugin API, hooks, events
-- https://opencode.ai/docs/skills — Agent Skills nativo
+- https://opencode.ai/docs/skills — Native Agent Skills
 - https://opencode.ai/docs/agents — Primary/subagents, task tool
 - https://opencode.ai/docs/custom-tools — tool() helper, Zod schemas
-- https://opencode.ai/docs/ecosystem — Plugins comunitarios
-- https://github.com/WiseLibs/better-sqlite3 — SQLite para Node.js
+- https://opencode.ai/docs/ecosystem — Community plugins
+- https://github.com/WiseLibs/better-sqlite3 — SQLite for Node.js
 - https://github.com/sqlite/sqlite/blob/master/ext/fts5/doc/fts5.md — FTS5 docs
 
-**Documento siguiente**: `Kevin_Task.md` — lista exhaustiva de tareas K-001..K-045.
+**Next document**: `Kevin_Task.md` — exhaustive task list K-001..K-045.
