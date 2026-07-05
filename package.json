@@ -3,6 +3,13 @@
 	"version": "0.1.1",
 	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
 	"type": "module",
+	"main": "dist/plugin/index.js",
+	"exports": {
+		".": {
+			"import": "./dist/plugin/index.js",
+			"types": "./dist/plugin/index.d.ts"
+		}
+	},
 	"scripts": {
 		"build": "tsc --outDir dist",
 		"test": "vitest run",
