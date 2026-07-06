@@ -4,31 +4,44 @@
 
 Kevin is an [OpenCode](https://opencode.ai) plugin that **observes** every agent tool call, **learns** from failures by generating lessons, and **shares** what it learned proactively in future sessions. It does not plan, orchestrate, or compete with the plugin ecosystem. It only learns.
 
-- **Local-first**: memory in SQLite + FTS5, no external services.
-- **No network**: everything lives in `.kevin/kevin.db` inside your project.
+- **Local-first**: SQLite + FTS5, no external services, no network calls.
+- **Global memory**: a single `~/.opencode-kevin/kevin.db` shared across all your projects (WAL mode → safe for concurrent sessions). No per-project folders.
 - **Standalone**: works without any other plugin. With the ecosystem, it learns more richly.
 
 ---
 
 ## Installation
 
-```bash
-npm install kevin
-```
+### 1. Declare the plugin
 
-Enable Kevin in your OpenCode config:
+Add Kevin to your OpenCode config. For **all projects** (global):
 
 ```jsonc
-// ~/.config/opencode/opencode.json
+// ~/.config/opencode/opencode.jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "kevin"
+    "@jmtrin/opencode-kevin@latest"
   ]
 }
 ```
 
-When OpenCode starts, Kevin creates `.kevin/kevin.db` and runs migrations automatically.
+For a **single project**, put the same `plugin` array in `./opencode.json` or `.opencode/opencode.json` at the project root.
+
+### 2. Restart OpenCode
+
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes five tools: `kevin_save`, `kevin_query`, `kevin_recall`, `kevin_status`, `kevin_retrospective`.
+
+### 3. Where data lives
+
+Kevin stores everything in a single **global, shared** location under your home directory — no per-project `.kevin/` folders:
+
+| Path | Content |
+|---|---|
+| `~/.opencode-kevin/kevin.db` | SQLite database (memories, tool calls, retrospectives). WAL mode → safe for concurrent OpenCode sessions across projects. |
+| `~/.opencode-kevin/retrospectives/<session>.md` | Per-session retrospective markdown. |
+
+Migrations run automatically on startup.
 
 ### Requirements
 
@@ -43,32 +56,23 @@ npm run verify
 
 Checks Node version, SQLite, migration, MemoryService save/query, Reflector, ContextInjector, and TypeScript strict mode.
 
----
+### Advanced (optional)
 
-## Ecosystem (optional)
-
-Kevin works standalone, but shines with the rest of the OpenCode ecosystem. None are required:
+Override defaults via the plugin tuple form:
 
 ```jsonc
 {
   "plugin": [
-    "opencode-conductor",               // Workflow: Context → Spec → Plan → Implement
-    "opencode-background-agents",       // Async delegation
-    "opencode-scheduler",               // Cron jobs
-    "opencode-dynamic-context-pruning", // Context pruning (DCP)
-    "kevin"                             // Learning layer
+    ["@jmtrin/opencode-kevin", {
+      "dbPath": "/custom/path/kevin.db",
+      "retrospectivesDir": "/custom/path/retrospectives",
+      "throttleMs": 120000
+    }]
   ]
 }
 ```
 
-| Plugin | Role | Synergy with Kevin |
-|---|---|---|
-| `opencode-conductor` | Orchestrates autonomous tracks | More tool calls → more failures to learn from |
-| `opencode-background-agents` | Async delegation | Kevin observes background work |
-| `opencode-scheduler` | Cron jobs | Kevin learns from recurring jobs |
-| `opencode-dynamic-context-pruning` (DCP) | Prunes stale tool outputs | DCP frees space → Kevin fills it with useful lessons |
-
-DCP and Kevin are complementary: DCP prunes stale content, Kevin injects learned lessons.
+Use `:memory:` for `dbPath` in tests.
 
 ---
 
@@ -97,7 +101,7 @@ DCP and Kevin are complementary: DCP prunes stale content, Kevin injects learned
            │ session.idle
            ▼
   ┌─────────────────┐
-  │  RETROSPECTIVE   │  Retrospective generates .kevin/retrospectives/<session>.md
+  │  RETROSPECTIVE   │  Retrospective generates ~/.opencode-kevin/retrospectives/<session>.md
   └─────────────────┘  with summary of failures and lessons
 ```
 
@@ -151,7 +155,7 @@ Generates a retrospective for a session (uses current session if `session_id` is
 
 ```
 kevin_retrospective({ session_id: "sess-abc" })
-// → { "file_path": ".kevin/retrospectives/sess-abc.md" }
+// → { "file_path": "~/.opencode-kevin/retrospectives/sess-abc.md" }
 // or → { "message": "No failures in session sess-abc." }
 ```
 
@@ -180,16 +184,16 @@ Kevin subscribes to 6 OpenCode hooks:
 
 ## Configuration
 
-Kevin accepts options via the plugin's second argument (advanced):
+Kevin accepts options via the plugin's tuple form (see Installation → Advanced). Programmatic defaults:
 
 ```ts
-import { KevinPlugin } from "kevin";
+import { KevinPlugin } from "@jmtrin/opencode-kevin";
 
 // defaults
 KevinPlugin(input, {
-  dbPath: ".kevin/kevin.db",     // or ":memory:" for tests
-  migrationsDir: "./migrations",
-  retrospectivesDir: ".kevin/retrospectives",
+  dbPath: "~/.opencode-kevin/kevin.db",            // or ":memory:" for tests
+  migrationsDir: "<package>/dist/migrations",       // resolved automatically
+  retrospectivesDir: "~/.opencode-kevin/retrospectives",
   throttleMs: 60_000,
 });
 ```
@@ -199,13 +203,23 @@ KevinPlugin(input, {
 ## Development
 
 ```bash
-git clone <repo> && cd kevin
+git clone https://github.com/jmtrin/opencode-kevin.git
+cd opencode-kevin
 npm install
 npm run typecheck   # tsc --noEmit (strict)
 npm run lint        # biome check .
 npm test            # vitest run (unit + integration + e2e)
 npm run verify      # post-install verification
 ```
+
+### Publishing (maintainer)
+
+```bash
+npm login              # as the jmtrin account that owns the @jmtrin scope
+npm publish --access public
+```
+
+`prepublishOnly` runs `npm run build` (tsc + copy migrations) automatically. The `files` field ships only `dist/plugin`, `dist/migrations`, and `migrations`. `dist/` is gitignored and rebuilt on publish.
 
 ### Structure
 
@@ -221,27 +235,14 @@ plugin/
   Retrospective.ts      # Generates retrospective.md + table insert
 migrations/
   001_initial.sql       # schema: memories, tool_calls, retrospectives
+  002_indexes.sql       # FTS5 + indexes
 tests/{unit,integration,e2e}/
 scripts/
+  copy-migrations.mjs   # build step: copies *.sql to dist/migrations
   verify-install.ts     # npm run verify
 ```
 
 ---
-
-## Roadmap
-
-| Versión | Feature | Descripción |
-|---|---|---|
-| v0.1 | Heurístico + FTS5 | **Esta versión.** Reflector con templates por error_type |
-| v0.2 | Embeddings + hybrid retrieval | sqlite-vec + BGE-M3 ONNX; BM25 + cosine + RRF |
-| v0.2 | Pattern mining | PatternMiner: secuencias de tool calls recurrentes |
-| v0.3 | Cross-project memory | Preferencias del usuario con consentimiento explícito |
-| v0.3 | Prompt mutation HITL | Sugerencias de mutación de SKILL.md con human-in-the-loop |
-| v0.4 | Skill quality index | Pass-rate, error types, drift detection por skill |
-| v0.5 | Ecosystem deep integration | Conductor tracks, sentry events, background results |
-
----
-
 ## License
 
 MIT

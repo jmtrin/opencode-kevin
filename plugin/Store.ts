@@ -1,27 +1,28 @@
-import Database from "better-sqlite3";
+import { createDatabase, type SqliteAdapter } from "./sqlite-adapter.js";
 
 export interface StoreOptions {
 	path: string;
 }
 
 export class Store {
-	private db: Database.Database;
+	private db: SqliteAdapter;
 	private closed = false;
 
 	constructor(options: StoreOptions) {
-		this.db = new Database(options.path);
-		this.db.pragma("journal_mode = WAL");
-		this.db.pragma("foreign_keys = ON");
+		this.db = createDatabase(options.path);
+		this.db.exec("PRAGMA journal_mode = WAL");
+		this.db.exec("PRAGMA foreign_keys = ON");
 	}
 
-	prepare(sql: string): Database.Statement {
+	prepare(sql: string): ReturnType<SqliteAdapter["prepare"]> {
 		if (this.closed) throw new Error("Store is closed");
 		return this.db.prepare(sql);
 	}
 
 	transaction<T>(fn: () => T): T {
 		if (this.closed) throw new Error("Store is closed");
-		return this.db.transaction(fn)();
+		const tx = this.db.transaction(fn);
+		return tx();
 	}
 
 	exec(sql: string): void {
@@ -35,7 +36,7 @@ export class Store {
 		this.db.close();
 	}
 
-	get raw(): Database.Database {
+	get raw(): SqliteAdapter {
 		return this.db;
 	}
 }

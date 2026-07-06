@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
@@ -32,7 +33,7 @@ export class Retrospective {
 		private memoryService: MemoryService,
 		options?: RetrospectiveOptions,
 	) {
-		this.retrospectivesDir = options?.dir ?? ".kevin/retrospectives";
+		this.retrospectivesDir = options?.dir ?? join(homedir(), ".opencode-kevin", "retrospectives");
 	}
 
 	async generate(sessionId: string): Promise<string | null> {

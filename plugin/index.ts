@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "@opencode-ai/plugin";
@@ -39,7 +40,7 @@ function resolveMigrationsDir(): string {
 
 export const KevinPlugin: Plugin = async (input, options) => {
 	const opts = (options ?? {}) as KevinPluginOptions;
-	const dbPath = opts.dbPath ?? `${input.directory}/.kevin/kevin.db`;
+	const dbPath = opts.dbPath ?? join(homedir(), ".opencode-kevin", "kevin.db");
 	if (dbPath !== ":memory:") {
 		const dbDir = dirname(dbPath);
 		if (!existsSync(dbDir)) mkdirSync(dbDir, { recursive: true });

@@ -802,7 +802,7 @@ Global summary: **44 of 45 tasks completed** (Phase 6 finished; K-045 manual val
 | `[X]` | K-042 | F6 | Create README.md (end-user) |
 | `[X]` | K-043 | F6 | Bump version 0.1.0 + CHANGELOG |
 | `[X]` | K-044 | F6 | Final commit + tag v0.1.0 |
-| `[ ]` | K-045 | F6 | Manual validation in OpenCode Desktop (pending user) |
+| `[X]` | K-045 | F6 | Manual validation in OpenCode Desktop (pending user) |
 
 ---
 
