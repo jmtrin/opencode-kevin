@@ -1,8 +1,8 @@
-import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { Store } from "../plugin/Store.js";
-import { Migrate } from "../plugin/Migrate.js";
+import { fileURLToPath } from "node:url";
 import { MemoryService } from "../plugin/MemoryService.js";
+import { Migrate } from "../plugin/Migrate.js";
+import { Store } from "../plugin/Store.js";
 
 const store = new Store({ path: ":memory:" });
 const __dirname = dirname(fileURLToPath(import.meta.url));

@@ -1,4 +1,4 @@
-import { createDatabase, type SqliteAdapter } from "./sqlite-adapter.js";
+import { type SqliteAdapter, createDatabase } from "./sqlite-adapter.js";
 
 export interface StoreOptions {
 	path: string;

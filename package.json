@@ -1,6 +1,6 @@
 {
 	"name": "@jmtrin/opencode-kevin",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
 	"type": "module",
 	"main": "dist/plugin/index.js",
@@ -10,11 +10,7 @@
 			"types": "./dist/plugin/index.d.ts"
 		}
 	},
-	"files": [
-		"dist/plugin",
-		"dist/migrations",
-		"migrations"
-	],
+	"files": ["dist/plugin", "dist/migrations", "migrations"],
 	"scripts": {
 		"build": "tsc --outDir dist && node scripts/copy-migrations.mjs",
 		"prepublishOnly": "npm run build",
@@ -29,8 +25,10 @@
 	},
 	"dependencies": {
 		"@opencode-ai/plugin": "^1.17.6",
-		"better-sqlite3": "^12.11.0",
 		"zod": "^3.23.8"
+	},
+	"optionalDependencies": {
+		"better-sqlite3": "^12.11.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
@@ -41,7 +39,7 @@
 		"vitest": "^2.1.8"
 	},
 	"engines": {
-		"node": ">=20.0.0"
+		"node": ">=22.5.0"
 	},
 	"publishConfig": {
 		"access": "public"

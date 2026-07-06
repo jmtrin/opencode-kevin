@@ -45,8 +45,13 @@ Migrations run automatically on startup.
 
 ### Requirements
 
-- Node.js >= 20
-- OpenCode with plugin support (`@opencode-ai/plugin` >= 1.17)
+- **Node.js >= 22.5** (uses `node:sqlite`, the built-in SQLite module — no native binaries to compile).
+- OpenCode with plugin support (`@opencode-ai/plugin` >= 1.17).
+
+> **Runtimes**:
+> - **Bun**: uses `bun:sqlite` (built-in).
+> - **Node 24+**: uses `node:sqlite` directly, no flags needed (emits an experimental warning, harmless).
+> - **Node 22/23 without `--experimental-sqlite` flag** or **Node 20**: falls back to `better-sqlite3`, declared as `optionalDependencies`. If you need it, install it manually in your opencode config directory (`~/.config/opencode/`): `npm install better-sqlite3`.
 
 ### Verification
 
@@ -226,7 +231,7 @@ npm publish --access public
 ```
 plugin/
   index.ts              # Entry point: KevinPlugin
-  Store.ts              # Wrapper better-sqlite3 (WAL, FK, transactions)
+  Store.ts              # Wrapper SQLite (node:sqlite / bun:sqlite / better-sqlite3 fallback)
   Migrate.ts            # Idempotent migrations
   MemoryService.ts      # save/query/getRelevant (FTS5 + bm25)
   ToolCallObserver.ts   # onBefore/onAfter + redact + inferErrorType

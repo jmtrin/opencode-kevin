@@ -4,6 +4,20 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-07-06
+
+### Fixed (Windows / Bun-installed plugins)
+
+- **F#31 — `node:sqlite` por defecto en Node 22+**: el adapter SQLite ahora intenta primero `node:sqlite` (built-in, sin binarios nativos que descargar) y solo cae a `better-sqlite3` como fallback opcional. Resuelve el bug de carga del plugin en opencode sobre Windows: opencode instala plugins con Bun (que no ejecuta el script `install: prebuild-install` de `better-sqlite3`) y los ejecuta con un runtime Node embebido (ABI 146, Node 24.15), por lo que el binario `.node` nunca llegaba al cache y el plugin abortaba al registrar las herramientas `kevin_*`.
+  - Síntomas previos: log `failed to load plugin path=@jmtrin/opencode-kevin@latest error="Could not locate the bindings file …"` en `~/.local/share/opencode/log/opencode.log`. Las 5 herramientas `kevin_save/query/recall/status/retrospective` no se registraban.
+  - Compatibilidad: Bun sigue usando `bun:sqlite`; Node 24+ usa `node:sqlite` sin flag (warning experimental benigno); Node 22/23 sin flag `--experimental-sqlite` cae al fallback `better-sqlite3`; Node 20 (sin `node:sqlite`) requiere instalar `better-sqlite3` manualmente.
+  - `transaction` reimplementada con `BEGIN`/`COMMIT`/`ROLLBACK` para `node:sqlite` (no expone `db.transaction()` como `better-sqlite3`).
+
+### Changed
+
+- `better-sqlite3` movido de `dependencies` a `optionalDependencies` (red de seguridad para Node <22.5).
+- `engines.node` subido a `>=22.5.0` (donde `node:sqlite` está disponible).
+
 ## [0.1.1] — 2026-07-02
 
 Post-release hardening: fixes the three critical issues that prevented Kevin from delivering real value (failure detection, context-aware injection, bm25 usage) plus 13 robustness and privacy improvements.

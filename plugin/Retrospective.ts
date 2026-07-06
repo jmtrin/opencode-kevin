@@ -33,7 +33,8 @@ export class Retrospective {
 		private memoryService: MemoryService,
 		options?: RetrospectiveOptions,
 	) {
-		this.retrospectivesDir = options?.dir ?? join(homedir(), ".opencode-kevin", "retrospectives");
+		this.retrospectivesDir =
+			options?.dir ?? join(homedir(), ".opencode-kevin", "retrospectives");
 	}
 
 	async generate(sessionId: string): Promise<string | null> {
