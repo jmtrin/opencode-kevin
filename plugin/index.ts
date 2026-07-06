@@ -271,21 +271,26 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		"tool.execute.after": async (hookInput, output) => {
 			const meta = (output.metadata ?? {}) as Record<string, unknown>;
 			const outputText = String(output.output ?? "");
-			let success: boolean;
-			if (meta.success === false) {
-				success = false;
-			} else if (meta.success === true) {
-				success = true;
-			} else if (typeof meta.exitCode === "number" && meta.exitCode !== 0) {
-				success = false;
-			} else {
-				const stderr = String(meta.stderr ?? "");
-				success = !(stderr.length > 0 && ERROR_LINE_RE.test(stderr));
-			}
 			const stderr = String(meta.stderr ?? "");
 			const stdout = String(meta.stdout ?? outputText);
 			const exitCode =
 				typeof meta.exitCode === "number" ? meta.exitCode : undefined;
+			let success: boolean;
+			if (meta.success === false) {
+				success = false;
+			} else if (exitCode !== undefined) {
+				success = exitCode === 0;
+			} else if (meta.success === true) {
+				const stream =
+					stderr.length > 0
+						? stderr
+						: stdout.length > 0
+							? stdout
+							: outputText;
+				success = !(stream.length > 0 && ERROR_LINE_RE.test(stream));
+			} else {
+				success = true;
+			}
 			observer.onAfter(
 				{
 					tool: hookInput.tool,

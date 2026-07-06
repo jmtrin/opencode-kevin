@@ -4,6 +4,17 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] — 2026-07-07
+
+### Fixed
+
+- **F#1-fix — success=true override via ERROR_LINE_RE on bash output**: opencode's bash tool returns `metadata.success === true` even when the executed process exits non-zero (it reports success of the *tool call*, not the wrapped subprocess). The previous `tool.execute.after` handler short-circuited on `meta.success === true` before checking `exitCode` or `output.output`, so every failed `tsc` (which prints `error TS####` to stdout with exitCode 2, no stderr) silently passed as success and never reached the Reflector. Symptom: `kevin_status` reported `tool_calls >= 1` but `memories = 0` after a guaranteed `tsc` failure.
+  - New precedence: `meta.success === false` → fail; `exitCode !== undefined` → use it; `meta.success === true` → run `ERROR_LINE_RE` against `stderr` then `stdout` then `output.output` to catch strong error markers (`TS\d{4,}`, `cannot find`, `command failed`, `non-zero exit`, `panic`, `traceback`, …); default `meta.success === undefined` with no signal → success.
+
+### Tests
+
+- `plugin-tools.test.ts` +3: success=true+no-error-line keeps `memories=0` (negative); success=true+`error TS2304` in `output.output` triggers Reflector and persists a searchable memory (case bash+tsc, the regression); `meta.exitCode=2` overrides `meta.success=true` and triggers reflection.
+
 ## [0.1.2] — 2026-07-06
 
 ### Fixed (Windows / Bun-installed plugins)

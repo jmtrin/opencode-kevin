@@ -232,3 +232,67 @@ describe("kevin_retrospective", () => {
 		expect(existsSync(parsed.file_path)).toBe(true);
 	});
 });
+
+describe("tool.execute.after — success=true override via ERROR_LINE_RE", () => {
+	it("mantiene success=true cuando output no contiene linea de error", async () => {
+		const sess = "ok-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ok1" },
+			{ args: { command: "npm run typecheck" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ok1", args: {} },
+			{ title: "bash", output: "0 errors", metadata: { success: true } },
+		);
+		const status = await hooks.tool?.kevin_status.execute({}, ctx);
+		const parsed = parse(status as { output: string }) as { memories: number };
+		expect(parsed.memories).toBe(0);
+	});
+
+	it("marca success=false cuando meta.success=true pero output matchea ERROR_LINE_RE (caso bash+tsc)", async () => {
+		const sess = "fp-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "fp1" },
+			{ args: { command: "npx tsc --noEmit" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "fp1",
+				args: { command: "npx tsc --noEmit" },
+			},
+			{
+				title: "bash",
+				output: "src/test-fail.ts(5,19): error TS2304: Cannot find name 'foo'.",
+				metadata: { success: true },
+			},
+		);
+		const status = await hooks.tool?.kevin_status.execute({}, ctx);
+		const parsed = parse(status as { output: string }) as { memories: number };
+		expect(parsed.memories).toBeGreaterThanOrEqual(1);
+		const query = await hooks.tool?.kevin_query.execute(
+			{ query: "typecheck", limit: 10 },
+			ctx,
+		);
+		const mems = parse(query as { output: string }) as Array<{
+			content: string;
+		}>;
+		expect(mems.some((m) => m.content.includes("typecheck"))).toBe(true);
+	});
+
+	it("exitCode non-zero prevalece sobre meta.success=true", async () => {
+		const sess = "exit-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ex1" },
+			{ args: { command: "fallar" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ex1", args: {} },
+			{ title: "bash", output: "ok", metadata: { success: true, exitCode: 2 } },
+		);
+		const status = await hooks.tool?.kevin_status.execute({}, ctx);
+		const parsed = parse(status as { output: string }) as { memories: number };
+		expect(parsed.memories).toBeGreaterThanOrEqual(1);
+	});
+});
