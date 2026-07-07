@@ -1,6 +1,6 @@
 {
 	"name": "@jmtrin/opencode-kevin",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
 	"type": "module",
 	"main": "dist/plugin/index.js",
