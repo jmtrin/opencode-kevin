@@ -4,6 +4,26 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] — 2026-07-07
+
+### Fixed
+
+- **F#1-v2 — detección de fallos auto-suficiente (sin depender del evento v2)**: el fix v0.1.3 solo escaneaba `output.output` cuando `metadata.success === true`. La validación K-045 demostró que el bash tool de opencode entrega `metadata = {}` (vacío) con el texto del comando en `output.output` (string top-level del contrato SDK), por lo que la heurística caía al `else` y devolvía `success = true` sin escanear → 0 memorias tras un `tsc` fallido garantizado. La red de seguridad del evento `session.next.tool.failed` (v2-only) no rescata este caso en producción: opencode no emite ese evento para un bash exit-1 (es una tool call exitosa que devuelve contenido de error, no un fallo de ejecución).
+  - Nueva precedencia en `tool.execute.after`: `meta.success===false` → fail; `exitCode` numérico (claves `exitCode`/`exit_code`/`exit` vía `pickExitCode`) → fail si ≠0; `stderr` no vacío + `ERROR_LINE_RE` (amplio) → fail; **siempre** escanea `stdout`/`output.output` con `STRONG_ERROR_RE` (marcadores no ambiguos) como fallback.
+  - `STRONG_ERROR_RE` excluye las palabras sueltas ambiguas (`error`, `fail`, `failed`, `panic`, `fatal`) para evitar falsos positivos en prosa de éxito (guard F#28 mantenido); retiene `TS\d{4,}`, `cannot find`, `error TS\d`, `command failed`, `non-zero exit`, `exit code [1-9]`, `traceback`, `referenceerror`, `typeerror`, `syntaxerror`, `fatal error`, `build failed`, `failed to compile`, `compilation failed`, `exception`.
+  - stderr sigue usando `ERROR_LINE_RE` amplio (stderr es señal fuerte; F#28 solo restringe stdout).
+  - La red de seguridad del evento `session.next.tool.failed` se conserva para fallos reales de ejecución del tool (no bash exit-1).
+
+### Tests
+
+- `plugin-tools.test.ts +4`: (1) `metadata:{}` + `error TS2304` en `output.output` → reflection sin evento (regresión K-045, núcleo del fix); (2) `metadata:{}` + `"0 errors"` → 0 memorias (negativo); (3) `metadata:{}` + prosa con `panic`/`error` → 0 memorias (guard F#28 en rama por defecto); (4) `metadata:{exit_code:2}` → reflection (verifica `pickExitCode`).
+- `plugin-complete.test.ts +1`: ciclo completo (before → after con `metadata:{}` → lección → `system.transform` inyecta) **sin** emitir `session.next.tool.failed` (auto-suficiencia).
+
+### Changed
+
+- `package.json` version `0.1.3` → `0.1.4`.
+- `README-K045.md` (proyecto de validación): DB path `~/.opencode-kevin/kevin.db`, plugin `@jmtrin/opencode-kevin@latest`, diagnóstico vía `kevin_status` (no `npx better-sqlite3`).
+
 ## [0.1.3] — 2026-07-07
 
 ### Fixed

@@ -4,8 +4,9 @@
 **Date:** 2026-06-30
 **Status:** Frozen (Phase 1 started — 2026-07-01)
 **Dependency:** `docs/Kevin_Plan.md`
-**ID Convention:** `K-XXX` (Kevin 0.1.0)
-**Total tasks:** 45
+**ID Convention:** `K-XXX` (Kevin 0.1.0); `K-04X` (Fix v0.1.4, continúa la numeración)
+**Total tasks:** 45 (v0.1.0) + 5 (Fix v0.1.4) = 50
+**Fix v0.1.4:** `docs/Kevin_Fix_v0.1.4.md` — detección de fallos auto-suficiente (K-046…K-050)
 
 ---
 
@@ -717,6 +718,49 @@
 
 ---
 
+# Post-release — Fix v0.1.4
+
+**Dependency:** `docs/Kevin_Fix_v0.1.4.md`
+**Date:** 2026-07-07
+**Razón:** la validación manual K-045 detectó que F#1 (detección de fallos → reflexión) sigue roto en producción: tras un `tsc` con `error TS2304`, `kevin_status` reporta `memories: 0`. El fix v0.1.3 solo escanea `output.output` cuando `metadata.success === true` (`plugin/index.ts:283`); el bash tool de opencode entrega `metadata = {}` (vacío) con el texto en `output.output`, por lo que la heurística cae al `else` (`plugin/index.ts:291`) y devuelve `success = true` sin escanear. Ver `docs/Kevin_Fix_v0.1.4.md` para el análisis exhaustivo, código propuesto y tests.
+
+### K-046 — Añadir `STRONG_ERROR_RE` en `Reflector.ts`
+- **Priority:** P0 · **Estimation:** S (30m) · **Dependencies:** — · **Risk:** 🟢
+- **Files:** `plugin/Reflector.ts`
+- **Description:** Exportar `STRONG_ERROR_RE` (marcadores fuertes no ambiguos) junto a `ERROR_LINE_RE` (línea 30-31). Stdout se escanea con fuerte; stderr sigue con amplio. Sin tocar `extractFirstErrorLine`.
+- **Acceptance:** `STRONG_ERROR_RE` exportada; `npm run typecheck` pasa; `tests/unit/reflector.test.ts` sin regresión.
+- **Verification:** `npm run typecheck && npx vitest run tests/unit/reflector.test.ts`
+
+### K-047 — Heurística robusta en `index.ts` + `pickExitCode`
+- **Priority:** P0 · **Estimation:** M (2h) · **Dependencies:** K-046 · **Risk:** 🟡
+- **Files:** `plugin/index.ts`
+- **Description:** Reemplazar el cómputo de `success` en `tool.execute.after` (`index.ts:271-293`) por la nueva precedencia: `meta.success===false` → fail; `pickExitCode(meta)` numérico (`exitCode`/`exit_code`/`exit`) → fail si ≠0; `stderr` no vacío + `ERROR_LINE_RE` → fail; si no, escanear `stdout`/`output.output` con `STRONG_ERROR_RE` (cubre `metadata:{}` y `{success:true}`). Conservar `observer.onAfter` + `if(!success) reflector.invoke`. La red de seguridad del evento `session.next.tool.failed` se conserva intacta.
+- **Acceptance:** `npm run typecheck && npm run lint && npm test` pasan; todos los tests existentes sin modificación.
+- **Verification:** `npm run typecheck && npm run lint && npm test`
+
+### K-048 — Tests de regresión en `plugin-tools.test.ts`
+- **Priority:** P0 · **Estimation:** S (1h) · **Dependencies:** K-047 · **Risk:** 🟢
+- **Files:** `tests/unit/plugin-tools.test.ts`
+- **Description:** +4 tests en el `describe("tool.execute.after — …")` (línea 236): (1) `metadata:{}` + `error TS2304` en `output.output` → reflection sin evento (regresión K-045, núcleo del fix); (2) `metadata:{}` + `"0 errors"` → 0 memorias; (3) `metadata:{}` + prosa con `panic`/`error` → 0 memorias (guard F#28 en rama default); (4) `metadata:{exit_code:2}` → reflection (verifica `pickExitCode`).
+- **Acceptance:** Los 4 tests pasan; los tests existentes (237-297) sin cambio.
+- **Verification:** `npx vitest run tests/unit/plugin-tools.test.ts`
+
+### K-049 — Test e2e: ciclo completo con metadata vacía (sin evento)
+- **Priority:** P0 · **Estimation:** M (2h) · **Dependencies:** K-047 · **Risk:** 🟡
+- **Files:** `tests/e2e/plugin-complete.test.ts`
+- **Description:** +1 test e2e (espejo de `plugin-complete.test.ts:82-171`): `tool.execute.after` con `metadata:{}` y `output.output` con TS error → `waitForAsync` hasta lección persistida → `chat.message` + `system.transform` inyecta `<kevin-context>`, **sin** emitir `session.next.tool.failed` (auto-suficiencia de la heurística).
+- **Acceptance:** Lección persistida e inyectada sin evento; el test existente `plugin-complete.test.ts:282` (que sí usa el evento) sigue pasando.
+- **Verification:** `npx vitest run tests/e2e/plugin-complete.test.ts`
+
+### K-050 — Bump 0.1.4 + CHANGELOG
+- **Priority:** P0 · **Estimation:** S (30m) · **Dependencies:** K-048, K-049 · **Risk:** 🟢
+- **Files:** `package.json`, `CHANGELOG.md`
+- **Description:** (1) `package.json` version `0.1.3`→`0.1.4`; (2) entrada `## [0.1.4] — 2026-07-07` en `CHANGELOG.md` (draft en `Kevin_Fix_v0.1.4.md` §10); (3) corregir `README-K045.md`: DB path `~/.opencode-kevin/kevin.db`, plugin `@jmtrin/opencode-kevin@latest`, diagnóstico vía `kevin_status` (no `npx better-sqlite3`). Incluye refresco del caché stale de opencode (ver `Kevin_Fix_v0.1.4.md` §8).
+- **Acceptance:** `node -e "console.log(require('./package.json').version)"` → `0.1.4`; CHANGELOG presente; README-K045 coherente.
+- **Verification:** `npm run typecheck && npm run lint && npm test && npm run verify`
+
+---
+
 ## Critical Dependencies
 
 ```
@@ -754,7 +798,9 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 
 Legend: `[ ]` pending · `[~]` in progress · `[X]` completed
 
-Global summary: **44 of 45 tasks completed** (Phase 6 finished; K-045 manual validation pending user).
+Global summary:
+- **v0.1.0:** 44 of 45 tasks completed (Phase 6 finished; K-045 manual validation pending user).
+- **Fix v0.1.4:** 5 of 5 tasks completed (K-046…K-050 done — ver `docs/Kevin_Fix_v0.1.4.md`).
 
 | Status | Task | Phase | Short description |
 |---|---|---|---|
@@ -803,6 +849,11 @@ Global summary: **44 of 45 tasks completed** (Phase 6 finished; K-045 manual val
 | `[X]` | K-043 | F6 | Bump version 0.1.0 + CHANGELOG |
 | `[X]` | K-044 | F6 | Final commit + tag v0.1.0 |
 | `[X]` | K-045 | F6 | Manual validation in OpenCode Desktop (pending user) |
+| `[X]` | K-046 | Fix v0.1.4 | Añadir `STRONG_ERROR_RE` en `Reflector.ts` |
+| `[X]` | K-047 | Fix v0.1.4 | Heurística robusta en `index.ts` + `pickExitCode` |
+| `[X]` | K-048 | Fix v0.1.4 | Tests de regresión en `plugin-tools.test.ts` |
+| `[X]` | K-049 | Fix v0.1.4 | Test e2e: ciclo con metadata vacía (sin evento) |
+| `[X]` | K-050 | Fix v0.1.4 | Bump 0.1.4 + CHANGELOG + README-K045 |
 
 ---
 
@@ -820,6 +871,7 @@ Global summary: **44 of 45 tasks completed** (Phase 6 finished; K-045 manual val
 ## References
 
 - `docs/Kevin_Plan.md` — Implementation plan (architecture, schema, components, decisions)
+- `docs/Kevin_Fix_v0.1.4.md` — Fix v0.1.4: detección de fallos auto-suficiente (K-046…K-050)
 - https://opencode.ai/docs — OpenCode docs (intro, install, usage)
 - https://opencode.ai/docs/plugins — Plugin API, hooks, events
 - https://opencode.ai/docs/skills — Native Agent Skills

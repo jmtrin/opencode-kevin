@@ -7,7 +7,7 @@ import { tool } from "@opencode-ai/plugin";
 import { ContextInjector } from "./ContextInjector.js";
 import { MemoryService } from "./MemoryService.js";
 import { Migrate } from "./Migrate.js";
-import { ERROR_LINE_RE, Reflector } from "./Reflector.js";
+import { ERROR_LINE_RE, STRONG_ERROR_RE, Reflector } from "./Reflector.js";
 import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
@@ -83,6 +83,14 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			argsSummary: observer.summarizeArgs(args ?? {}),
 		});
 	}
+	function pickExitCode(meta: Record<string, unknown>): number | undefined {
+		for (const k of ["exitCode", "exit_code", "exit"]) {
+			const v = meta[k];
+			if (typeof v === "number") return v;
+		}
+		return undefined;
+	}
+
 	function handleToolFailed(
 		callID: string,
 		sessionID: string,
@@ -273,23 +281,17 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			const outputText = String(output.output ?? "");
 			const stderr = String(meta.stderr ?? "");
 			const stdout = String(meta.stdout ?? outputText);
-			const exitCode =
-				typeof meta.exitCode === "number" ? meta.exitCode : undefined;
+			const exitCode = pickExitCode(meta);
 			let success: boolean;
 			if (meta.success === false) {
 				success = false;
 			} else if (exitCode !== undefined) {
 				success = exitCode === 0;
-			} else if (meta.success === true) {
-				const stream =
-					stderr.length > 0
-						? stderr
-						: stdout.length > 0
-							? stdout
-							: outputText;
-				success = !(stream.length > 0 && ERROR_LINE_RE.test(stream));
+			} else if (stderr.length > 0 && ERROR_LINE_RE.test(stderr)) {
+				success = false;
 			} else {
-				success = true;
+				const stream = stdout.length > 0 ? stdout : outputText;
+				success = !(stream.length > 0 && STRONG_ERROR_RE.test(stream));
 			}
 			observer.onAfter(
 				{

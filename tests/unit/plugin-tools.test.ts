@@ -295,4 +295,91 @@ describe("tool.execute.after — success=true override via ERROR_LINE_RE", () =>
 		const parsed = parse(status as { output: string }) as { memories: number };
 		expect(parsed.memories).toBeGreaterThanOrEqual(1);
 	});
+
+	it("metadata vacia + error TS2304 en output.output dispara reflection sin evento (K-045)", async () => {
+		const sess = "empty-meta-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "em1" },
+			{ args: { command: "npx tsc --noEmit" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "em1",
+				args: { command: "npx tsc --noEmit" },
+			},
+			{
+				title: "bash",
+				output: "src/test-fail.ts(5,19): error TS2304: Cannot find name 'foo'.",
+				metadata: {},
+			},
+		);
+		await new Promise((r) => setTimeout(r, 10));
+		const status = await hooks.tool?.kevin_status.execute({}, ctx);
+		const parsed = parse(status as { output: string }) as { memories: number };
+		expect(parsed.memories).toBeGreaterThanOrEqual(1);
+		const query = await hooks.tool?.kevin_query.execute(
+			{ query: "typecheck", limit: 10 },
+			ctx,
+		);
+		const mems = parse(query as { output: string }) as Array<{
+			content: string;
+		}>;
+		expect(
+			mems.some((m) => m.content.includes("Verify types and imports")),
+		).toBe(true);
+		expect(mems.some((m) => m.content.includes("TS2304"))).toBe(true);
+	});
+
+	it("metadata vacia + '0 errors' sin marcador fuerte → success=true (negativo)", async () => {
+		const sess = "empty-meta-ok-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "em2" },
+			{ args: { command: "npm run typecheck" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{ tool: "bash", sessionID: sess, callID: "em2", args: {} },
+			{ title: "bash", output: "0 errors", metadata: {} },
+		);
+		await new Promise((r) => setTimeout(r, 10));
+		const status = await hooks.tool?.kevin_status.execute({}, ctx);
+		const parsed = parse(status as { output: string }) as { memories: number };
+		expect(parsed.memories).toBe(0);
+	});
+
+	it("metadata vacia + prosa con 'panic'/'error' sin marcador fuerte → success=true (F#28 en rama default)", async () => {
+		const sess = "fp-default-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "fpd1" },
+			{ args: { command: "npm run build" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{ tool: "bash", sessionID: sess, callID: "fpd1", args: {} },
+			{
+				title: "bash",
+				output: "Build succeeded. Note: avoid panic in error paths.",
+				metadata: {},
+			},
+		);
+		await new Promise((r) => setTimeout(r, 10));
+		const status = await hooks.tool?.kevin_status.execute({}, ctx);
+		const parsed = parse(status as { output: string }) as { memories: number };
+		expect(parsed.memories).toBe(0);
+	});
+
+	it("metadata con exit_code alterna (snake_case) → reflection (verifica pickExitCode)", async () => {
+		const sess = "exit-alt-sess";
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ea1" },
+			{ args: { command: "fallar" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{ tool: "bash", sessionID: sess, callID: "ea1", args: {} },
+			{ title: "bash", output: "ok", metadata: { exit_code: 2 } },
+		);
+		const status = await hooks.tool?.kevin_status.execute({}, ctx);
+		const parsed = parse(status as { output: string }) as { memories: number };
+		expect(parsed.memories).toBeGreaterThanOrEqual(1);
+	});
 });

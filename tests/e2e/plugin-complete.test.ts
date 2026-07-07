@@ -405,4 +405,64 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		);
 		expect((await queryMemories(sess, "panic")).length).toBe(0);
 	});
+
+	it("K-049: ciclo auto-suficiente con metadata vacia sin evento session.next.tool.failed", async () => {
+		const sess = "empty-meta-e2e-sess";
+
+		await hooks.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: sess } },
+			} as never,
+		});
+
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "em-fail" },
+			{ args: { command: "npx tsc --noEmit" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "em-fail",
+				args: { command: "npx tsc --noEmit" },
+			},
+			{
+				title: "bash",
+				output: "src/test-fail.ts(5,19): error TS2304: Cannot find name 'foo'.",
+				metadata: {},
+			},
+		);
+
+		await waitForAsync(async () => {
+			const mems = await queryMemories(sess, "typecheck");
+			return mems.some((m) => m.content.includes("Verify types and imports"));
+		});
+
+		const memories = await queryMemories(sess, "typecheck");
+		const lesson = memories.find((m) =>
+			m.content.includes("Verify types and imports"),
+		);
+		expect(lesson).toBeDefined();
+		expect(lesson?.content).toContain("TS2304");
+
+		await hooks["chat.message"]?.(
+			{ sessionID: sess },
+			{
+				message: {} as never,
+				parts: [
+					{ type: "text", text: "how do I fix the typecheck error?" },
+				] as never,
+			},
+		);
+
+		const sysOutput = { system: [] as string[] };
+		await hooks["experimental.chat.system.transform"]?.(
+			{ sessionID: sess, model: { provider: "x", id: "y" } as never },
+			sysOutput,
+		);
+		expect(sysOutput.system.length).toBeGreaterThanOrEqual(1);
+		expect(sysOutput.system[0]).toContain("<kevin-context>");
+		expect(sysOutput.system[0]).toContain("Verify types and imports");
+	});
 });

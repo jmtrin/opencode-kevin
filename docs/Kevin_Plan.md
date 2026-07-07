@@ -959,3 +959,5 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 - https://github.com/sqlite/sqlite/blob/master/ext/fts5/doc/fts5.md — FTS5 docs
 
 **Next document**: `Kevin_Task.md` — exhaustive task list K-001..K-045.
+
+**Post-release fix**: `docs/Kevin_Fix_v0.1.4.md` — Fix v0.1.4: detección de fallos auto-suficiente (K-046…K-050). Tras la validación K-045, F#1 seguía roto en producción: el bash tool entrega `metadata = {}` y la heurística de v0.1.3 no escaneaba `output.output` en la rama por defecto (`plugin/index.ts:291`). v0.1.4 siempre escanea stdout con `STRONG_ERROR_RE` cuando no hay señal definitiva.

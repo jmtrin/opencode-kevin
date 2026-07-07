@@ -30,6 +30,9 @@ const CONTEXT_PREFIX = "\n\nContext:\n";
 export const ERROR_LINE_RE =
 	/\b(error|failed|fail|cannot find|cannot resolve|TS\d{4,}|exception|traceback|panic|fatal|referenceerror|typeerror|syntaxerror|command failed|non-zero exit)\b/i;
 
+export const STRONG_ERROR_RE =
+	/\b(cannot find|cannot resolve|TS\d{4,}|error TS\d|command failed|non-zero exit|exit code [1-9]\d*|traceback|referenceerror|typeerror|syntaxerror|fatal error|exception|failed to compile|build failed|compilation failed)\b/i;
+
 const SUGGESTIONS: Record<string, string> = {
 	typecheck: "Verify types and imports before running.",
 	lint: "Run linter and fix warnings before committing.",
