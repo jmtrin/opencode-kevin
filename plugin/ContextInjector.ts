@@ -1,4 +1,5 @@
-import type { Memory, MemoryService } from "./MemoryService.js";
+import type { MemoryService } from "./MemoryService.js";
+import { formatMemories } from "./memory-format.js";
 
 export interface ChatMessage {
 	role: string;
@@ -132,7 +133,7 @@ export class ContextInjector {
 			maxTokens: SYSTEM_TRANSFORM_TOKENS,
 		});
 		if (memories.length === 0) return;
-		output.system.push(this.formatMemories(memories, "context"));
+		output.system.push(formatMemories(memories, "context"));
 	}
 
 	onCompacting(input: CompactingInput, output: CompactingOutput): void {
@@ -143,18 +144,6 @@ export class ContextInjector {
 			maxTokens: COMPACTING_TOKENS,
 		});
 		if (memories.length === 0) return;
-		output.context.push(this.formatMemories(memories, "memory"));
-	}
-
-	private formatMemories(
-		memories: Memory[],
-		format: "context" | "memory",
-	): string {
-		const lines = memories.map((m) => `[${m.type}] ${m.content}`);
-		const body = lines.join("\n");
-		if (format === "context") {
-			return `<kevin-context>Lecciones relevantes:\n${body}\n</kevin-context>`;
-		}
-		return `<kevin-memory>\n${body}\n</kevin-memory>`;
+		output.context.push(formatMemories(memories, "memory"));
 	}
 }
