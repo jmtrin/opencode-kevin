@@ -7,10 +7,11 @@ import { tool } from "@opencode-ai/plugin";
 import { ContextInjector } from "./ContextInjector.js";
 import { MemoryService } from "./MemoryService.js";
 import { Migrate } from "./Migrate.js";
-import { ERROR_LINE_RE, STRONG_ERROR_RE, Reflector } from "./Reflector.js";
+import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "./Reflector.js";
 import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
+import { formatMemories } from "./memory-format.js";
 
 export interface KevinPluginOptions {
 	dbPath?: string;
@@ -21,17 +22,6 @@ export interface KevinPluginOptions {
 
 const SYSTEM_TRANSFORM_TOKENS = 1500;
 const COMPACTING_TOKENS = 2000;
-
-function formatMemories(
-	memories: { type: string; content: string }[],
-	tag: "context" | "memory",
-): string {
-	if (memories.length === 0) return "";
-	const body = memories.map((m) => `[${m.type}] ${m.content}`).join("\n");
-	return tag === "context"
-		? `<kevin-context>Lecciones relevantes:\n${body}\n</kevin-context>`
-		: `<kevin-memory>\n${body}\n</kevin-memory>`;
-}
 
 function resolveMigrationsDir(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
