@@ -1,5 +1,7 @@
 import type { Store } from "./Store.js";
-import { redactPaths } from "./redact.js";
+import { fingerprint as computeFingerprint } from "./fingerprint.js";
+import type { Metrics } from "./metrics.js";
+import { redactPaths, stripPrivate } from "./redact.js";
 import { uuidv7 } from "./uuid.js";
 
 export interface ToolExecuteInput {
@@ -27,8 +29,14 @@ const SECRET_VALUE_PATTERN = /\s*=\s*\S+(.*)$/;
 
 export class ToolCallObserver {
 	private startTs = new Map<string, number>();
+	private readonly metrics: Metrics | null;
 
-	constructor(private store: Store) {}
+	constructor(
+		private store: Store,
+		metrics?: Metrics | null,
+	) {
+		this.metrics = metrics ?? null;
+	}
 
 	onBefore(input: ToolExecuteInput, _output: ToolExecuteOutput): void {
 		const key = this.key(input);
@@ -44,21 +52,40 @@ export class ToolCallObserver {
 		const argsSummary = this.summarizeArgs(input.args ?? {});
 		const success = output.success === true ? 1 : 0;
 		const agent = input.agent ?? null;
+		const stderr = stripPrivate(output.stderr ?? "");
+		const stdout = stripPrivate(output.stdout ?? "");
 		const errorType =
 			output.success === false
-				? this.inferErrorType(
-						output.stderr ?? "",
-						output.stdout ?? "",
-						output.exitCode,
-					)
+				? this.inferErrorType(stderr, stdout, output.exitCode)
 				: null;
 		const metadata = JSON.stringify(this.redactArgs(input.args ?? {}));
+		const projectId: string | null = null;
+		const fp = computeFingerprint(
+			`${input.tool}|${argsSummary}|${success}`,
+			projectId ?? undefined,
+		);
+
+		if (this.isDedupEnabled()) {
+			const existing = this.store
+				.prepare(
+					`SELECT 1 FROM tool_calls
+					 WHERE fingerprint = ?
+					   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))
+					   AND strftime('%Y-%m-%d %H:%M', ts) = strftime('%Y-%m-%d %H:%M', 'now')
+					 LIMIT 1`,
+				)
+				.get(fp, projectId, projectId) as { "1": 1 } | undefined;
+			if (existing) {
+				this.metrics?.incr("tool_calls_deduped", 1);
+				return;
+			}
+		}
 
 		this.store
 			.prepare(
 				`INSERT INTO tool_calls
-				 (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata)
-				 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)`,
+				 (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, fingerprint)
+				 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				uuidv7(),
@@ -70,7 +97,22 @@ export class ToolCallObserver {
 				agent,
 				errorType,
 				metadata,
+				projectId,
+				fp,
 			);
+	}
+
+	private isDedupEnabled(): boolean {
+		try {
+			const row = this.store
+				.prepare(
+					"SELECT value FROM kevin_settings WHERE key = 'tool_calls_dedup_enabled'",
+				)
+				.get() as { value: string } | undefined;
+			return row?.value === "1";
+		} catch {
+			return false;
+		}
 	}
 
 	redactSecrets(text: string): string {
@@ -162,7 +204,8 @@ export class ToolCallObserver {
 
 	private redactValue(v: unknown, truncateAt?: number): unknown {
 		if (typeof v === "string") {
-			let s = redactPaths(v);
+			let s = stripPrivate(v);
+			s = redactPaths(s);
 			s = this.redactSecrets(s);
 			if (truncateAt !== undefined && s.length > truncateAt) {
 				s = `${s.slice(0, truncateAt)}...`;

@@ -11,7 +11,7 @@ await new Migrate(store, migDir).run();
 const mem = new MemoryService(store);
 const id = mem.save({ type: "error", content: "smoke test bun query lesson" });
 console.log("saved id:", id);
-const found = mem.query({ text: "smoke" });
+const found = mem.query({ text: "smoke", full: true });
 console.log("query rows:", found.length, "content0:", found[0]?.content);
 store.close();
 console.log("OK bun path");

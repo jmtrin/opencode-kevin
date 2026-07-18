@@ -22,6 +22,10 @@ beforeEach(async () => {
 		join(process.cwd(), "migrations", "001_initial.sql"),
 		join(migrationsDir, "001_initial.sql"),
 	);
+	copyFileSync(
+		join(process.cwd(), "migrations", "003_v02_signal.sql"),
+		join(migrationsDir, "003_v02_signal.sql"),
+	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
 		dbPath: ":memory:",
 		migrationsDir,
@@ -71,7 +75,7 @@ async function queryMemories(
 	Array<{ id: string; type: string; content: string; scope: string }>
 > {
 	const r = await hooks.tool?.kevin_query.execute(
-		{ query: text, limit: 50 },
+		{ query: text, limit: 50, full: true },
 		makeCtx(sess),
 	);
 	return JSON.parse((r as { output: string }).output) as Array<{

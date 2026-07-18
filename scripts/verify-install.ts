@@ -60,12 +60,16 @@ async function main(): Promise<void> {
 	const migrationsDir = join(tmp, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	const sqlSrc = join(process.cwd(), "migrations", "001_initial.sql");
+	const sql003Src = join(process.cwd(), "migrations", "003_v02_signal.sql");
 	if (!existsSync(sqlSrc)) {
 		console.log("\u2717 No existe migrations/001_initial.sql");
 		failed++;
 		process.exit(1);
 	}
 	copyFileSync(sqlSrc, join(migrationsDir, "001_initial.sql"));
+	if (existsSync(sql003Src)) {
+		copyFileSync(sql003Src, join(migrationsDir, "003_v02_signal.sql"));
+	}
 
 	const store = new Store({ path: ":memory:" });
 	try {
@@ -92,7 +96,11 @@ async function main(): Promise<void> {
 				scope: "project",
 			});
 			if (!id) throw new Error("save retorno id vacio");
-			const results = memoryService.query({ text: "typecheck", limit: 10 });
+			const results = memoryService.query({
+				text: "typecheck",
+				limit: 10,
+				full: true,
+			});
 			if (!results.some((m) => m.content.includes("typecheck")))
 				throw new Error("query no encontro la memoria");
 		});

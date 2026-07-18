@@ -10,3 +10,12 @@ export function redactPaths(text: string): string {
 	}
 	return out;
 }
+
+const PRIVATE_BLOCK_RE = /<private\b[^>]*>([\s\S]*?)<\/private>/gi;
+
+export function stripPrivate(text: string): string {
+	return text.replace(PRIVATE_BLOCK_RE, (_match, inner: string) => {
+		const n = inner.length;
+		return `<private: redacted ${n} chars>`;
+	});
+}

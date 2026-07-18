@@ -8,16 +8,21 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryService } from "../../plugin/MemoryService.js";
 import { Migrate } from "../../plugin/Migrate.js";
 import { Retrospective } from "../../plugin/Retrospective.js";
 import { Store } from "../../plugin/Store.js";
 import { ToolCallObserver } from "../../plugin/ToolCallObserver.js";
+import type { Metrics } from "../../plugin/metrics.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_SQL = readFileSync(
 	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
+	"utf8",
+);
+const MIGRATION_003_SQL = readFileSync(
+	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 
@@ -37,6 +42,7 @@ beforeEach(() => {
 	retroDir = join(tmpRoot, "retrospectives");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), FIXTURE_SQL);
+	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), MIGRATION_003_SQL);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 	memories = new MemoryService(store);
@@ -156,5 +162,167 @@ describe("e2e — session with failures → retrospective.md", () => {
 			.prepare("SELECT * FROM retrospectives WHERE session_id = ?")
 			.all(SESSION_ID);
 		expect(rows.length).toBe(1);
+	});
+});
+
+describe("e2e — retrospective v0.2.0 (K2-025) origin labels + FP recap + metrics", () => {
+	it("tags lesson rows with [agent]/[reflector] labels based on origin", async () => {
+		// Save an agent-origin lesson via MemoryService.save (no origin → default 'agent')
+		memories.save({
+			type: "error",
+			content: "agent lesson A",
+			scope: "project",
+			sourceSession: SESSION_ID,
+		});
+		// Save a reflector-origin lesson directly via MemoryService.save with origin='reflector'
+		memories.save({
+			type: "error",
+			content: "reflector lesson A",
+			scope: "project",
+			sourceSession: SESSION_ID,
+			origin: "reflector",
+			projectId: "proj-A",
+			fingerprint: "aaaaaaaaaaaaaaaa",
+		});
+
+		// Trigger at least one failure so .generate doesn't return null
+		callTool("write", { path: "/c.ts" }, false, {
+			stderr: "error TS2304: Cannot find name",
+			exitCode: 1,
+		});
+
+		const path = await retrospective.generate(SESSION_ID);
+		expect(path).not.toBeNull();
+		const content = readFileSync(path as string, "utf8");
+
+		const lessonsSection = content
+			.split("## Lecciones generadas")[1]
+			.split("## False-positive recap")[0];
+		expect(lessonsSection).toContain("- [agent] agent lesson A");
+		expect(lessonsSection).toContain("- [reflector] reflector lesson A");
+	});
+
+	it("includes a False-positive recap section with no recurrence by default", async () => {
+		memories.save({
+			type: "error",
+			content: "reflector lesson A",
+			scope: "project",
+			sourceSession: SESSION_ID,
+			origin: "reflector",
+			projectId: "proj-A",
+			fingerprint: "bbbbbbbbbbbbbbbb",
+		});
+		callTool("write", { path: "/c.ts" }, false, {
+			stderr: "error TS2304: Cannot find name",
+			exitCode: 1,
+		});
+		// tool_calls.fingerprint column exists but is NULL since K2-009 doesn't populate it (K2-027 work).
+		// So FP recap should report "Ninguna".
+
+		const path = await retrospective.generate(SESSION_ID);
+		expect(path).not.toBeNull();
+		const content = readFileSync(path as string, "utf8");
+
+		expect(content).toContain("## False-positive recap");
+		const fpSection = content
+			.split("## False-positive recap")[1]
+			.split("## Métricas")[0];
+		expect(fpSection).toContain(
+			"Ninguna lección reflector-sourceada recurrrió en tool_calls",
+		);
+	});
+
+	it("lists a FP when a tool_call has matching fingerprint (simulated recurrence)", async () => {
+		// Direct INSERT into tool_calls with fingerprint populated (simulating K2-027 wiring)
+		store.exec(
+			`INSERT INTO tool_calls (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, fingerprint)
+       VALUES ('fp-tool-1', '${SESSION_ID}', datetime('now'), 'bash', 'cmd', 0, 5, null, 'typecheck', '{}', 'proj-X', 'cccccccccccccccc')`,
+		);
+		memories.save({
+			type: "error",
+			content: "reflector lesson recurrence",
+			scope: "project",
+			sourceSession: SESSION_ID,
+			origin: "reflector",
+			projectId: "proj-X",
+			fingerprint: "cccccccccccccccc",
+		});
+		callTool("bash", { command: "build" }, false, {
+			stderr: "error runtime: boom",
+			exitCode: 1,
+		});
+
+		const path = await retrospective.generate(SESSION_ID);
+		expect(path).not.toBeNull();
+		const content = readFileSync(path as string, "utf8");
+
+		expect(content).toContain("## False-positive recap");
+		const fpSection = content
+			.split("## False-positive recap")[1]
+			.split("## Métricas")[0];
+		expect(fpSection).toContain("reflector lesson recurrence");
+		expect(fpSection).toContain("cccccccccccccccc");
+		expect(fpSection).toContain("recurrencias: 1");
+	});
+
+	it("does NOT include a Métricas section when metrics is not provided (backward-compat)", async () => {
+		memories.save({
+			type: "error",
+			content: "no metrics section",
+			scope: "project",
+			sourceSession: SESSION_ID,
+		});
+		callTool("bash", { command: "echo hi" }, false, {
+			stderr: "error runtime: any",
+			exitCode: 1,
+		});
+
+		const path = await retrospective.generate(SESSION_ID);
+		expect(path).not.toBeNull();
+		const content = readFileSync(path as string, "utf8");
+		expect(content).not.toContain("## Métricas");
+	});
+
+	it("includes the metrics snapshot in markdown when metrics instance is passed", async () => {
+		const fakeMetrics = {
+			incr: vi.fn(),
+			snapshot: vi.fn(() => ({
+				tokens_injected_pre_prompt: 42,
+				tokens_injected_compacting: 7,
+				reflections_throttled: 3,
+				duplicate_suppressions: 2,
+				tool_calls_deduped: 0,
+				patterns_mined: 0,
+			})),
+			get: vi.fn(() => 0),
+			flush: vi.fn(),
+			close: vi.fn(),
+		} as unknown as Metrics;
+
+		const retroWithMetrics = new Retrospective(
+			store,
+			memories,
+			{ dir: retroDir },
+			fakeMetrics,
+		);
+		memories.save({
+			type: "error",
+			content: "with metrics",
+			scope: "project",
+			sourceSession: SESSION_ID,
+		});
+		callTool("bash", { command: "echo hi" }, false, {
+			stderr: "error runtime: any",
+			exitCode: 1,
+		});
+
+		const path = await retroWithMetrics.generate(SESSION_ID);
+		expect(path).not.toBeNull();
+		const content = readFileSync(path as string, "utf8");
+		expect(content).toContain("## Métricas");
+		expect(content).toContain("Tokens inyectados (pre-prompt): 42");
+		expect(content).toContain("Reflexiones throttled: 3");
+		expect(content).toContain("Patrones minados: 0");
+		expect(fakeMetrics.snapshot).toHaveBeenCalled();
 	});
 });

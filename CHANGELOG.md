@@ -4,7 +4,40 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.5] — 2026-07-08
+## [0.2.0] — 2026-07-18
+
+### Added — Signal Quality release
+
+- **Fingerprint-based dedup**: `memories.fingerprint` (FNV-1a 64-bit) computed from normalized error text + project_id salt. Partial UNIQUE index on `(project_id, fingerprint)` for reflector-sourced error memories.
+- **Per-fingerprint throttle**: Reflector throttles 60s per unique fingerprint, not globally. `kevin_status` reports `reflections_throttled` count.
+- **Stable id lines**: every injected memory block in `<kevin-context>`/`<kevin-memory>` includes an `id:` line and `<protect>` wrapper for DCP coordination.
+- **Private block redaction**: `<private>…</private>` blocks in tool call args/stderr/stdout are replaced with `<private: redacted N chars>` before persistence.
+- **Progressive disclosure**: `kevin_get({ id })` fetches full memory content; `kevin_query` returns slim `{ id, type, scope, score, snippet }` by default (v0.1.x full payload via `full: true`).
+- **Lesson v2 deterministic dispatch**: per-error-code rule table (`TS2304`→`import or typo`, `TS2322`→`type mismatch`, `TS2740`→`missing or wrong property`, `TS2552`→`undefined identifier`, `TS18047`→`possibly null`, plus Python lint, syscall codes, generic `Error:`/`Command failed`). No LLM call. SUGGESTIONS table retained as fallback; v2 hint appended as `Likely cause:` line.
+- **Origin-aware ranking**: `kevin_recall` and ContextInjector sort memories by `BM25 × origin_boost (reflector ×2, pattern ×1.5, agent ×1) × recency_decay (0.95^age_days)`. No embeddings, no RRF.
+- **Metrics system**: 6 in-memory counters (`tokens_injected_pre_prompt`, `tokens_injected_compacting`, `reflections_throttled`, `duplicate_suppressions`, `tool_calls_deduped`, `patterns_mined`) flushed to `kevin_metrics` table on session.idle. `kevin_status` exposes them.
+- **Memory origin**: `memories.origin` column (`reflector` | `agent` | `pattern` | `retrospective`) traces who created each memory. Anti-gaming: `kevin_status` reports separate counts per origin.
+- **PatternMiner** (opt-in): deterministic 2-gram/3-gram miner of tool call sequences, threshold N ≥ 5 sessions. Controlled by `kevin_settings.patternminer_enabled` (default off).
+- **Tool call dedup** (opt-in): suppresses duplicate tool call recordings within the same minute bucket. Controlled by `kevin_settings.tool_calls_dedup_enabled` (default off).
+- **`origin` labels in retrospectives**: per-session markdown tags `[reflector]`/`[agent]`/`[pattern]` on each lesson, plus false-positive recap section and seeded metrics snapshot.
+- **Feedback loop (positive half)**: reflector lessons injected without recurrence get `relevance_score += 0.05` (cap 1.0) on session.idle.
+- **E2E validation protocol**: full-cycle test (K2-032) verifies anti-gaming, lesson v2 composition, `<protect>` wrapping, slim query → `kevin_get` progressive disclosure, and metrics counters.
+- **Backward-compat migration 003**: additive, idempotent, nullable columns only. All new columns nullable; `origin` defaults to `'agent'` via CHECK constraint. Run twice → no-op.
+
+### Changed
+
+- `package.json` version `0.1.5` → `0.2.0`.
+- New files: `plugin/fingerprint.ts`, `plugin/metrics.ts`, `plugin/PatternMiner.ts`, `migrations/003_v02_signal.sql`.
+- MemoryService.save honors explicit `fingerprint` for all types (previously only `type='error'`).
+- ContextInjector injects `<protect>`-wrapped blocks with `id:` lines by default; conditional budget lowers to 0.8×cap when aggregate exceeds 80% and `protect: false` is set on the first row.
+- Retrospective includes origin labels, false-positive recap, and (gated) metrics snapshot.
+- kevin_status returns `memories_reflector`, `memories_agent`, `memories_pattern`, and a top-level `metrics` object with 6 seeded counters.
+- ToolCallObserver computes fingerprint, populates `tool_calls.project_id`/`fingerprint`, and early-returns on `(fp, project_id, minute_bucket)` match when dedup enabled.
+
+### Fixed
+
+- MemoryService.save bug: explicit `fingerprint` from SaveInput was only honored for `type='error'`; K2-021 PatternMiner save path was silently dropping the fingerprint. Now honored for all types.
+- Index.ts metrics wiring: `system.transform` and `compacting` hooks were bypassing ContextInjector.inject(), never calling `metrics.incr`. Inline `estimateTokens` → `metrics.incr` added for both hooks.
 
 ### Fixed
 

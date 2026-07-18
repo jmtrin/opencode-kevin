@@ -961,3 +961,361 @@ K-001 → K-003 → K-005 → K-008 → K-010 → K-015 → K-017
 **Next document**: `Kevin_Task.md` — exhaustive task list K-001..K-045.
 
 **Post-release fix**: `docs/Kevin_Fix_v0.1.4.md` — Fix v0.1.4: detección de fallos auto-suficiente (K-046…K-050). Tras la validación K-045, F#1 seguía roto en producción: el bash tool entrega `metadata = {}` y la heurística de v0.1.3 no escaneaba `output.output` en la rama por defecto (`plugin/index.ts:291`). v0.1.4 siempre escanea stdout con `STRONG_ERROR_RE` cuando no hay señal definitiva.
+
+---
+
+# PART B — v0.2.0 (Signal Quality)
+
+> **Complement, not replacement.** This Part B is additive: it keeps Part A (v0.1.0 + Fix v0.1.4) intact above and appends the v0.2.0 plan, decisions, schema delta, and architecture deltas. Sections are prefixed `§B*` to avoid clashing with Part A's `§1`..`§15`. Tasks are numbered `K2-001`..`K2-032` to avoid clashing with `K-001`..`K-050`.
+>
+> **Author:** GLM-5.2 ( Turn 2 of the v0.2.0 planning session, 2026-07-18 ).
+> **Inputs:** `docs/Kevin_new_v0.2.0.md` (Grok 4.5 analysis) + direct review of `plugin/*.ts` and `migrations/001_initial.sql`.
+> **Status:** Draft for implementation by a later model.
+> **Version target:** `@jmtrin/opencode-kevin@0.2.0`.
+> **Estimated effort:** 3–5 weeks (single implementer), 32 tasks.
+
+---
+
+## §B1. Executive summary
+
+v0.1.x delivered *observation* (ToolCallObserver), *reflection* (Reflector with `STRONG_ERROR_RE`), and *injection* (ContextInjector with 1500/2000 token budgets). v0.2.0 delivers **signal quality** on top of that substrate: fewer duplicates, per-fingerprint throttling, stable IDs in every injected block, DCP-aware `<protect>`/`<private>` wrappers, deterministic lesson v2 from per-error-code rules, project-scoped dedup, a metrics surface in `kevin_status`, and an opt-in PatternMiner. The storage layer gets a **backward-compatible, idempotent migration 003** that adds nullable columns and runtime backfill — no DB rebuild required.
+
+Two explicit non-goals carry over from the Grok 4.5 analysis: **embeddings stay in v0.2-later or v0.3** (we keep FTS5 + a deterministic hybrid rank), and **LLM reflection stays in v0.3+.** OKF core integration is rejected (only the *progressive disclosure* idea is borrowed, via the new `kevin_get` tool). claude-mem's Worker + Chroma + multi-IDE stack is also rejected — Kevin remains 1 plugin, SQLite-only, DCP-first.
+
+| Dimension | Value |
+|---|---|
+| Release theme | Signal Quality |
+| New files (plugin) | `fingerprint.ts`, `metrics.ts`, `PatternMiner.ts` |
+| Changed files | `MemoryService.ts`, `Reflector.ts`, `ContextInjector.ts`, `ToolCallObserver.ts`, `redact.ts`, `memory-format.ts`, `Retrospective.ts`, `index.ts`, `Store.ts`, `Migrate.ts` |
+| New migration | `migrations/003_v02_signal.sql` (idempotent, additive) |
+| New tool | `kevin_get({ id })` |
+| Changed tools | `kevin_query` (slim payload), `kevin_status` (metrics + reflector/agent split) |
+| New memory columns | `memories.project_id`, `memories.fingerprint`, `memories.origin` |
+| New tool_calls columns | `tool_calls.project_id`, `tool_calls.fingerprint` |
+| New table | `kevin_metrics` (seeded counters) |
+| Tasks | `K2-001`..`K2-032` (32) |
+| Risk | 🟡 medium (DB migration + dedup semantics; guarded by idempotent DDL and opt-in flags) |
+| Breaking | No (additive columns/migration; runtime backfill keeps old rows usable) |
+
+**Exit criterion**: in a fresh clone, after `npm run typecheck` fails and the agent does NOT call `kevin_save`, `kevin_status` reports `memories ≥ 1` with `origin = reflector`, `kevin_query "typecheck"` returns a slim `{ id, type, scope, score, snippet }` row, `kevin_get <id>` returns the full lesson, and the next session's `system.transform` injects the lesson wrapped in `<protect>` with its `id` line visible — all without intervention.
+
+---
+
+## §B2. Deltas vs the Grok 4.5 recommendation
+
+GLM-5.2 agrees with the Grok 4.5 analysis (`docs/Kevin_new_v0.2.0.md`) on the P0/P1 split, the rejection of OKF core and claude-mem cloning, and the "Signal Quality" theme. The following are explicit deltas from GLM-5.2, each with rationale:
+
+| # | Delta | Rationale |
+|---|---|---|
+| D-a | **DB backward compatibility is a HARD requirement.** Migration 003 must be idempotent, all new columns nullable, old rows backfilled at runtime (not pre-populated). | The kevin DB at `~/.opencode-kevin/kevin.db` already exists in users' hands; a rebuild would erase K-045-style lessons and the K-045 anti-gaming audit trail. Grok 4.5 listed "DB compat" as a bullet but did not make it non-negotiable. |
+| D-b | **Observation contract: `origin` column distinguishes `reflector` vs `agent`.** | K-045's anti-gaming audit depends on being able to tell which memories came from the agent calling `kevin_save` vs which came from the Reflector. We add `origin IN ('reflector','agent','pattern','retrospective')` so the retrospective and the ContextInjector ranking can treat them differently. |
+| D-c | **PatternMiner is OPT-IN by default; threshold `N ≥ 5` occurrences before it emits a `pattern` memory.** | Grok 4.5 listed PatternMiner as P1 with no threshold. Noise from consecutive tool patterns is a real risk in an Observe-and-Learn plugin — we start noisy-off and let the user enable it. |
+| D-d | **Lesson v2 is a per-error-code deterministic rule table, NOT an LLM call.** | We map `TS2304 → 'import or typo'`, `TS2322 → 'type mismatch'`, `TS2740 → 'missing or wrong property'`, `TS2552 → 'undefined identifier'`, `TS18047 → 'possibly null'`, plus generic `Error:`, `EADDRINUSE`, `ENOENT`, `EACCES`, `EPERM`, `Command failed` rules. Routing is dispatched off the captured error code; no external model. Grok 4.5 hinted at "heuristic lesson v2" without specifying the dispatch mechanism. |
+| D-e | **Feedback loop positive half only in v0.2.** | We record "this lesson was injected and the session ended without a repeat of that fingerprint" as a positive signal that boosts `relevance_score` by a small ε. The negative half (down-weight on recurrence) is deferred to v0.3 with the LLM reflection hop. |
+| D-f | **`project_id` becomes a first-class column participating in the dedup UNIQUE partial index.** | Grok 4.5 listed `project_id` as P0 but treated it as metadata. Making it a column lets us scope dedup per project (an ESLint rule fired in project A is NOT the same lesson as the same rule in project B) and lets future cross-project recall buy back the sharing semantics. |
+| D-g | **Hybrid ranking without embeddings is kept deterministic (BM25 + field boosts + recency), no RRF.** | Grok 4.5 left hybrid ranking at P1 with a "no embeddings" caveat. We formalize it: no sqlite-vec in v0.2, so there is no vector leg to fuse — RRF is meaningless. Revisit at v0.3 when embeddings land. |
+| D-h | **`kevin_query` returns a slim `{ id, type, scope, score, snippet }` default payload; `kevin_get({ id })` fetches full content.** | Adds a second hop but cuts tokens during pre-prompt injection (we only inject the snippets + ids; the agent calls `kevin_get` only when it actually needs the body). This is the "progressive disclosure" idea borrowed from OKF without importing the OKF format. |
+
+All other P0 items (`K2-01` throttle per fingerprint, `K2-02` dedup, `K2-03` ids in injection, `K2-04` `<protect>`+DCP, `K2-05` `<private>`, `K2-08` metrics) are accepted as Grok 4.5 stated.
+
+---
+
+## §B3. Scope and non-goals
+
+**In scope (P0):**
+
+1. Per-fingerprint throttle (refactor `lastReflectionTs` from a single global ts to a `Map<fingerprintKey, ts>`).
+2. Error-memory dedup via `(project_id, fingerprint)` UNIQUE partial index.
+3. Stable `id` lines in every injected memory block.
+4. `<protect>` wrapper around injected blocks + `<private>` redaction in observed tool calls.
+5. Progressive disclosure tooling: `kevin_get({ id })` + slim `kevin_query`.
+6. `project_id` first-class column on `memories` and `tool_calls`.
+7. Metrics counters surfaced through `kevin_status`.
+8. Lesson v2 deterministic rule table keyed by error code.
+
+**In scope (P1, opt-in):**
+
+9. PatternMiner (opt-in, threshold N ≥ 5).
+10. tool_calls dedup (off by default, behind a flag).
+11. Conditional budgets in ContextInjector (lower budget when the block is already `<protect>`-tagged).
+12. Feedback loop positive half (inject → no recurrence → boost by ε).
+13. Hybrid ranking (BM25 + field boosts + recency) — no embeddings.
+
+**Out of scope (deferred):**
+
+14. Embeddings / sqlite-vec / BGE-M3 / RRF → **v0.3** (the roadmap table in §14 is amended accordingly; see §B12).
+15. LLM reflection loop → v0.3.
+16. Worker / separate process / MCP server → unspecified future.
+17. OKF format import/export → v0.3 cross-project bridge.
+18. Session compaction via DCP → already handled by opencode core (`experimental.session.compacting`); we keep reading the event and re-inject.
+19. Feedback loop negative half (down-weight on recurrence) → v0.3.
+20. Multi-IDE integration, shared sync, Chroma → never (claude-mem cloning gated as reject).
+
+---
+
+## §B4. Architecture deltas
+
+The 7-module static structure from Part A is preserved. Three new files and one new migration are introduced, and existing modules get additive changes:
+
+```
+plugin/
+  index.ts               # +kevin_get tool; +slim kevin_query; +kevin_status metrics
+  Store.ts               # +prepare 003 statements; +metrics table access
+  sqlite-adapter.ts      # unchanged
+  Migrate.ts             # +load 003_v02_signal.sql (idempotent)
+  MemoryService.ts       # +fingerprint; +dedup on save; +project_id; +hybrid rank (BM25 + boosts + recency)
+  ToolCallObserver.ts    # +<private> redaction; +tool_calls dedup (flag)
+  Reflector.ts           # +per-key throttle Map; +fingerprint; +lesson v2 rule table; +origin='reflector'
+  ContextInjector.ts     # +ids line; +<protect> wrapper; +conditional budget; +origin-aware ranking
+  Retrospective.ts       # +false-positive recap; +[reflector]/[agent] labels; +metrics flush
+  redact.ts              # +stripPrivate (sweep <private>…</private> blocks)
+  memory-format.ts       # +protect wrapper; +id line per block
+  uuid.ts                # unchanged
+  fingerprint.ts        # NEW — FNV-1a 64-bit in-house hash (no node:crypto)
+  metrics.ts             # NEW — in-memory Map + flush to kevin_metrics
+  PatternMiner.ts        # NEW — opt-in; reads tool_calls; emits 'pattern' memories (origin='pattern')
+migrations/
+  001_initial.sql        # unchanged
+  002_v01_*.sql          # unchanged (if any)
+  003_v02_signal.sql     # NEW — additive, idempotent
+```
+
+No module is removed; no hook is removed; no tool is removed. The 6 hooks and 5+1 tools from Part A are all preserved (the 6th tool `kevin_get` is added).
+
+### Hook surface (unchanged from Part A)
+
+- `tool.execute.before` — unchanged.
+- `tool.execute.after` — unchanged signature; Reflector now reads `fingerprint` to throttle per-key.
+- `experimental.chat.system.transform` — ContextInjector now wraps each block in `<protect>` and prepends an `id` line.
+- `experimental.session.compacting` — same change as above for the compacting payload.
+- `session.created` — unchanged.
+- `session.idle` — unchanged; Retrospective now flushes metrics.
+
+### Tool surface
+
+| Tool | Change |
+|---|---|
+| `kevin_save` | Adds `project_id` (auto-detected from CWD if absent) and sets `origin = 'agent'`. Dedup applies. |
+| `kevin_query` | Returns slim `{ id, type, scope, score, snippet }` by default. Optional `{ full: true }` restores the v0.1.x payload. |
+| `kevin_recall` | Unchanged signature; semantics identical (greedy fill by token budget); now applies origin-aware ranking. |
+| `kevin_status` | Adds `memories_reflector`, `memories_agent`, `memories_pattern`, and a top-level `metrics` object with the seeded counters from `kevin_metrics`. |
+| `kevin_retrospective` | Adds a "false-positive recap" section and tags each memory row with `[reflector]` / `[agent]` / `[pattern]`. |
+| `kevin_get` (NEW) | `kevin_get({ id })` → returns a single full memory row by `id`. 404 if not found or scope mismatch. |
+
+---
+
+## §B5. Schema delta — `migrations/003_v02_signal.sql`
+
+Idempotent, additive, all new columns nullable, partial UNIQUE index, no DROP. Runs inside the existing `Migrate.ts` executor that already wraps each statement in a `try/catch` and tolerates `ALTER TABLE ... ADD COLUMN` if column exists.
+
+```sql
+-- v0.2.0 Signal Quality — additive only, backward-compatible.
+
+-- 1. New columns on memories (nullable, backfilled at runtime).
+ALTER TABLE memories ADD COLUMN project_id  TEXT;
+ALTER TABLE memories ADD COLUMN fingerprint TEXT;
+ALTER TABLE memories ADD COLUMN origin       TEXT NOT NULL DEFAULT 'agent';
+
+-- 2. New columns on tool_calls (nullable, backfilled at runtime).
+ALTER TABLE tool_calls ADD COLUMN project_id  TEXT;
+ALTER TABLE tool_calls ADD COLUMN fingerprint TEXT;
+
+-- 3. Partial UNIQUE: one reflector-sourced error memory per (project_id, fingerprint).
+--    NULL fingerprint is excluded (no dedup for non-error memories).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_memories_error_fp
+  ON memories (project_id, fingerprint)
+  WHERE type = 'error' AND fingerprint IS NOT NULL AND origin = 'reflector';
+
+-- 4. Metrics table (key/value/counters), seeded with zero defaults.
+CREATE TABLE IF NOT EXISTS kevin_metrics (
+  key       TEXT PRIMARY KEY,
+  value     INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO kevin_metrics (key, value) VALUES
+  ('tokens_injected_pre_prompt', 0),
+  ('tokens_injected_compacting', 0),
+  ('reflections_throttled',       0),
+  ('duplicate_suppressions',      0),
+  ('tool_calls_deduped',           0),
+  ('patterns_mined',               0);
+
+-- 5. PatternMiner opt-in flag lives in a settings table we also add (idempotent).
+CREATE TABLE IF NOT EXISTS kevin_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO kevin_settings (key, value) VALUES
+  ('patternminer_enabled', '0'),
+  ('tool_calls_dedup_enabled', '0');
+```
+
+**Runtime backfill (in `Migrate.ts` after the DDL):**
+
+```ts
+// Backfill project_id for legacy rows using the DEFAULT_PROJECT constant.
+// Backfill origin for legacy rows that came from kevin_save → 'agent'.
+db.prepare(
+  `UPDATE memories SET origin = 'agent' WHERE origin IS NULL OR origin = ''`,
+).run();
+```
+
+`fingerprint` is left NULL for legacy rows; they continue to participate in FTS and ranking, but dedup only begins to apply to rows written after v0.2.0. The partial UNIQUE index excludes NULL fingerprints, so legacy rows do not collide.
+
+---
+
+## §B6. Component specifications (deltas)
+
+### §B6.1 `fingerprint.ts` (NEW)
+
+- Exports `fingerprint(content: string, project_id?: string): string` — an **FNV-1a 64-bit** in-house hash, hex string.
+- Keeps the implementer off `node:crypto` (no surprising loader semantics in plugin context) and off any external dep.
+- Normalizes input: lowercases, strips ANSI sequences, collapses whitespace, removes line numbers and paths before hashing (so `src/foo.ts:42` and `src/bar.ts:7` hash the same when the error text is otherwise identical).
+- When `project_id` is provided, the hash includes it as a salt prefix — guaranteeing the same error text in two different projects produces two different fingerprints (D-f above).
+
+### §B6.2 `metrics.ts` (NEW)
+
+- In-memory `Map<string, number>` mirror of `kevin_metrics`.
+- `incr(key: MetricsKey, by = 1): void` — updates the map and lazily flushes to the DB on a 1-second debounce and on `session.idle`.
+- `snapshot(): Record<string, number>` — returns the current counts (used by `kevin_status`).
+- Seeded keys: `tokens_injected_pre_prompt`, `tokens_injected_compacting`, `reflections_throttled`, `duplicate_suppressions`, `tool_calls_deduped`, `patterns_mined`.
+- The `token_*` counters are estimates (cheap heuristic based on block length / 4).
+
+### §B6.3 `MemoryService.ts`
+
+- `save(input)` now requires (or auto-derives) `project_id` and `origin`, computes `fingerprint` for `type = 'error'`, and on a UNIQUE violation (caught by SQLite `SQLITE_CONSTRAINT_UNIQUE`) returns the existing row's `id` instead of inserting — a no-op save that still increments `duplicate_suppressions`.
+- `query()` returns the slim payload; `recall()` keeps the v0.1 greedy fill but applies an **origin-aware rank**: exact FTS `BM25` rank + boost (`× 2` for `origin = 'reflector'`, `× 1.5` for `origin = 'pattern'`, `× 1` for `origin = 'agent'`) + recency decay (`× 0.95^(age_days)`). No embeddings, no RRF.
+- New accessor `getById(id): Memory | null` for `kevin_get`.
+
+### §B6.4 `Reflector.ts`
+
+- Replaces the single `lastReflectionTs: number` with `lastReflectionByFp: Map<string, number>` keyed by `fingerprint` (D-a above). Throttle window unchanged at 60 s.
+- On a failure event, computes `fingerprint(stdout)`, looks up the throttle map; if still hot → `incr('reflections_throttled')` and return.
+- On a successful reflection, sets `origin = 'reflector'`, passes `fingerprint` to `MemoryService.save`.
+- **Lesson v2 dispatch**: a new `RULES` table maps error codes to suggestion templates. Parsing order: (1) `TS\d{4,5}` (TypeScript), (2) `(ELIF|F\d{3,4})|flake8: \S+` (Python lint), (3) `Error: \w+` and `Command ".+" failed`, (4) syscall codes `EADDRINUSE|ENOENT|EACCES|EPERM`. Each rule yields a short suggestion string ("import or typo", "missing or wrong property", etc.) used as a deterministic lesion in the emitted memory's `content`. Missing codes fall back to the v0.1 unknown template.
+- `MAX_CONTENT_CHARS = 4096` is preserved; `SUGGESTIONS` is retired in favor of `RULES`.
+
+### §B6.5 `ContextInjector.ts`
+
+- For every memory block emitted, prepend an `id:` line (e.g. `id: mem_01H8…\n`) so the agent can address it via `kevin_get`.
+- Wrap each block in `<protect>` / `</protect>` markers (D-04) so DCP compression does not collapse injected lessons.
+- **Conditional budget**: if the recalled memories aggregate already covers more than 80% of `SYSTEM_TRANSFORM_TOKENS = 1500` and none of the blocks are `<protect>`-tagged above the fold, lower the budget to `0.8 * 1500` to leave room for the agent's own reasoning. No change otherwise. Compact payload gets the same treatment against `COMPACTING_TOKENS = 2000`.
+- **Origin-aware ranking**: apply the same multiplier as `MemoryService.recall` so reflector lessons outrank agent-saved notes at injection time.
+
+### §B6.6 `ToolCallObserver.ts`
+
+- Sweep observed `tool.execute.before` input and `tool.execute.after` stdout/stderr for `<private>…</private>` segments and `stripPrivate()` them before persisting to `tool_calls` (D-05 / K2-05). The redacted blocks are replaced with `<private: redacted N chars>`.
+- tool_calls dedup (off by default, flag in `kevin_settings.tool_calls_dedup_enabled`): when ON, skip persisting a `tool_call` row whose `(project_id, fingerprint, minute_bucket)` tuple already exists. Increment `tool_calls_deduped` counter.
+
+### §B6.7 `redact.ts`
+
+- Adds `stripPrivate(text: string): string` — replaces `<private>…</private>` blocks (case-insensitive, multiline) with `<private: redacted N chars>`. Existing redaction of secrets/keys is preserved.
+
+### §B6.8 `memory-format.ts`
+
+- `formatMemories(rows)` now emits, per row: an `id:` line, the `<protect>` opening tag, the existing body, and `</protect>`. The wrapper is conditional on a per-row `protect = true` default; `kevin_recall` callers can opt out (used internally by `kevin_status` to avoid spamming the protect wrapper in human-readable status dumps).
+
+### §B6.9 `Retrospective.ts`
+
+- Adds a "False-positive recap" section listing reflector-sourced memories that were injected but whose fingerprint recurred in a later tool_call within the same project (a positive-of-positive signal). Each recap row shows `[reflector] <id> <snippet>`.
+- Tags every memory row in the session summary with `[reflector]` / `[agent]` / `[pattern]` based on `origin`.
+- Calls `metrics.snapshot()` and includes the 6 seeded counters in the markdown.
+
+### §B6.10 `PatternMiner.ts` (NEW, opt-in)
+
+- Reads `tool_calls` rows for the current `project_id`, groups by ordered 2-grams of `(tool_name)` and 3-grams where the second tool was a failure, and when a group reaches `N ≥ 5` distinct sessions emits a `type = 'pattern'`, `origin = 'pattern'` memory with a deterministic suggestion.
+- Disabled unless `kevin_settings.patternminer_enabled = '1'`. Default off (D-c).
+- Increment `patterns_mined` per emission. Idempotency: once emitted, the pattern's fingerprint is also persisted with `origin = 'pattern'`; the partial UNIQUE index does not apply (`origin != 'reflector'`), so pattern memories are dedup'd by a separate `INSERT OR IGNORE` keyed on `(project_id, fingerprint, type)`.
+
+---
+
+## §B7. Decisions (D2-01..D2-14)
+
+| ID | Decision |
+|---|---|
+| D2-01 | Release name **"Signal Quality"** (adopt Grok 4.5). Theme over a feature list. |
+| D2-02 | **DCP-first**: we read `experimental.session.compacting` and re-inject on DCP's schedule; we do not implement our own session compression. |
+| D2-03 | **Reject claude-mem cloning** (Worker/Chroma/IA/multi-IDE). Keep 1 plugin, SQLite-only. |
+| D2-04 | **Reject OKF core** for v0.2. Borrow only progressive disclosure (`kevin_get` + slim `kevin_query`). Defer OKF import/export to v0.3. |
+| D2-05 | **DB backward compat is HARD**: migration 003 is idempotent, all new columns nullable, runtime backfill only. No destructive ALTER. No rebuild. |
+| D2-06 | `origin` column on `memories` ∈ `'reflector' \| 'agent' \| 'pattern' \| 'retrospective'`. Used for anti-gaming (K-045 continuity) and origin-aware ranking. |
+| D2-07 | Dedup UNIQUE partial index only fires on `type='error' AND fingerprint IS NOT NULL AND origin='reflector'`. Agent and pattern memories are not dedup'd this way (they have separate idempotency rules). |
+| D2-08 | PatternMiner **opt-in**, threshold `N ≥ 5` sessions. Default off. |
+| D2-09 | Lesson v2 is a **per-error-code deterministic rule table**, no LLM. Codes: `TS2304|TS2322|TS2740|TS2552|TS18047` (TS), `ELIF|F\d{3,4}|flake8` (Python), syscall `EADDRINUSE|ENOENT|EACCES|EPERM`, generic `Error:`, `Command failed`. |
+| D2-10 | Feedback loop **positive half only** in v0.2 (inject → no recurrence within project → `relevance_score += ε`, `ε = 0.05`, cap 1.0). Negative half → v0.3. |
+| D2-11 | `project_id` is a **first-class column** on `memories` and `tool_calls`, participates in the dedup partial UNIQUE index, and is auto-derived (hashed absolute CWD) when not provided. |
+| D2-12 | `kevin_query` returns slim `{ id, type, scope, score, snippet }`; `kevin_get({ id })` fetches full content. This is the progressive disclosure "borrowed from OKF". |
+| D2-13 | Hybrid ranking in v0.2 is **BM25 + field boosts + recency decay** — **no embeddings, no RRF**. RRF is meaningless with one leg. Revisit at v0.3 when embeddings land. |
+| D2-14 | **FNV-1a 64-bit** in-house for `fingerprint` (no `node:crypto`). Deterministic, fast, zero-dep, easy to port to other plugin hosts. |
+
+---
+
+## §B8. Validation strategy
+
+1. **Unit tests** (vitest, `tests/unit/`):
+   - `fingerprint.test.ts` — stable across order-preserving and whitespace-only rewrites, salted by `project_id`.
+   - `metrics.test.ts` — incr, debounce, snapshot, reseed.
+   - `lessonv2.test.ts` — Reflector dispatches each of the 5 TS codes, Python lint codes, syscall codes, generic `Error:` / `Command failed`, and the unknown fallback correctly.
+   - `dedup.test.ts` — second save of identical `(project_id, fingerprint, type='error', origin='reflector')` is a no-op that returns the existing `id` and bumps `duplicate_suppressions`.
+   - `reflector.per-key-throttle.test.ts` — two different fingerprints within the same minute both reflect; the same fingerprint twice in a minute throttles the second.
+   - `contextinjector.test.ts` — every emitted block has an `id:` line and a `<protect>` wrapper; conditional budget halves when aggregate tokens > 80% of the cap.
+   - `stripPrivate.test.ts` — `<private>…</private>` blocks of arbitrary length collapse to `<private: redacted N chars>`.
+   - `query.test.ts` — slim payload shape; `full: true` restores v0.1.x body.
+   - `kevin_get.test.ts` — returns full row by id; 404 on missing/out-of-scope.
+   - `retrospective.test.ts` — recap lists reflector-sourced lessons whose fingerprints recurred; labels `[reflector]`/`[agent]`/`[pattern]`.
+   - `migrate_003.test.ts` — running migration 003 twice is a no-op; legacy rows keep working after backfill.
+   - `patternminer.test.ts` — at `N < 5` no emission; at `N ≥ 5` (different sessions) emits exactly one pattern memory; second run does not duplicate.
+2. **Integration tests** (`tests/integration/`): end-to-end Reflector → MemoryService → ContextInjector → system.transform chain on a mocked plugin host; assert `id` lines, `<protect>` wrappers, dedup, and metrics counters move.
+3. **E2E test** (`tests/e2e/`): **validation protocol K2-032** — in a fresh clone, run `npm run typecheck` (deliberately broken TS to trigger `TS2304`), assert the agent does **NOT** call `kevin_save`, assert `kevin_status` reports `memories_reflector ≥ 1` and `metrics` shows `duplicate_suppressions` and `tokens_injected_pre_prompt > 0` after a session tick, and assert a follow-up session injects the lesson. Anti-gaming: ensure `origin = 'reflector'`, not `'agent'`.
+4. **Backward compat**: open a v0.1.5 DB, run migration 003 in place, assert all legacy rows are queryable via `kevin_query` and recall'd by `kevin_recall` without degradation.
+
+---
+
+## §B9. Dependencies
+
+No new production dependencies. `better-sqlite3` and the existing plugin SDK are sufficient. Dev deps already include `vitest`, `biome`, `typescript`.
+
+---
+
+## §B10. Compatibility & migration
+
+- **Node**: same range as v0.1.x (per `package.json#engines`).
+- **SQLite**: at least 3.38 (for `datetime('now')` default + partial UNIQUE index semantics). `better-sqlite3` already ships a compatible prebuilt.
+- **DB file**: location unchanged (`~/.opencode-kevin/kevin.db`, global — this is a v0.1.x reality that diverges from the §architecture note in Part A; we grand-father it).
+- **Migration order**: 001 → (002 if present) → 003 via `Migrate.ts`'s existing executor with idempotency guards.
+- **Rollback**: drop the migration row `003_v02_signal` (new `schema_migrations` entry — to be added by `Migrate.ts` if not present, additive) and delete the new tables/index/columns. Old code remains runnable against the legacy schema because all new columns are nullable. This is the inverse of D2-05's "no destructive ALTER": rollback *does* destruct, but only on the new artifacts.
+
+---
+
+## §B11. Release checklist
+
+- [ ] Bump `package.json` to `0.2.0`.
+- [ ] Update `CHANGELOG.md` with the "Signal Quality" entry.
+- [ ] Update `README.md`: extend storage section, document `kevin_get`, document the slim `kevin_query` payload, document the metrics object in `kevin_status`.
+- [ ] Tag `v0.2.0`.
+- [ ] `npm run verify` green; `npm run typecheck` green; `npm run lint` green; `npm test` green.
+- [ ] Manual K2-032 walkthrough recorded.
+
+---
+
+## §B12. Amendment to the Part A roadmap (§14)
+
+The roadmap table referenced in §14 lists v0.2 as "Embeddings + hybrid retrieval + Pattern mining". This Part B **amends** that row:
+
+| Version | Item | Amended scope |
+|---|---|---|
+| v0.2 → **now** | Pattern mining + hybrid ranking **without** embeddings + dedup + ids + `<protect>`/`<private>` + metrics + lesson v2 + progressive disclosure | Signal Quality |
+| v0.3 → **was v0.2 embeddings** | Embeddings + sqlite-vec + BGE-M3 ONNX + RRF; LLM reflection loop; OKF export/import; cross-project memory (consent); negative half of feedback loop | |
+| v0.4 | Prompt mutation HITL + skill quality deep work + enriched LLM reflection | (unchanged) |
+| v0.5 | Ecosystem deep integration | (unchanged) |
+
+The v0.1.x roadmap row for v0.2 is left untouched in Part A — this Part B clarifies that the embeddings half of that original v0.2 row has been **deferred to v0.3** to make v0.2 the human-digestible "Signal Quality" release.
+
+---
+
+## §B13. Author
+
+Analysis, deltas, schema, and decisions in this Part B: **GLM-5.2** (2026-07-18). Built on top of `docs/Kevin_new_v0.2.0.md` by Grok 4.5. The complete task list (`K2-001`..`K2-032`) lives in the matching Part B of `docs/Kevin_Task.md`.
+
+**Next documents**: `docs/Kevin_Task.md` — Part B (K2-001..K2-032). `docs/Kevin_new_v0.2.0.md` remains the source analysis doc.

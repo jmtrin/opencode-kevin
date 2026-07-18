@@ -19,6 +19,10 @@ const FIXTURE_SQL = readFileSync(
 	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
 	"utf8",
 );
+const MIGRATION_003_SQL = readFileSync(
+	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -31,6 +35,7 @@ beforeEach(() => {
 	migrationsDir = join(tmpRoot, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), FIXTURE_SQL);
+	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), MIGRATION_003_SQL);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 	memories = new MemoryService(store);
@@ -55,7 +60,7 @@ describe("e2e — reflection flow (failure → memory → recall)", () => {
 		});
 		expect(id).not.toBeNull();
 
-		const queryResults = memories.query({ text: "typecheck" });
+		const queryResults = memories.query({ text: "typecheck", full: true });
 		expect(queryResults.length).toBe(1);
 		expect(queryResults[0].id).toBe(id);
 		expect(queryResults[0].content).toContain("Verify types and imports");

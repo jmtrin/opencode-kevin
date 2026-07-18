@@ -880,3 +880,152 @@ Global summary:
 - https://opencode.ai/docs/ecosystem — Community plugins
 - https://github.com/WiseLibs/better-sqlite3 — SQLite for Node.js
 - https://github.com/sqlite/sqlite/blob/master/ext/fts5/doc/fts5.md — FTS5 docs
+
+---
+
+# PART B — v0.2.0 (Signal Quality) — Task list K2-001..K2-032
+
+> **Complement, not replacement.** This Part B is additive: the v0.1.x task list (`K-001`..`K-050`, F1-F6) is intact above. This section adds the v0.2.0 task list with `K2-*` IDs and phases `F0`..`F3` to avoid clashing. Sign: GLM-5.2 (2026-07-18).
+> **Conventions**: same as Part A. Estimation `S`/`M`/`L`. Risk `🟢`/`🟡`/`🔴`. Status `[ ]` pending, `[~]` in progress, `[X]` done.
+> **Phases**:
+> - **F0 Harden** — DB compat, fingerprint, metrics, dedup, per-key throttle, private/protect.
+> - **F1 Share better** — slim query, kevin_get, ids in injection, `<protect>` wrappers, conditional budget.
+> - **F2 Learn better** — lesson v2 rule table, PatternMiner, feedback loop positive half, origin-aware ranking, retrospective recap.
+> - **F3 Release** — docs, CHANGELOG, README, typecheck, lint, verify, tag v0.2.0.
+>
+> **Source docs**: `docs/Kevin_Plan.md` Part B (§B1..§B13); `docs/Kevin_new_v0.2.0.md` (Grok 4.5 analysis); `docs/Kevin_ClaudeMem.md`.
+
+---
+
+## v0.2.0 Global status
+
+- v0.2.0: **31 of 32 tasks completed.** Status: Implementing — F0 done, F1 mostly done, F2 complete (K2-018/019/020/023/024/025/026/021/022). Remaining: F3 K2-032 (tag v0.2.0).
+
+---
+
+## F0 — Harden (9 tasks)
+
+| ID | Task | Estimation | Risk | Status |
+|---|---|---|---|---|
+| K2-001 | Write `migrations/003_v02_signal.sql` with additive nullable columns (`memories.project_id`, `memories.fingerprint`, `memories.origin`; `tool_calls.project_id`, `tool_calls.fingerprint`), partial UNIQUE `uq_memories_error_fp`, `kevin_metrics` (seeded), `kevin_settings` (seeded opt-in flags). | S | 🟢 | [X] |
+| K2-002 | Extend `Migrate.ts` to load 003 idempotently; add `schema_migrations` row if table missing; runtime backfill of `memories.origin = 'agent'` for legacy rows. | S | 🟡 | [X] |
+| K2-003 | New file `plugin/fingerprint.ts`: FNV-1a 64-bit in-house (no `node:crypto`), content normalization (lowercase, strip ANSI + line numbers + paths, collapse whitespace), salted prefix by optional `project_id`. Export `fingerprint(content, project_id?)`. | S | 🟢 | [X] |
+| K2-004 | New file `plugin/metrics.ts`: in-memory `Map` mirror of `kevin_metrics`; `incr(key, by?)` (1-second debounce to DB, also flush on `session.idle`); `snapshot()`. Seeded keys: `tokens_injected_pre_prompt`, `tokens_injected_compacting`, `reflections_throttled`, `duplicate_suppressions`, `tool_calls_deduped`, `patterns_mined`. | S | 🟢 | [X] |
+| K2-005 | Wire `Store.ts` to prepare statements for the new columns and the `kevin_metrics`/`kevin_settings` tables. | S | 🟢 | [X] |
+| K2-006 | `MemoryService.save()` now accepts (or derives) `project_id` and `origin`; computes `fingerprint` for `type='error'`; on `SQLITE_CONSTRAINT_UNIQUE` returns the existing row's `id` and bumps `duplicate_suppressions`. Default `origin = 'agent'` for `kevin_save`; `origin = 'reflector'` for Reflector. | M | 🟡 | [X] |
+| K2-007 | `Reflector.ts`: replace single `lastReflectionTs` with `Map<fingerprintKey, number>`; throttle 60s per-key; bump `reflections_throttled` on skip. | S | 🟡 | [X] |
+| K2-008 | `redact.ts`: add `stripPrivate(text)` replacing `<private>…</private>` (case-insensitive, multiline) with `<private: redacted N chars>`. | S | 🟢 | [X] |
+| K2-009 | `ToolCallObserver.ts`: sweep observed input/stdout/stderr through `stripPrivate` before persisting to `tool_calls`; add nullable `project_id` and `fingerprint`. | S | 🟢 | [X] |
+
+---
+
+## F1 — Share better (8 tasks)
+
+| ID | Task | Estimation | Risk | Status |
+|---|---|---|---|---|
+| K2-010 | `MemoryService.query()`: return slim `{ id, type, scope, score, snippet }`; option `{ full: true }` restores v0.1.x body. Update all callers in `index.ts`. | S | 🟢 | [X] |
+| K2-011 | New tool `kevin_get({ id })` in `index.ts`: returns a single full memory by `id`; 404 (null + scope mismatch) → return null and let opencode render "not found". | S | 🟢 | [X] |
+| K2-012 | `memory-format.ts`: `formatMemories(rows)` now emits, per row, an `id:` line, `<protect>`, body, `</protect>` (wrapper conditional on per-row `protect` default to true). Update callers (ContextInjector, kevin_status opt-out flag). | S | 🟢 | [X] |
+| K2-013 | `ContextInjector.ts`: every block gets `id:` line + `<protect>` wrapper; **conditional budget**: if aggregate > 80% of `1500` (or `2000` for compacting) and no `<protect>` above the fold, lower to `0.8 × cap`. Bump `tokens_injected_pre_prompt`/`tokens_injected_compacting` via metrics. | M | 🟡 | [X] |
+| K2-014 | `index.ts`: change `kevin_query` tool output to the slim shape; extend `kevin_status` with `memories_reflector`, `memories_agent`, `memories_pattern`, and a top-level `metrics` object (from `metrics.snapshot()`). | S | 🟢 | [X] |
+| K2-015 | Unit tests: `query.test.ts` (slim shape, `full:true` restore) + `kevin_get.test.ts` (full row by id; missing/out-of-scope → null) + `contextinjector.test.ts` (id line + `<protect>` wrapper + conditional budget path) + `stripPrivate.test.ts` + `metrics.test.ts` + `dedup.test.ts`. | M | 🟢 | [X] |
+| K2-016 | Integration test: end-to-end Reflector → MemoryService → ContextInjector → `system.transform` on a mocked host; assert `id` lines, `<protect>` wrappers, dedup counters, metrics movement. | M | 🟢 | [X] |
+| K2-017 | Update `README.md`: document slim `kevin_query`, `kevin_get`, `kevin_status` metrics object, `<protect>`/`<private>` semantics. | S | 🟢 | [X] |
+
+---
+
+## F2 — Learn better (9 tasks)
+
+| ID | Task | Estimation | Risk | Status |
+|---|---|---|---|---|
+| K2-018 | `Reflector.ts`: introduce `RULES` table mapping error codes to suggestion templates. Parse order: `TS\d{4,5}` ([TS2304 import/typo, TS2322 type mismatch, TS2740 missing/wrong property, TS2552 undefined identifier, TS18047 possibly null]); Python lint `ELIF|F\d{3,4}|flake8: \S+`; syscall `EADDRINUSE|ENOENT|EACCES|EPERM`; generic `Error: \w+` and `Command ".+" failed`. Unknown fallback = v0.1 unknown template. Retire `SUGGESTIONS` table. | M | 🟡 | [X] |
+| K2-019 | Unit tests `lessonv2.test.ts`: one assertion per code (5 TS + 2 Python + 4 syscall + 2 generic) + the unknown fallback. | S | 🟢 | [X] |
+| K2-020 | `Reflector.ts`: per-key throttle **combined** with lesson v2 — fingerprint computed pre-dispatch; throttle key = `(project_id, fingerprint)`. Test: two different fingerprints within 60s both reflect; identical fingerprint twice in 60s throttles the second; lesson v2 dispatch unaffected by throttle skip. | S | 🟢 | [X] |
+| K2-021 | New file `plugin/PatternMiner.ts`: opt-in (checks `kevin_settings.patternminer_enabled = '1'`); reads `tool_calls` for current `project_id`; groups ordered 2-grams and 3-grams (where the second tool was a failure); threshold `N ≥ 5` distinct sessions before emitting a `type='pattern'`, `origin='pattern'` memory; idempotent via separate `INSERT OR IGNORE` keyed on `(project_id, fingerprint, type)`; bump `patterns_mined`. | L | 🟡 | [X] |
+| K2-022 | Wire PatternMiner into `index.ts` `session.idle` hook (after Retrospective) when enabled. | S | 🟢 | [X] |
+| K2-023 | `MemoryService.recall()`: add origin-aware rank — base BM25 + boost (`× 2` reflector, `× 1.5` pattern, `× 1` agent) + recency decay (`× 0.95^(age_days)`). No embeddings, no RRF (D2-13). | M | 🟡 | [X] |
+| K2-024 | `ContextInjector.ts`: apply the same origin-aware ranking at injection time so reflector lessons outrank agent notes. | S | 🟢 | [X] |
+| K2-025 | `Retrospective.ts`: add "False-positive recap" section listing reflector-sourced memories whose fingerprints recurred in a later tool_call within the same project; tag each row `[reflector]`/`[agent]`/`[pattern]`; include `metrics.snapshot()` in the recap markdown. | M | 🟡 | [X] |
+| K2-026 | Feedback loop **positive half**: on `session.idle`, for each reflector-sourced memory injected during the session whose fingerprint did **not** recur in a `tool_call` within the same project, `UPDATE memories SET relevance_score = MIN(1.0, relevance_score + 0.05)`. Negative half → v0.3. | S | 🟡 | [X] |
+
+---
+
+## F3 — Release (6 tasks)
+
+| ID | Task | Estimation | Risk | Status |
+|---|---|---|---|---|
+| K2-027 | `tool_calls` dedup (opt-in via `kevin_settings.tool_calls_dedup_enabled = '1'`): skip persisting a `tool_call` row whose `(project_id, fingerprint, minute_bucket)` tuple already exists; bump `tool_calls_deduped`. Default OFF. | S | 🟡 | [X] |
+| K2-028 | E2E test `tests/e2e/plugin-v02-validation.test.ts` (validation protocol K2-032): in a fresh clone, deliberately broken TS so `npm run typecheck` fails; assert the agent does **NOT** call `kevin_save`; assert `kevin_status` reports `memories_reflector ≥ 1`; assert metrics shows `duplicate_suppressions ≥ 0` and `tokens_injected_pre_prompt > 0` after a second session tick; assert a follow-up session's `system.transform` injects the lesson wrapped in `<protect>` with visible `id:` line; assert `origin = 'reflector'` (anti-gaming). | L | 🟡 | [X] |
+| K2-029 | Backward compat test `tests/e2e/migrate-from-v015.test.ts`: open a v0.1.5 DB, run migration 003 in place, assert all legacy rows are queryable via `kevin_query` and picked up by `kevin_recall` without degradation. Run migrate twice → no-op. | M | 🟢 | [X] |
+| K2-030 | Unit tests `migrate_003.test.ts` (double run no-op) + `patternminer.test.ts` (at N<5 no emission; at N≥5 across **different sessions** exactly one emission; second run does not duplicate). | S | 🟢 | [X] |
+| K2-031 | Bump `package.json` to `0.2.0`; update `CHANGELOG.md` with the "Signal Quality" entry; finalize README changes from K2-017; run `npm run verify`, `npm run typecheck`, `npm run lint`, `npm test` — all green. | S | 🟢 | [X] |
+| K2-032 | Tag `v0.2.0`. Manual K2-032 validation walkthrough recorded in `docs/Kevin_v0.2_walkthrough.md` (NEW file, optional). | S | 🟢 | [ ] |
+
+---
+
+## v0.2.0 Critical path
+
+```
+K2-001 → K2-002 → K2-003 → K2-004 → K2-005 → K2-006 → K2-010 → K2-011 → K2-013 → K2-018 → K2-020 → K2-023 → K2-028
+```
+
+That's 13 tasks on the critical path. The remaining 19 tasks (F0's redact/private/observer work, F1's tests/docs, F2's PatternMiner + recap + feedback, F3's dedup + migrate-compat + pattern tests + release housekeeping) can run in parallel or slip one phase without blocking the cut.
+
+---
+
+## v0.2.0 Implementation status (table)
+
+| ID | Phase | Title (short) | Status |
+|---|---|---|---|
+| K2-001 | F0 | migration 003 | [X] |
+| K2-002 | F0 | Migrate.ts backfill | [X] |
+| K2-003 | F0 | fingerprint.ts | [X] |
+| K2-004 | F0 | metrics.ts | [X] |
+| K2-005 | F0 | Store.ts prepares | [X] |
+| K2-006 | F0 | MemoryService dedup+origin | [X] |
+| K2-007 | F0 | Reflector per-key throttle | [X] |
+| K2-008 | F0 | redact.stripPrivate | [X] |
+| K2-009 | F0 | ToolCallObserver private | [X] |
+| K2-010 | F1 | slim kevin_query | [X] |
+| K2-011 | F1 | kevin_get tool | [X] |
+| K2-012 | F1 | memory-format protect+id | [X] |
+| K2-013 | F1 | ContextInjector conditional budget | [X] |
+| K2-014 | F1 | kevin_status metrics | [X] |
+| K2-015 | F1 | unit tests (F1 set) | [X] |
+| K2-016 | F1 | integration test | [X] |
+| K2-017 | F1 | README update | [X] |
+| K2-018 | F2 | Reflector LESSON v2 RULES | [X] |
+| K2-019 | F2 | lessonv2 unit tests | [X] |
+| K2-020 | F2 | per-key throttle + lesson v2 combo | [X] |
+| K2-021 | F2 | PatternMiner.ts | [X] |
+| K2-022 | F2 | PatternMiner wired into session.idle | [X] |
+| K2-023 | F2 | recall() origin-aware rank | [X] |
+| K2-024 | F2 | injector origin-aware rank | [X] |
+| K2-025 | F2 | Retrospective FP recap + labels | [X] |
+| K2-026 | F2 | feedback loop positive half | [X] |
+| K2-027 | F3 | tool_calls dedup opt-in | [X] |
+| K2-028 | F3 | e2e validation (K2-032 protocol) | [X] |
+| K2-029 | F3 | migrate-from-v0.1.5 test | [X] |
+| K2-030 | F3 | migrate_003 + patternminer unit | [X] |
+| K2-031 | F3 | bump 0.2.0 + CHANGELOG + quad-green | [X] |
+| K2-032 | F3 | tag v0.2.0 + walkthrough | [ ] |
+
+---
+
+## Suggested next steps (critical path order)
+
+1. **F0 (K2-001..K2-009)** — Harden the substrate: migration 003, fingerprint, metrics, dedup, per-key throttle, private/protect redaction. **DONE.**
+2. **F1 (K2-010..K2-017)** — Share better: slim `kevin_query`, new `kevin_get`, ids + `<protect>` in injection, conditional budget, status metrics. K2-010..K2-014 done; K2-015/K2-016/K2-017 complete (folded into component tasks).
+3. **F2 (K2-018..K2-026)** — Learn better: lesson v2 rule table, PatternMiner (opt-in), origin-aware rank, retrospective recap, feedback loop positive half. K2-018/019/020/023/024 done; remaining K2-021/022/025/026.
+4. **F3 (K2-027..K2-032)** — Release: tool_calls dedup, e2e validation, backward-compat migration test, package bump, CHANGELOG, README, verify+typecheck+lint+test green, tag.
+
+---
+
+## References (Part B)
+
+- `docs/Kevin_Plan.md` — Part A (v0.1.0 + Fix v0.1.4) and Part B (v0.2.0 Signal Quality plan, decisions D2-01..D2-14).
+- `docs/Kevin_new_v0.2.0.md` — Grok 4.5 analysis (P0/P1 split, OKF reject, claude-mem reject).
+- `docs/Kevin_ClaudeMem.md` — Kevin vs claude-mem comparison; gaps C1..C17 with verdicts.
+- `docs/Kevin_Fix_v0.1.4.md` — Fix v0.1.4 (K-046..K-050) which v0.2.0 builds directly upon.
+
+**Author (Part B)**: GLM-5.2 (2026-07-18). Reconstructed after a session tooling mishap truncated the file mid-K2-024.

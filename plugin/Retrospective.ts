@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
+import type { Metrics } from "./metrics.js";
 import { uuidv7 } from "./uuid.js";
 
 export interface RetrospectiveOptions {
@@ -22,19 +23,52 @@ interface FailedToolRow {
 }
 
 interface LessonRow {
+	id: string;
 	content: string;
+	origin: string | null;
+	fingerprint: string | null;
+	project_id: string | null;
+}
+
+interface FalsePositiveRow {
+	id: string;
+	content: string;
+	fingerprint: string;
+	project_id: string | null;
+	recurrence_count: number;
+}
+
+const METRIC_KEY_LABELS: Record<string, string> = {
+	tokens_injected_pre_prompt: "Tokens inyectados (pre-prompt)",
+	tokens_injected_compacting: "Tokens inyectados (compacting)",
+	reflections_throttled: "Reflexiones throttled",
+	duplicate_suppressions: "Supresiones por dedup",
+	tool_calls_deduped: "Tool calls deduped",
+	patterns_mined: "Patrones minados",
+};
+
+function originLabel(
+	origin: string | null,
+): "reflector" | "agent" | "pattern" | "retrospective" | "agent" {
+	if (origin === "reflector") return "reflector";
+	if (origin === "pattern") return "pattern";
+	if (origin === "retrospective") return "retrospective";
+	return "agent";
 }
 
 export class Retrospective {
 	private retrospectivesDir: string;
+	private metrics: Metrics | null;
 
 	constructor(
 		private store: Store,
 		private memoryService: MemoryService,
 		options?: RetrospectiveOptions,
+		metrics?: Metrics | null,
 	) {
 		this.retrospectivesDir =
 			options?.dir ?? join(homedir(), ".opencode-kevin", "retrospectives");
+		this.metrics = metrics ?? null;
 	}
 
 	async generate(sessionId: string): Promise<string | null> {
@@ -70,11 +104,16 @@ export class Retrospective {
 
 		const lessons = this.store
 			.prepare(
-				`SELECT content FROM memories
+				`SELECT id, content, origin, fingerprint, project_id
+				 FROM memories
 				 WHERE type = 'error' AND source_session = ?
 				 ORDER BY created_at ASC`,
 			)
 			.all(sessionId) as LessonRow[];
+
+		const falsePositives = this.collectFalsePositives(sessionId, lessons);
+
+		const metricsSnapshot = this.metrics?.snapshot() ?? null;
 
 		const md = this.buildMarkdown(
 			sessionId,
@@ -83,6 +122,8 @@ export class Retrospective {
 			failureCount,
 			failedTools,
 			lessons,
+			falsePositives,
+			metricsSnapshot,
 		);
 
 		mkdirSync(this.retrospectivesDir, { recursive: true });
@@ -109,6 +150,42 @@ export class Retrospective {
 		return filePath;
 	}
 
+	private collectFalsePositives(
+		_sessionId: string,
+		lessons: LessonRow[],
+	): FalsePositiveRow[] {
+		const reflectorLessons = lessons.filter(
+			(l) => l.origin === "reflector" && l.fingerprint !== null,
+		);
+		if (reflectorLessons.length === 0) return [];
+
+		const result: FalsePositiveRow[] = [];
+		for (const lesson of reflectorLessons) {
+			const fp = lesson.fingerprint as string;
+			const row = this.store
+				.prepare(
+					`SELECT COUNT(*) AS c FROM tool_calls
+				 WHERE fingerprint = ?
+				   AND success = 0
+				   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))`,
+				)
+				.get(fp, lesson.project_id, lesson.project_id) as
+				| { c: number }
+				| undefined;
+			const recurrenceCount = row?.c ?? 0;
+			if (recurrenceCount > 0) {
+				result.push({
+					id: lesson.id,
+					content: lesson.content,
+					fingerprint: fp,
+					project_id: lesson.project_id,
+					recurrence_count: recurrenceCount,
+				});
+			}
+		}
+		return result;
+	}
+
 	private buildMarkdown(
 		sessionId: string,
 		total: number,
@@ -116,6 +193,8 @@ export class Retrospective {
 		failureCount: number,
 		failedTools: FailedToolRow[],
 		lessons: LessonRow[],
+		falsePositives: FalsePositiveRow[],
+		metricsSnapshot: Record<string, number> | null,
 	): string {
 		const lines: string[] = [];
 		lines.push(`# Retrospective — Session ${sessionId}`);
@@ -134,9 +213,33 @@ export class Retrospective {
 		lines.push("");
 		lines.push("## Lecciones generadas");
 		for (const lesson of lessons) {
-			lines.push(`- ${lesson.content}`);
+			const label = originLabel(lesson.origin);
+			lines.push(`- [${label}] ${lesson.content}`);
 		}
 		lines.push("");
+		lines.push("## False-positive recap");
+		if (falsePositives.length === 0) {
+			lines.push(
+				"- Ninguna lección reflector-sourceada recurrrió en tool_calls.",
+			);
+		} else {
+			for (const fp of falsePositives) {
+				lines.push(
+					`- [reflector] ${fp.content} (fingerprint ${fp.fingerprint}, recurrencias: ${fp.recurrence_count})`,
+				);
+			}
+		}
+		lines.push("");
+
+		if (metricsSnapshot !== null) {
+			lines.push("## Métricas");
+			for (const [key, value] of Object.entries(metricsSnapshot)) {
+				const label = METRIC_KEY_LABELS[key] ?? key;
+				lines.push(`- ${label}: ${value}`);
+			}
+			lines.push("");
+		}
+
 		return lines.join("\n");
 	}
 }

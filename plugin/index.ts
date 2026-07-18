@@ -5,13 +5,19 @@ import { fileURLToPath } from "node:url";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
 import { ContextInjector } from "./ContextInjector.js";
-import { MemoryService } from "./MemoryService.js";
+import {
+	type Memory,
+	MemoryService,
+	type SlimMemory,
+} from "./MemoryService.js";
 import { Migrate } from "./Migrate.js";
+import { PatternMiner } from "./PatternMiner.js";
 import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "./Reflector.js";
 import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
 import { formatMemories } from "./memory-format.js";
+import { Metrics, estimateTokens } from "./metrics.js";
 
 export interface KevinPluginOptions {
 	dbPath?: string;
@@ -38,15 +44,24 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	const store = new Store({ path: dbPath });
 	const migrationsDir = opts.migrationsDir ?? resolveMigrationsDir();
 	await new Migrate(store, migrationsDir).run();
-	const memoryService = new MemoryService(store);
-	const observer = new ToolCallObserver(store);
-	const reflector = new Reflector(memoryService, {
-		throttleMs: opts.throttleMs,
-	});
-	const injector = new ContextInjector(memoryService);
-	const retrospective = new Retrospective(store, memoryService, {
-		dir: opts.retrospectivesDir,
-	});
+	const metrics = new Metrics(store);
+	const memoryService = new MemoryService(store, metrics);
+	const observer = new ToolCallObserver(store, metrics);
+	const reflector = new Reflector(
+		memoryService,
+		{ throttleMs: opts.throttleMs },
+		metrics,
+	);
+	const injector = new ContextInjector(memoryService, metrics);
+	const retrospective = new Retrospective(
+		store,
+		memoryService,
+		{
+			dir: opts.retrospectivesDir,
+		},
+		metrics,
+	);
+	const patternMiner = new PatternMiner(store, memoryService, metrics);
 	let currentSessionId: string | null = null;
 	let lastUserQuery: string | null = null;
 	const pending = new Set<Promise<unknown>>();
@@ -134,30 +149,83 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			}),
 			kevin_query: tool({
 				description:
-					"Busca memorias por texto (FTS5). Retorna JSON con [{id,type,content,scope}].",
+					"Busca memorias por texto (FTS5). Retorna JSON con [{id,type,scope,score,snippet}] (slim, v0.2.0). Con full=true retorna [{id,type,content,scope,...}] (legacy v0.1.x).",
 				args: {
 					query: tool.schema.string().min(1),
 					type: tool.schema
 						.enum(["error", "pattern", "decision", "context"])
 						.optional(),
 					limit: tool.schema.number().int().positive().default(10),
+					full: tool.schema
+						.boolean()
+						.optional()
+						.describe(
+							"Cuando true, retorna el contenido completo (v0.1.x). Default false (slim).",
+						),
 				},
 				async execute(args) {
 					const memories = memoryService.query({
 						text: args.query,
 						type: args.type,
 						limit: args.limit,
+						full: args.full === true,
 					});
+					const rows =
+						args.full === true
+							? (memories as unknown as Memory[]).map((m) => ({
+									id: m.id,
+									type: m.type,
+									content: m.content,
+									scope: m.scope,
+								}))
+							: (memories as SlimMemory[]).map((m) => ({
+									id: m.id,
+									type: m.type,
+									scope: m.scope,
+									score: m.score,
+									snippet: m.snippet,
+								}));
 					return {
 						title: "Resultados query",
-						output: JSON.stringify(
-							memories.map((m) => ({
-								id: m.id,
-								type: m.type,
-								content: m.content,
-								scope: m.scope,
-							})),
-						),
+						output: JSON.stringify(rows),
+					};
+				},
+			}),
+			kevin_get: tool({
+				description:
+					"Recupera una memoria completa por su id (v0.2.0 — progressive disclosure). Util cuando kevin_query retorna un snippet slim y necesitas el contenido completo.",
+				args: {
+					id: tool.schema.string().min(1),
+				},
+				async execute(args) {
+					const mem = memoryService.getById(args.id);
+					if (mem === null) {
+						return {
+							title: "No encontrada",
+							output: JSON.stringify({
+								error: "not_found",
+								id: args.id,
+							}),
+						};
+					}
+					return {
+						title: "Memoria encontrada",
+						output: JSON.stringify({
+							id: mem.id,
+							type: mem.type,
+							content: mem.content,
+							scope: mem.scope,
+							relevanceScore: mem.relevanceScore,
+							sourceTool: mem.sourceTool ?? null,
+							sourceSession: mem.sourceSession ?? null,
+							createdAt: mem.createdAt,
+							updatedAt: mem.updatedAt,
+							expiresAt: mem.expiresAt ?? null,
+							projectId: mem.projectId ?? null,
+							fingerprint: mem.fingerprint ?? null,
+							origin: mem.origin ?? null,
+							metadata: mem.metadata ?? null,
+						}),
 					};
 				},
 			}),
@@ -205,12 +273,31 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					const retroCount = store
 						.prepare("SELECT COUNT(*) as c FROM retrospectives")
 						.get() as { c: number };
+					// v0.2.0 (K2-014): origin breakdown + metrics snapshot.
+					const originRows = store
+						.prepare(
+							`SELECT origin, COUNT(*) as c
+							 FROM memories
+							 GROUP BY origin`,
+						)
+						.all() as { origin: string | null; c: number }[];
+					const byOrigin: Record<string, number> = {};
+					for (const r of originRows) {
+						byOrigin[r.origin ?? "agent"] = r.c;
+					}
+					const memoriesReflector = byOrigin.reflector ?? 0;
+					const memoriesAgent = byOrigin.agent ?? 0;
+					const memoriesPattern = byOrigin.pattern ?? 0;
 					return {
 						title: "Estado de Kevin",
 						output: JSON.stringify({
 							memories: memoryCount.c,
+							memories_reflector: memoriesReflector,
+							memories_agent: memoriesAgent,
+							memories_pattern: memoriesPattern,
 							tool_calls: toolCallCount.c,
 							retrospectives: retroCount.c,
+							metrics: metrics.snapshot(),
 						}),
 					};
 				},
@@ -330,7 +417,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				scope: "project",
 			});
 			const block = formatMemories(memories, "context");
-			if (block) output.system.push(block);
+			if (block) {
+				output.system.push(block);
+				metrics.incr("tokens_injected_pre_prompt", estimateTokens(block));
+			}
 		},
 
 		"experimental.session.compacting": async (_hookInput, output) => {
@@ -342,7 +432,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				scope: "project",
 			});
 			const block = formatMemories(memories, "memory");
-			if (block) output.context.push(block);
+			if (block) {
+				output.context.push(block);
+				metrics.incr("tokens_injected_compacting", estimateTokens(block));
+			}
 		},
 
 		event: async ({ event }) => {
@@ -357,7 +450,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				if (sid) {
 					toolCache.clear();
 					fireAndForget(retrospective.generate(sid));
+					memoryService.boostPositiveReflectors(sid);
+					patternMiner.mine();
 				}
+				metrics.flush();
 			} else if (type === "session.next.tool.failed") {
 				const callID = props.callID as string | undefined;
 				const sessionID = props.sessionID as string | undefined;
@@ -373,6 +469,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 
 		dispose: async () => {
 			await Promise.allSettled([...pending]);
+			metrics.close();
 			store.close();
 		},
 	};

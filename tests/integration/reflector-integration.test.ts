@@ -19,6 +19,10 @@ const FIXTURE_SQL = readFileSync(
 	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
 	"utf8",
 );
+const MIGRATION_003_SQL = readFileSync(
+	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -31,6 +35,7 @@ beforeEach(() => {
 	migrationsDir = join(tmpRoot, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), FIXTURE_SQL);
+	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), MIGRATION_003_SQL);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 	memories = new MemoryService(store);
@@ -56,7 +61,7 @@ describe("Reflector + MemoryService integration", () => {
 		});
 		expect(id).not.toBeNull();
 
-		const results = memories.query({ text: "typecheck" });
+		const results = memories.query({ text: "typecheck", full: true });
 		expect(results.length).toBe(1);
 		expect(results[0].id).toBe(id);
 		expect(results[0].type).toBe("error");
@@ -74,7 +79,7 @@ describe("Reflector + MemoryService integration", () => {
 			errorType: "typecheck",
 			sessionId: "sess-int-2",
 		});
-		const results = memories.query({ text: "typecheck" });
+		const results = memories.query({ text: "typecheck", full: true });
 		expect(results.length).toBe(1);
 		expect(results[0].content).not.toContain("C:\\Users");
 		expect(results[0].content).toContain("<path>:42");
@@ -107,7 +112,7 @@ describe("Reflector + MemoryService integration", () => {
 			sessionId: "sess-int-4",
 		});
 		expect(id).not.toBeNull();
-		expect(memories.query({ text: "typecheck" }).length).toBe(1);
+		expect(memories.query({ text: "typecheck", full: true }).length).toBe(1);
 		const direct = memories.getById(id as string);
 		expect(direct).not.toBeNull();
 		expect(direct?.metadata?.truncated).toBe(true);

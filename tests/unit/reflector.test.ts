@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemoryService, SaveInput } from "../../plugin/MemoryService.js";
 import { Reflector } from "../../plugin/Reflector.js";
+import type { Metrics } from "../../plugin/metrics.js";
 
 function createMock() {
 	const saved: SaveInput[] = [];
@@ -13,6 +14,22 @@ function createMock() {
 		},
 	} as unknown as MemoryService;
 	return { saved, service };
+}
+
+function createMockMetrics() {
+	const incr = vi.fn();
+	const snapshot = vi.fn(() => ({}));
+	const get = vi.fn(() => 0);
+	const flush = vi.fn();
+	const close = vi.fn();
+	const metrics = {
+		incr,
+		snapshot,
+		get,
+		flush,
+		close,
+	} as unknown as Metrics;
+	return { metrics, incr, snapshot, get, flush, close };
 }
 
 const noopService = {} as unknown as MemoryService;
@@ -286,5 +303,371 @@ describe("Reflector.invoke", () => {
 			});
 			expect(third).not.toBeNull();
 		});
+	});
+});
+
+describe("Reflector.invoke — v0.2.0 (K2-007)", () => {
+	it("passes origin='reflector' and explicit fingerprint to save", async () => {
+		const { saved, service } = createMock();
+		const r = new Reflector(service, { throttleMs: 0 });
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "npm run typecheck",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+			projectId: "proj-A",
+		});
+		expect(saved.length).toBe(1);
+		expect(saved[0].origin).toBe("reflector");
+		expect(saved[0].projectId).toBe("proj-A");
+		expect(typeof saved[0].fingerprint).toBe("string");
+		expect(saved[0].fingerprint?.length).toBe(16); // FNV-1a 64-bit hex
+	});
+
+	it("defaults projectId to null when not provided", async () => {
+		const { saved, service } = createMock();
+		const r = new Reflector(service, { throttleMs: 0 });
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		expect(saved[0].projectId).toBeUndefined();
+		expect(typeof saved[0].fingerprint).toBe("string");
+	});
+
+	describe("per-fingerprint throttle", () => {
+		beforeEach(() => vi.useFakeTimers());
+		afterEach(() => vi.useRealTimers());
+
+		it("throttles identical fingerprint within window and bumps reflections_throttled", async () => {
+			const { service } = createMock();
+			const { metrics, incr } = createMockMetrics();
+			const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+			vi.setSystemTime(10000);
+			const first = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "error TS2304",
+				stdout: "",
+				exitCode: 1,
+				errorType: "typecheck",
+				sessionId: "s1",
+			});
+			expect(first).not.toBeNull();
+			vi.setSystemTime(10500);
+			const second = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "error TS2304",
+				stdout: "",
+				exitCode: 1,
+				errorType: "typecheck",
+				sessionId: "s1",
+			});
+			expect(second).toBeNull();
+			expect(incr).toHaveBeenCalledWith("reflections_throttled", 1);
+		});
+
+		it("does NOT throttle distinct fingerprints within the same window", async () => {
+			const { service } = createMock();
+			const { metrics, incr } = createMockMetrics();
+			const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+			vi.setSystemTime(10000);
+			const first = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "error TS2304: cannot find foo",
+				stdout: "",
+				exitCode: 1,
+				errorType: "typecheck",
+				sessionId: "s1",
+			});
+			vi.setSystemTime(10100);
+			const second = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "error TS2322: type mismatch bar",
+				stdout: "",
+				exitCode: 1,
+				errorType: "typecheck",
+				sessionId: "s1",
+			});
+			expect(first).not.toBeNull();
+			expect(second).not.toBeNull();
+			expect(incr).not.toHaveBeenCalled();
+		});
+
+		it("treats same error text under different projectId as distinct fingerprints", async () => {
+			const { service } = createMock();
+			const { metrics, incr } = createMockMetrics();
+			const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+			vi.setSystemTime(10000);
+			const a = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "error TS2304: cannot find foo",
+				stdout: "",
+				exitCode: 1,
+				errorType: "typecheck",
+				sessionId: "s1",
+				projectId: "proj-A",
+			});
+			vi.setSystemTime(10100);
+			const b = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "error TS2304: cannot find foo",
+				stdout: "",
+				exitCode: 1,
+				errorType: "typecheck",
+				sessionId: "s1",
+				projectId: "proj-B",
+			});
+			expect(a).not.toBeNull();
+			expect(b).not.toBeNull();
+			expect(incr).not.toHaveBeenCalled();
+		});
+
+		it("keeps the throttle map entry on skip, so third after window passes", async () => {
+			const { service } = createMock();
+			const { metrics } = createMockMetrics();
+			const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+			vi.setSystemTime(10000);
+			const first = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "boom TS9999",
+				stdout: "",
+				exitCode: 1,
+				errorType: "runtime",
+				sessionId: "s1",
+			});
+			vi.setSystemTime(10500);
+			const second = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "boom TS9999",
+				stdout: "",
+				exitCode: 1,
+				errorType: "runtime",
+				sessionId: "s1",
+			});
+			vi.setSystemTime(11001);
+			const third = await r.invoke({
+				toolName: "bash",
+				argsSummary: "",
+				stderr: "boom TS9999",
+				stdout: "",
+				exitCode: 1,
+				errorType: "runtime",
+				sessionId: "s1",
+			});
+			expect(first).not.toBeNull();
+			expect(second).toBeNull();
+			expect(third).not.toBeNull();
+		});
+	});
+
+	it("does not throw when metrics is null (backward-compat)", async () => {
+		const { service } = createMock();
+		const r = new Reflector(service, { throttleMs: 1000 }); // no metrics
+		vi.useFakeTimers();
+		vi.setSystemTime(10000);
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		vi.setSystemTime(10500);
+		const second = await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		expect(second).toBeNull();
+		vi.useRealTimers();
+	});
+});
+
+describe("Reflector.invoke — v0.2.0 (K2-020) per-key throttle + lesson v2 combo", () => {
+	it("first invoke of a TS error saves a lesson v2 with 'Likely cause:' line", async () => {
+		const { saved, service } = createMock();
+		const r = new Reflector(service, { throttleMs: 0 });
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		expect(saved.length).toBe(1);
+		expect(saved[0].content).toContain(
+			"Suggestion: Verify types and imports before running.",
+		);
+		expect(saved[0].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+	});
+
+	it("two distinct TS errors within the same window BOTH save with their own dispatched hints", async () => {
+		const { saved, service } = createMock();
+		const { metrics, incr } = createMockMetrics();
+		const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+		vi.useFakeTimers();
+		vi.setSystemTime(10000);
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		vi.setSystemTime(10100);
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2322: Type 'string' is not assignable to 'number'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		vi.useRealTimers();
+		expect(saved.length).toBe(2);
+		expect(saved[0].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+		expect(saved[1].content).toContain(
+			"Likely cause: type mismatch (code TS2322)",
+		);
+		expect(incr).not.toHaveBeenCalled();
+	});
+
+	it("identical fingerprint second invoke within window is throttled AND the first lesson already had 'Likely cause:'", async () => {
+		const { saved, service } = createMock();
+		const { metrics, incr } = createMockMetrics();
+		const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+		vi.useFakeTimers();
+		vi.setSystemTime(10000);
+		const first = await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		vi.setSystemTime(10500);
+		const second = await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+		});
+		vi.useRealTimers();
+		expect(first).not.toBeNull();
+		expect(second).toBeNull();
+		expect(saved.length).toBe(1);
+		expect(saved[0].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+		expect(incr).toHaveBeenCalledWith("reflections_throttled", 1);
+	});
+
+	it("lesson v2 dispatch is computed on the throttled skip path too (visible in metrics only; no save)", async () => {
+		// On a throttle skip the dispatch is computed (because generateHeuristicLesson
+		// runs before the throttle check), but the result is discarded since we
+		// return null without saving. We assert only via the side-effect: metrics
+		// `reflections_throttled` is bumped exactly once.
+		const { service } = createMock();
+		const { metrics, incr } = createMockMetrics();
+		const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+		vi.useFakeTimers();
+		vi.setSystemTime(10000);
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "Error: listen EADDRINUSE",
+			stdout: "",
+			exitCode: 1,
+			errorType: "runtime",
+			sessionId: "s1",
+		});
+		vi.setSystemTime(10500);
+		const second = await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "Error: listen EADDRINUSE",
+			stdout: "",
+			exitCode: 1,
+			errorType: "runtime",
+			sessionId: "s1",
+		});
+		vi.useRealTimers();
+		expect(second).toBeNull();
+		expect(incr).toHaveBeenCalledWith("reflections_throttled", 1);
+	});
+
+	it("two same-content errors under different projectIds BOTH save with dispatched hints (no throttle collision)", async () => {
+		const { saved, service } = createMock();
+		const { metrics, incr } = createMockMetrics();
+		const r = new Reflector(service, { throttleMs: 1000 }, metrics);
+		vi.useFakeTimers();
+		vi.setSystemTime(10000);
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+			projectId: "proj-A",
+		});
+		vi.setSystemTime(10100);
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "s1",
+			projectId: "proj-B",
+		});
+		vi.useRealTimers();
+		expect(saved.length).toBe(2);
+		expect(saved[0].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+		expect(saved[1].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+		expect(saved[0].fingerprint).not.toBe(saved[1].fingerprint);
+		expect(incr).not.toHaveBeenCalled();
 	});
 });

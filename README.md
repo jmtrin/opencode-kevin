@@ -30,7 +30,7 @@ For a **single project**, put the same `plugin` array in `./opencode.json` or `.
 
 ### 2. Restart OpenCode
 
-Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes five tools: `kevin_save`, `kevin_query`, `kevin_recall`, `kevin_status`, `kevin_retrospective`.
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes six tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`.
 
 ### 3. Where data lives
 
@@ -90,31 +90,40 @@ Use `:memory:` for `dbPath` in tests.
   ┌─────────────────┐
   │   OBSERVE        │  ToolCallObserver records every call
   │  ToolCallObserver│  (tool, args redacted, success, duration, error_type)
+  │                  │  + stripPrivate blocks + opt-in dedup (v0.2.0)
   └────────┬────────┘
            │ on failure
            ▼
   ┌─────────────────┐
   │   LEARN          │  Reflector generates a heuristic lesson
-  │   Reflector      │  redacts paths/secrets, throttled 1/min,
-  └────────┬────────┘  persists type:error memory
+  │   Reflector      │  per-error-code code table (v0.2.0 lesson v2),
+  │                  │  per-fingerprint throttle, origin='reflector',
+  │                  │  fingerprint=FNV-1a 64-bit
+  └────────┬────────┘
            │
            ▼
   ┌─────────────────┐
   │   SHARE          │  ContextInjector injects relevant lessons
   │ ContextInjector  │  pre-prompt (1500 tokens) and on compacting (2000 tokens)
+  │                  │  + <protect> wrapper + id: line (v0.2.0)
+  │                  │  + origin-aware rank (v0.2.0)
+  │                  │  + conditional budget (v0.2.0)
   └────────┬────────┘
            │ session.idle
            ▼
   ┌─────────────────┐
   │  RETROSPECTIVE   │  Retrospective generates ~/.opencode-kevin/retrospectives/<session>.md
-  └─────────────────┘  with summary of failures and lessons
+  │                  │  with origin labels, false-positive recap, metrics snapshot (v0.2.0)
+  │                  │  + boostPositiveReflectors (v0.2.0)
+  │                  │  + PatternMiner.mine (opt-in, v0.2.0)
+  └─────────────────┘
 ```
 
 ---
 
 ## Tools
 
-Kevin exposes 5 tools callable by the agent:
+Kevin exposes 6 tools callable by the agent:
 
 ### `kevin_save`
 
@@ -129,11 +138,25 @@ kevin_save({ type: "decision", content: "We use vitest for tests", scope: "proje
 
 ### `kevin_query`
 
-Searches memories by text (FTS5 + bm25).
+Searches memories by text (FTS5 + bm25). Returns a **slim** payload by default (v0.2.0). Pass `full: true` for the v0.1.x full content body.
 
 ```
 kevin_query({ query: "typecheck", type: "error", limit: 5 })
+// → [{ "id": "...", "type": "error", "scope": "project", "score": -0.87, "snippet": "When bash fails with typecheck:..." }, ...]
+
+kevin_query({ query: "typecheck", type: "error", limit: 5, full: true })
 // → [{ "id": "...", "type": "error", "content": "...", "scope": "project" }, ...]
+```
+
+### `kevin_get`
+
+Fetches a **single full memory** by id (v0.2.0 — progressive disclosure). Use when `kevin_query` returns a slim snippet and you need the complete content.
+
+```
+kevin_get({ id: "0195a3b2-..." })
+// → { "id": "...", "type": "error", "content": "...", "scope": "project",
+//      "relevanceScore": 0.55, "origin": "reflector", "fingerprint": "cbf29ce484222325",
+//      "projectId": null, "metadata": null }
 ```
 
 ### `kevin_recall`
@@ -147,11 +170,15 @@ kevin_recall({ query: "auth", limit: 3 })
 
 ### `kevin_status`
 
-Global counts.
+Global counts and metrics (v0.2.0 adds `memories_reflector`, `memories_agent`, `memories_pattern`, and a `metrics` object with 6 seeded counters).
 
 ```
 kevin_status({})
-// → { "memories": 42, "tool_calls": 318, "retrospectives": 7 }
+// → { "memories": 42, "memories_reflector": 12, "memories_agent": 30, "memories_pattern": 0,
+//      "tool_calls": 318, "retrospectives": 7,
+//      "metrics": { "tokens_injected_pre_prompt": 51, "tokens_injected_compacting": 0,
+//                   "reflections_throttled": 3, "duplicate_suppressions": 2,
+//                   "tool_calls_deduped": 0, "patterns_mined": 0 } }
 ```
 
 ### `kevin_retrospective`
@@ -179,9 +206,9 @@ Kevin subscribes to 6 OpenCode hooks:
 | `event` (`session.created`) | Captures current `sessionID` |
 | `event` (`session.idle`) | Generates retrospective.md for the session |
 
-**Redaction**: absolute paths (`C:\Users\...`, `/home/...`) → `<path>` and secrets (`API_KEY=`, `Bearer`, `token`) → `<redacted>` before persisting anything.
+**Redaction**: absolute paths (`C:\Users\...`, `/home/...`) → `<path>` and secrets (`API_KEY=`, `Bearer`, `token`) → `<redacted>` before persisting anything. v0.2.0 adds `<private>…</private>` block redaction: sweeps tool call args and output before persistence, replaces with `<private: redacted N chars>`.
 
-**Throttle**: Reflector generates at most 1 lesson per minute (configurable via `throttleMs`).
+**Throttle**: Reflector generates at most 1 lesson per minute per unique fingerprint (v0.2.0: per-fingerprint, not global). Configurable via `throttleMs`.
 
 **Truncation**: content > 4KB keeps the lesson searchable; only the additional context is truncated (`metadata.truncated = true`).
 
@@ -232,15 +259,22 @@ npm publish --access public
 plugin/
   index.ts              # Entry point: KevinPlugin
   Store.ts              # Wrapper SQLite (node:sqlite / bun:sqlite / better-sqlite3 fallback)
-  Migrate.ts            # Idempotent migrations
-  MemoryService.ts      # save/query/getRelevant (FTS5 + bm25)
-  ToolCallObserver.ts   # onBefore/onAfter + redact + inferErrorType
-  Reflector.ts          # Heuristic lessons + throttle + truncation
-  ContextInjector.ts    # deriveQuery + pre-prompt/compacting injection
-  Retrospective.ts      # Generates retrospective.md + table insert
+  Migrate.ts            # Idempotent migrations + post-apply hooks
+  MemoryService.ts      # save/query/getRelevant (FTS5 + bm25 + origin-aware rank)
+  ToolCallObserver.ts   # onBefore/onAfter + redact + inferErrorType + dedup (opt-in)
+  Reflector.ts          # Heuristic lessons + per-fingerprint throttle + lesson v2
+  ContextInjector.ts    # deriveQuery + pre-prompt/compacting injection + conditional budget
+  Retrospective.ts      # Generates retrospective.md + FP recap + metrics snapshot
+  fingerprint.ts        # FNV-1a 64-bit (in-house, no node:crypto)
+  metrics.ts            # In-memory counters + debounced flush to kevin_metrics
+  PatternMiner.ts       # Opt-in deterministic 2-gram/3-gram miner
+  memory-format.ts      # escapeInjectedText, formatMemories, <protect> + id: line wrappers
+  redact.ts             # redactPaths + stripPrivate
+  uuid.ts               # UUIDv7
 migrations/
   001_initial.sql       # schema: memories, tool_calls, retrospectives
   002_indexes.sql       # FTS5 + indexes
+  003_v02_signal.sql    # v0.2.0 Signal Quality: fingerprint, origin, metrics, dedup indexes
 tests/{unit,integration,e2e}/
 scripts/
   copy-migrations.mjs   # build step: copies *.sql to dist/migrations

@@ -18,6 +18,10 @@ const FIXTURE_SQL = readFileSync(
 	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
 	"utf8",
 );
+const MIGRATION_003_SQL = readFileSync(
+	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -29,6 +33,7 @@ beforeEach(() => {
 	migrationsDir = join(tmpRoot, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), FIXTURE_SQL);
+	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), MIGRATION_003_SQL);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 	memories = new MemoryService(store);
@@ -55,12 +60,12 @@ describe("e2e — memory flow (save → query → recall)", () => {
 		expect(id1).toMatch(/-7/);
 		expect(id2).toMatch(/-7/);
 
-		const typecheckResults = memories.query({ text: "typecheck" });
+		const typecheckResults = memories.query({ text: "typecheck", full: true });
 		expect(typecheckResults.length).toBe(1);
 		expect(typecheckResults[0].id).toBe(id1);
 		expect(typecheckResults[0].content).toContain("typecheck");
 
-		const vitestResults = memories.query({ text: "vitest" });
+		const vitestResults = memories.query({ text: "vitest", full: true });
 		expect(vitestResults.length).toBe(1);
 		expect(vitestResults[0].id).toBe(id2);
 
@@ -76,7 +81,7 @@ describe("e2e — memory flow (save → query → recall)", () => {
 			type: "error",
 			content: "falla la autenticación del usuario",
 		});
-		const results = memories.query({ text: "autenticacion" });
+		const results = memories.query({ text: "autenticacion", full: true });
 		expect(results.length).toBe(1);
 		expect(results[0].content).toContain("autenticación");
 	});
@@ -100,12 +105,12 @@ describe("e2e — memory flow (save → query → recall)", () => {
 			type: "error",
 			content: "original keyword uniqueabc",
 		});
-		expect(memories.query({ text: "uniqueabc" }).length).toBe(1);
+		expect(memories.query({ text: "uniqueabc", full: true }).length).toBe(1);
 		memories.update(id, { content: "updated keyword xyzzyq" });
-		expect(memories.query({ text: "uniqueabc" }).length).toBe(0);
-		expect(memories.query({ text: "xyzzyq" }).length).toBe(1);
+		expect(memories.query({ text: "uniqueabc", full: true }).length).toBe(0);
+		expect(memories.query({ text: "xyzzyq", full: true }).length).toBe(1);
 		memories.delete(id);
-		expect(memories.query({ text: "xyzzyq" }).length).toBe(0);
+		expect(memories.query({ text: "xyzzyq", full: true }).length).toBe(0);
 		expect(memories.getById(id)).toBeNull();
 	});
 
@@ -115,13 +120,13 @@ describe("e2e — memory flow (save → query → recall)", () => {
 			content: "tmp session context",
 			scope: "session",
 		});
-		expect(memories.query({ text: "tmp" }).length).toBe(1);
+		expect(memories.query({ text: "tmp", full: true }).length).toBe(1);
 		store
 			.prepare(
 				"UPDATE memories SET expires_at = datetime('now', '-1 hour') WHERE id = ?",
 			)
 			.run(id);
-		expect(memories.query({ text: "tmp" }).length).toBe(0);
+		expect(memories.query({ text: "tmp", full: true }).length).toBe(0);
 		expect(memories.getRelevant({}).length).toBe(0);
 	});
 });

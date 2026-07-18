@@ -18,6 +18,10 @@ const FIXTURE_SQL = readFileSync(
 	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
 	"utf8",
 );
+const MIGRATION_003_SQL = readFileSync(
+	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -29,6 +33,7 @@ beforeEach(() => {
 	migrationsDir = join(tmpRoot, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), FIXTURE_SQL);
+	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), MIGRATION_003_SQL);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 	memories = new MemoryService(store);
@@ -94,7 +99,7 @@ describe("MemoryService integration", () => {
 			type: "error",
 			content: "typecheck no-unused-vars in auth.ts",
 		});
-		const results = memories.query({ text: "typecheck" });
+		const results = memories.query({ text: "typecheck", full: true });
 		expect(results.length).toBe(1);
 		expect(results[0].content).toContain("typecheck");
 	});
@@ -104,7 +109,7 @@ describe("MemoryService integration", () => {
 			type: "error",
 			content: "falla la autenticación del usuario",
 		});
-		const results = memories.query({ text: "autenticacion" });
+		const results = memories.query({ text: "autenticacion", full: true });
 		expect(results.length).toBe(1);
 		expect(results[0].content).toContain("autenticación");
 	});
@@ -121,10 +126,18 @@ describe("MemoryService integration", () => {
 			scope: "session",
 		});
 		memories.save({ type: "error", content: "lint fail", scope: "session" });
-		expect(memories.query({ text: "fail", type: "error" }).length).toBe(2);
-		expect(memories.query({ text: "fail", scope: "project" }).length).toBe(1);
-		expect(memories.query({ text: "fail", scope: "session" }).length).toBe(1);
-		expect(memories.query({ text: "fail", scope: "all" }).length).toBe(2);
+		expect(
+			memories.query({ text: "fail", type: "error", full: true }).length,
+		).toBe(2);
+		expect(
+			memories.query({ text: "fail", scope: "project", full: true }).length,
+		).toBe(1);
+		expect(
+			memories.query({ text: "fail", scope: "session", full: true }).length,
+		).toBe(1);
+		expect(
+			memories.query({ text: "fail", scope: "all", full: true }).length,
+		).toBe(2);
 	});
 
 	it("session scope gets a default expires_at 24h ahead", () => {
@@ -162,7 +175,7 @@ describe("MemoryService integration", () => {
 				"UPDATE memories SET expires_at = datetime('now', '-1 hour') WHERE id = ?",
 			)
 			.run(id);
-		expect(memories.query({ text: "expired-ctx" }).length).toBe(0);
+		expect(memories.query({ text: "expired-ctx", full: true }).length).toBe(0);
 		expect(memories.getById(id)).not.toBeNull();
 	});
 
@@ -200,42 +213,57 @@ describe("MemoryService integration", () => {
 		expect(total).toBeLessThanOrEqual(500 * 4 + 256);
 	});
 
-	it("getRelevant with query narrows via FTS5 and prioritizes error/pattern over context", () => {
+	it("getRelevant with query narrows via FTS5 and K2-023 origin-aware rank puts reflector first", () => {
+		// v0.1.x sorted purely by TYPE_PRIORITY. v0.2.0 (K2-023, D2-13) ranks
+		// by `bm25 × origin-boost × recency-decay` first, with TYPE_PRIORITY
+		// as a tie-breaker. With similar-length content and identical age,
+		// origin boost dominates: reflector (×2) > pattern (×1.5) > agent (×1).
 		memories.save({
 			type: "context",
-			content: "auth notes",
+			content: "auth notes agent lesson context content here",
 			relevanceScore: 0.9,
+			origin: "agent",
 		});
 		memories.save({
 			type: "error",
-			content: "auth token expired",
+			content: "auth token expired reflector lesson content here",
 			relevanceScore: 0.5,
+			origin: "reflector",
 		});
 		memories.save({
 			type: "pattern",
-			content: "auth pattern reuse",
+			content: "auth pattern reuse pattern lesson content here",
 			relevanceScore: 0.5,
+			origin: "pattern",
 		});
 		const rec = memories.getRelevant({ query: "auth", maxTokens: 2000 });
-		const types = rec.map((m) => m.type);
-		expect(types.indexOf("error")).toBeLessThan(types.indexOf("context"));
-		expect(types.indexOf("pattern")).toBeLessThan(types.indexOf("context"));
+		expect(rec.length).toBe(3);
+		expect(rec[0].origin).toBe("reflector");
 		expect(rec[0].type).toBe("error");
+		// pattern (×1.5) should outrank agent-context (×1)
+		const origins = rec.map((m) => m.origin ?? "agent");
+		expect(origins.indexOf("reflector")).toBeLessThan(
+			origins.indexOf("pattern"),
+		);
+		expect(origins.indexOf("pattern")).toBeLessThan(origins.indexOf("agent"));
 	});
 
-	it("getRelevant with tight budget drops low-priority (context) first", () => {
+	it("getRelevant with tight budget keeps only the rank-1 (reflector) winner", () => {
 		memories.save({
 			type: "context",
-			content: "auth notes",
+			content: "auth notes agent lesson context content here",
 			relevanceScore: 0.9,
+			origin: "agent",
 		});
 		memories.save({
 			type: "error",
-			content: "auth token expired",
+			content: "auth token expired reflector lesson content here",
 			relevanceScore: 0.5,
+			origin: "reflector",
 		});
 		const rec = memories.getRelevant({ query: "auth", maxTokens: 8 });
 		expect(rec.length).toBe(1);
+		expect(rec[0].origin).toBe("reflector");
 		expect(rec[0].type).toBe("error");
 	});
 
@@ -245,7 +273,7 @@ describe("MemoryService integration", () => {
 			content: "typecheck error in auth.ts",
 			scope: "project",
 		});
-		const results = memories.query({ text: '"' });
+		const results = memories.query({ text: '"', full: true });
 		expect(Array.isArray(results)).toBe(true);
 		expect(results.length).toBe(0);
 	});
@@ -256,7 +284,10 @@ describe("MemoryService integration", () => {
 			content: 'error "cannot find module" in build',
 			scope: "project",
 		});
-		const results = memories.query({ text: '"cannot find module"' });
+		const results = memories.query({
+			text: '"cannot find module"',
+			full: true,
+		});
 		expect(results.length).toBeGreaterThanOrEqual(1);
 	});
 });
