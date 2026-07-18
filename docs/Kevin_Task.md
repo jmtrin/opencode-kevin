@@ -899,7 +899,7 @@ Global summary:
 
 ## v0.2.0 Global status
 
-- v0.2.0: **31 of 32 tasks completed.** Status: Implementing — F0 done, F1 mostly done, F2 complete (K2-018/019/020/023/024/025/026/021/022). Remaining: F3 K2-032 (tag v0.2.0).
+- v0.2.0: **32 of 32 tasks completed.** Status: Implementing — F0 done, F1 mostly done, F2 complete (K2-018/019/020/023/024/025/026/021/022). All tasks completed — v0.2.0 released, tagged v0.2.0.
 
 ---
 
@@ -959,7 +959,7 @@ Global summary:
 | K2-029 | Backward compat test `tests/e2e/migrate-from-v015.test.ts`: open a v0.1.5 DB, run migration 003 in place, assert all legacy rows are queryable via `kevin_query` and picked up by `kevin_recall` without degradation. Run migrate twice → no-op. | M | 🟢 | [X] |
 | K2-030 | Unit tests `migrate_003.test.ts` (double run no-op) + `patternminer.test.ts` (at N<5 no emission; at N≥5 across **different sessions** exactly one emission; second run does not duplicate). | S | 🟢 | [X] |
 | K2-031 | Bump `package.json` to `0.2.0`; update `CHANGELOG.md` with the "Signal Quality" entry; finalize README changes from K2-017; run `npm run verify`, `npm run typecheck`, `npm run lint`, `npm test` — all green. | S | 🟢 | [X] |
-| K2-032 | Tag `v0.2.0`. Manual K2-032 validation walkthrough recorded in `docs/Kevin_v0.2_walkthrough.md` (NEW file, optional). | S | 🟢 | [ ] |
+| K2-032 | Tag `v0.2.0`. Manual K2-032 validation walkthrough recorded in `docs/Kevin_v0.2_walkthrough.md` (NEW file, optional). | S | 🟢 | [X] |
 
 ---
 
@@ -1008,7 +1008,7 @@ That's 13 tasks on the critical path. The remaining 19 tasks (F0's redact/privat
 | K2-029 | F3 | migrate-from-v0.1.5 test | [X] |
 | K2-030 | F3 | migrate_003 + patternminer unit | [X] |
 | K2-031 | F3 | bump 0.2.0 + CHANGELOG + quad-green | [X] |
-| K2-032 | F3 | tag v0.2.0 + walkthrough | [ ] |
+| K2-032 | F3 | tag v0.2.0 + walkthrough | [X] |
 
 ---
 
