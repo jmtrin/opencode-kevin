@@ -23,6 +23,10 @@ const SQL_003 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
+const SQL_004 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -34,6 +38,7 @@ beforeEach(() => {
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+	writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 });

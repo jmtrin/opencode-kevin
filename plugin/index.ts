@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
+import { CausalChain } from "./CausalChain.js";
 import { ContextInjector } from "./ContextInjector.js";
 import {
 	type Memory,
@@ -16,8 +17,12 @@ import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "./Reflector.js";
 import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
+import { kevinWhy } from "./kevin_why.js";
+import type { WhyResult } from "./kevin_why.js";
 import { formatMemories } from "./memory-format.js";
 import { Metrics, estimateTokens } from "./metrics.js";
+import { exportMarkdown, exportOkf } from "./okf-export.js";
+import { importOkf } from "./okf-import.js";
 
 export interface KevinPluginOptions {
 	dbPath?: string;
@@ -47,9 +52,26 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	const metrics = new Metrics(store);
 	const memoryService = new MemoryService(store, metrics);
 	const observer = new ToolCallObserver(store, metrics);
+	// v0.3.0 fix — Prepared UPDATE used by Reflector.onLinkError to stamp
+	// tool_calls.error_fingerprint with the stderr-based fingerprint the
+	// matching error memory uses. Closes the feedback-loop fingerprint
+	// mismatch (plan §B6.10 / bug #2): without this, the recurrence
+	// queries in boostPositiveReflectors / penalizeRecurringReflectors
+	// never match because tool_calls.fingerprint is keyed on
+	// `${tool}|${args}|${success}` (set by ToolCallObserver) while error
+	// memories use a hash of stderr/stdout (set by Reflector). The
+	// callback is a no-op for legacy rows without an id column.
+	const linkErrorStmt = store.prepare(
+		"UPDATE tool_calls SET error_fingerprint = ? WHERE id = ?",
+	);
 	const reflector = new Reflector(
 		memoryService,
-		{ throttleMs: opts.throttleMs },
+		{
+			throttleMs: opts.throttleMs,
+			onLinkError: (callID, fp) => {
+				linkErrorStmt.run(fp, callID);
+			},
+		},
 		metrics,
 	);
 	const injector = new ContextInjector(memoryService, metrics);
@@ -62,6 +84,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		metrics,
 	);
 	const patternMiner = new PatternMiner(store, memoryService, metrics);
+	const causalChain = new CausalChain(store, memoryService, metrics);
 	let currentSessionId: string | null = null;
 	let lastUserQuery: string | null = null;
 	const pending = new Set<Promise<unknown>>();
@@ -114,6 +137,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				exitCode: undefined,
 				errorType,
 				sessionId: sessionID,
+				callID,
 			}),
 		);
 	}
@@ -124,7 +148,14 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				description:
 					"Guarda una memoria en el conocimiento persistente de Kevin (error, pattern, decision o context).",
 				args: {
-					type: tool.schema.enum(["error", "pattern", "decision", "context"]),
+					type: tool.schema.enum([
+						"error",
+						"pattern",
+						"decision",
+						"context",
+						"rule",
+						"solution",
+					]),
 					content: tool.schema.string().min(1),
 					scope: tool.schema.enum(["project", "session"]).default("project"),
 					metadata: tool.schema
@@ -153,7 +184,14 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				args: {
 					query: tool.schema.string().min(1),
 					type: tool.schema
-						.enum(["error", "pattern", "decision", "context"])
+						.enum([
+							"error",
+							"pattern",
+							"decision",
+							"context",
+							"rule",
+							"solution",
+						])
 						.optional(),
 					limit: tool.schema.number().int().positive().default(10),
 					full: tool.schema
@@ -161,6 +199,12 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						.optional()
 						.describe(
 							"Cuando true, retorna el contenido completo (v0.1.x). Default false (slim).",
+						),
+					evidence: tool.schema
+						.boolean()
+						.optional()
+						.describe(
+							"Cuando true, incluye confidence, evidence_count y last_verified_at en el payload slim (v0.3.0).",
 						),
 				},
 				async execute(args) {
@@ -178,13 +222,25 @@ export const KevinPlugin: Plugin = async (input, options) => {
 									content: m.content,
 									scope: m.scope,
 								}))
-							: (memories as SlimMemory[]).map((m) => ({
-									id: m.id,
-									type: m.type,
-									scope: m.scope,
-									score: m.score,
-									snippet: m.snippet,
-								}));
+							: (memories as SlimMemory[]).map((m, i) => {
+									const base = {
+										id: m.id,
+										type: m.type,
+										scope: m.scope,
+										score: m.score,
+										snippet: m.snippet,
+									};
+									if (args.evidence === true) {
+										const full = (memories as unknown as Memory[])[i];
+										return {
+											...base,
+											confidence: full.confidence ?? null,
+											evidence_count: full.evidenceCount ?? null,
+											last_verified_at: full.lastVerifiedAt ?? null,
+										};
+									}
+									return base;
+								});
 					return {
 						title: "Resultados query",
 						output: JSON.stringify(rows),
@@ -288,6 +344,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					const memoriesReflector = byOrigin.reflector ?? 0;
 					const memoriesAgent = byOrigin.agent ?? 0;
 					const memoriesPattern = byOrigin.pattern ?? 0;
+					const memoriesCausal = byOrigin.causal ?? 0;
 					return {
 						title: "Estado de Kevin",
 						output: JSON.stringify({
@@ -295,6 +352,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							memories_reflector: memoriesReflector,
 							memories_agent: memoriesAgent,
 							memories_pattern: memoriesPattern,
+							memories_causal: memoriesCausal,
 							tool_calls: toolCallCount.c,
 							retrospectives: retroCount.c,
 							metrics: metrics.snapshot(),
@@ -332,6 +390,62 @@ export const KevinPlugin: Plugin = async (input, options) => {
 										"No hubo fallos en la sesion; nada que retrospectar.",
 								}),
 							};
+				},
+			}),
+			kevin_why: tool({
+				description:
+					"Explica por que Kevin recuerda un hecho (v0.3.0). Retorna summary, confidence, trace de eventos y related_rules.",
+				args: {
+					query: tool.schema.string().min(1),
+				},
+				async execute(args) {
+					const result = kevinWhy(store, args.query);
+					if (!result) {
+						return {
+							title: "Sin explicacion",
+							output: JSON.stringify({
+								message: `No causal patterns found for "${args.query}".`,
+							}),
+						};
+					}
+					return {
+						title: "Explicacion causal",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
+			kevin_export: tool({
+				description:
+					"Exporta memorias curadas (decision, rule, pattern) como markdown o formato OKF. v0.3.0.",
+				args: {
+					format: tool.schema
+						.enum(["okf", "markdown"])
+						.default("okf")
+						.describe("okf | markdown"),
+				},
+				async execute(args) {
+					const output =
+						args.format === "markdown"
+							? exportMarkdown(store)
+							: exportOkf(store);
+					return {
+						title: "Export completado",
+						output,
+					};
+				},
+			}),
+			kevin_import: tool({
+				description:
+					"Importa un bundle markdown de conocimiento (v0.3.0). Cada entrada se guarda como context con origin='imported'.",
+				args: {
+					bundle: tool.schema.string().min(1),
+				},
+				async execute(args) {
+					const result = importOkf(args.bundle, memoryService);
+					return {
+						title: "Import completado",
+						output: JSON.stringify(result),
+					};
 				},
 			}),
 		},
@@ -392,7 +506,15 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						exitCode,
 						errorType,
 						sessionId: hookInput.sessionID,
+						callID: hookInput.callID,
 					}),
+				);
+			} else {
+				causalChain.onSuccess(
+					hookInput.tool,
+					hookInput.args as Record<string, unknown>,
+					null,
+					hookInput.sessionID,
 				);
 			}
 		},
@@ -411,6 +533,8 @@ export const KevinPlugin: Plugin = async (input, options) => {
 
 		"experimental.chat.system.transform": async (_hookInput, output) => {
 			if (!lastUserQuery) return;
+			const suggestion = injector.generateSuggestion();
+			if (suggestion) output.system.push(suggestion);
 			const memories = memoryService.getRelevant({
 				query: lastUserQuery,
 				maxTokens: SYSTEM_TRANSFORM_TOKENS,
@@ -426,6 +550,8 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		"experimental.session.compacting": async (_hookInput, output) => {
 			const query = lastUserQuery;
 			if (!query) return;
+			const suggestion = injector.generateSuggestion();
+			if (suggestion) output.context.push(suggestion);
 			const memories = memoryService.getRelevant({
 				query,
 				maxTokens: COMPACTING_TOKENS,
@@ -451,7 +577,14 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					toolCache.clear();
 					fireAndForget(retrospective.generate(sid));
 					memoryService.boostPositiveReflectors(sid);
+					const recurred = memoryService.penalizeRecurringReflectors(sid);
+					injector.setRecurrences(recurred);
 					patternMiner.mine();
+					fireAndForget(
+						Promise.resolve().then(() => {
+							causalChain.onSessionIdle(sid);
+						}),
+					);
 				}
 				metrics.flush();
 			} else if (type === "session.next.tool.failed") {

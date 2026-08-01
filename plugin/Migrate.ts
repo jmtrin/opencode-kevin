@@ -27,6 +27,22 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v0.3.0 Knowledge + Causality: backfill evidence_count and status for
+	// legacy rows. Columns have NOT NULL DEFAULT, so SQLite already populates
+	// pre-existing rows. This hook is belt-and-braces in case a partial DB
+	// skipped the defaults.
+	"004": (store) => {
+		store
+			.prepare(
+				"UPDATE memories SET evidence_count = 0 WHERE evidence_count IS NULL",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE memories SET status = 'active' WHERE status IS NULL OR status = ''",
+			)
+			.run();
+	},
 };
 
 export class Migrate {

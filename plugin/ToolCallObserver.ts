@@ -88,7 +88,7 @@ export class ToolCallObserver {
 				 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
-				uuidv7(),
+				input.callID ?? uuidv7(),
 				sessionId,
 				input.tool,
 				argsSummary,

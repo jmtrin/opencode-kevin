@@ -26,6 +26,10 @@ beforeEach(async () => {
 		join(process.cwd(), "migrations", "003_v02_signal.sql"),
 		join(migrationsDir, "003_v02_signal.sql"),
 	);
+	copyFileSync(
+		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+		join(migrationsDir, "004_v03_knowledge.sql"),
+	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
 		dbPath: ":memory:",
 		migrationsDir,
@@ -517,5 +521,355 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		expect(sysOutput.system.length).toBeGreaterThanOrEqual(1);
 		expect(sysOutput.system[0]).toContain("<kevin-context>");
 		expect(sysOutput.system[0]).toContain("Verify types and imports");
+	});
+
+	it("K3-025: ciclo causal completo: fallo -> fix -> patron -> kevin_why", async () => {
+		const sess = "causal-cycle-sess";
+
+		await hooks.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: sess } },
+			} as never,
+		});
+
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "causal-fail" },
+			{ args: { command: "npx tsc --noEmit" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "causal-fail",
+				args: { command: "npx tsc --noEmit" },
+			},
+			{
+				title: "bash",
+				output: "src/test-fail.ts(5,19): error TS2304: Cannot find name 'foo'.",
+				metadata: {},
+			},
+		);
+
+		await waitForAsync(async () => {
+			const mems = await queryMemories(sess, "TS2304");
+			return mems.some((m) => m.content.includes("TS2304"));
+		});
+
+		await hooks["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "causal-fix" },
+			{ args: { command: "npm run typecheck" } },
+		);
+		await hooks["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "causal-fix",
+				args: { command: "npm run typecheck" },
+			},
+			{
+				title: "bash",
+				output: "0 errors",
+				metadata: {},
+			},
+		);
+
+		await hooks.event?.({
+			event: {
+				type: "session.idle",
+				properties: { sessionID: sess },
+			} as never,
+		});
+
+		await new Promise((r) => setTimeout(r, 100));
+
+		const mems = await queryMemories(sess, "TS2304");
+		const pattern = mems.find(
+			(m) => m.type === "pattern" && m.content.includes("TS2304"),
+		);
+		expect(pattern).toBeDefined();
+
+		const whyResult = await hooks.tool?.kevin_why.execute(
+			{ query: "TS2304" },
+			makeCtx(sess),
+		);
+		const why = JSON.parse((whyResult as { output: string }).output) as {
+			summary: string;
+			confidence: number;
+			evidence_count: number;
+			trace: Array<{ event: string }>;
+			related_rules: string[];
+		};
+		expect(why.summary).toContain("TS2304");
+		expect(why.confidence).toBeGreaterThanOrEqual(0.6);
+		expect(why.evidence_count).toBeGreaterThanOrEqual(1);
+		expect(why.trace.some((t) => t.event === "failure")).toBe(true);
+		expect(why.trace.some((t) => t.event === "fix")).toBe(true);
+		if (why.related_rules.length > 0) {
+			expect(why.related_rules.some((r) => r.includes("import"))).toBe(true);
+		}
+	});
+});
+
+describe("K3-026: cap", () => {
+	let tmpRootCap: string;
+	let hooksCap: Awaited<ReturnType<typeof KevinPlugin>>;
+
+	beforeEach(async () => {
+		tmpRootCap = mkdtempSync(join(tmpdir(), "kevin-cap-"));
+		const migrationsDir = join(tmpRootCap, "migrations");
+		mkdirSync(migrationsDir, { recursive: true });
+		copyFileSync(
+			join(process.cwd(), "migrations", "001_initial.sql"),
+			join(migrationsDir, "001_initial.sql"),
+		);
+		copyFileSync(
+			join(process.cwd(), "migrations", "003_v02_signal.sql"),
+			join(migrationsDir, "003_v02_signal.sql"),
+		);
+		copyFileSync(
+			join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+			join(migrationsDir, "004_v03_knowledge.sql"),
+		);
+		hooksCap = await KevinPlugin({ directory: tmpRootCap } as PluginInput, {
+			dbPath: ":memory:",
+			migrationsDir,
+			retrospectivesDir: join(tmpRootCap, "retrospectives"),
+			throttleMs: 1,
+		});
+	});
+
+	afterEach(() => {
+		rmSync(tmpRootCap, { recursive: true, force: true });
+	});
+
+	async function queryCap(
+		sess: string,
+		text: string,
+	): Promise<Array<{ id: string; type: string; content: string }>> {
+		const r = await hooksCap.tool?.kevin_query.execute(
+			{ query: text, limit: 50, full: true },
+			makeCtx(sess),
+		);
+		return JSON.parse((r as { output: string }).output) as Array<{
+			id: string;
+			type: string;
+			content: string;
+		}>;
+	}
+
+	it("negative half: multiples fallos con mismo fingerprint disparan penalizeRecurringReflectors", async () => {
+		const sess = "neg-half-sess";
+
+		await hooksCap.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: sess } },
+			} as never,
+		});
+
+		const errOut = "src/test.ts: error TS2304: Cannot find name 'foo'.";
+
+		await hooksCap["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "f1" },
+			{ args: { command: "npx tsc" } },
+		);
+		await hooksCap["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "f1",
+				args: { command: "npx tsc" },
+			},
+			{ title: "bash", output: errOut, metadata: {} },
+		);
+
+		await waitForAsync(async () => {
+			const m = await queryCap(sess, "TS2304");
+			return m.some((x) => x.content.includes("TS2304"));
+		});
+
+		// Second identical failure — dedup prevents new memory, tool_call recorded
+		await hooksCap["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "f2" },
+			{ args: { command: "npx tsc" } },
+		);
+		await hooksCap["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "f2",
+				args: { command: "npx tsc" },
+			},
+			{ title: "bash", output: errOut, metadata: {} },
+		);
+
+		await hooksCap["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sess, callID: "fix" },
+			{ args: { command: "npm run typecheck" } },
+		);
+		await hooksCap["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sess,
+				callID: "fix",
+				args: { command: "npm run typecheck" },
+			},
+			{ title: "bash", output: "0 errors", metadata: {} },
+		);
+
+		await hooksCap.event?.({
+			event: {
+				type: "session.idle",
+				properties: { sessionID: sess },
+			} as never,
+		});
+		await new Promise((r) => setTimeout(r, 100));
+
+		const statusR = await hooksCap.tool?.kevin_status.execute(
+			{},
+			makeCtx(sess),
+		);
+		const s = JSON.parse((statusR as { output: string }).output) as {
+			metrics: Record<string, number>;
+		};
+
+		const mems = await queryCap(sess, "TS2304");
+		const pat = mems.find(
+			(m) => m.type === "pattern" && m.content.includes("TS2304"),
+		);
+		expect(pat).toBeDefined();
+
+		const whyR = await hooksCap.tool?.kevin_why.execute(
+			{ query: "TS2304" },
+			makeCtx(sess),
+		);
+		const why = JSON.parse((whyR as { output: string }).output) as {
+			summary: string;
+			confidence: number;
+			evidence_count: number;
+		};
+		expect(why.summary).toContain("TS2304");
+		expect(why.confidence).toBeGreaterThanOrEqual(0.6);
+		expect(why.evidence_count).toBeGreaterThanOrEqual(1);
+
+		expect(s.metrics.patterns_causal).toBeGreaterThanOrEqual(1);
+	});
+
+	it("two sessions accumulate evidence_count across sessions", async () => {
+		const sessA = "cap-a";
+		const sessB = "cap-b";
+		const errOut = "src/x.ts(1,10): error TS2322: not assignable.";
+
+		// --- Session A ---
+		await hooksCap.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: sessA } },
+			} as never,
+		});
+		await hooksCap["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sessA, callID: "a-fail" },
+			{ args: { command: "npx tsc" } },
+		);
+		await hooksCap["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sessA,
+				callID: "a-fail",
+				args: { command: "npx tsc" },
+			},
+			{ title: "bash", output: errOut, metadata: {} },
+		);
+		await waitForAsync(async () => {
+			const m = await queryCap(sessA, "TS2322");
+			return m.some((x) => x.content.includes("TS2322"));
+		}, 2000);
+		await hooksCap["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sessA, callID: "a-fix" },
+			{ args: { command: "npm run typecheck" } },
+		);
+		await hooksCap["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sessA,
+				callID: "a-fix",
+				args: { command: "npm run typecheck" },
+			},
+			{ title: "bash", output: "0 errors", metadata: {} },
+		);
+		await hooksCap.event?.({
+			event: {
+				type: "session.idle",
+				properties: { sessionID: sessA },
+			} as never,
+		});
+		await new Promise((r) => setTimeout(r, 100));
+
+		const whyA = await hooksCap.tool?.kevin_why.execute(
+			{ query: "TS2322" },
+			makeCtx(sessA),
+		);
+		const rA = JSON.parse((whyA as { output: string }).output) as {
+			confidence: number;
+			evidence_count: number;
+		};
+		expect(rA.confidence).toBeGreaterThanOrEqual(0.6);
+		expect(rA.evidence_count).toBeGreaterThanOrEqual(1);
+
+		// --- Session B: same fingerprint recurs ---
+		await hooksCap.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: sessB } },
+			} as never,
+		});
+		await hooksCap["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sessB, callID: "b-fail" },
+			{ args: { command: "npx tsc" } },
+		);
+		await hooksCap["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sessB,
+				callID: "b-fail",
+				args: { command: "npx tsc" },
+			},
+			{ title: "bash", output: errOut, metadata: {} },
+		);
+		await new Promise((r) => setTimeout(r, 50));
+		await hooksCap["tool.execute.before"]?.(
+			{ tool: "bash", sessionID: sessB, callID: "b-fix" },
+			{ args: { command: "npm run typecheck" } },
+		);
+		await hooksCap["tool.execute.after"]?.(
+			{
+				tool: "bash",
+				sessionID: sessB,
+				callID: "b-fix",
+				args: { command: "npm run typecheck" },
+			},
+			{ title: "bash", output: "0 errors", metadata: {} },
+		);
+		await hooksCap.event?.({
+			event: {
+				type: "session.idle",
+				properties: { sessionID: sessB },
+			} as never,
+		});
+		await new Promise((r) => setTimeout(r, 100));
+
+		const whyB = await hooksCap.tool?.kevin_why.execute(
+			{ query: "TS2322" },
+			makeCtx(sessB),
+		);
+		const rB = JSON.parse((whyB as { output: string }).output) as {
+			confidence: number;
+			evidence_count: number;
+			summary: string;
+		};
+		expect(rB.confidence).toBeGreaterThanOrEqual(0.7);
+		expect(rB.evidence_count).toBeGreaterThanOrEqual(2);
+		expect(rB.summary).toContain("TS2322");
 	});
 });

@@ -15,6 +15,10 @@ const SQL_003 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
+const SQL_004 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 
@@ -22,6 +26,7 @@ function makeMigratedStore(): Store {
 	const store = new Store({ path: ":memory:" });
 	store.exec(SQL_001);
 	store.exec(SQL_003);
+	store.exec(SQL_004);
 	return store;
 }
 
@@ -69,7 +74,10 @@ describe("Metrics", () => {
 		// All six keys still present at zero.
 		expect(Object.keys(snap).sort()).toEqual(
 			[
+				"causal_links",
 				"duplicate_suppressions",
+				"memories_superseded",
+				"patterns_causal",
 				"patterns_mined",
 				"reflections_throttled",
 				"tokens_injected_compacting",

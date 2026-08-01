@@ -671,3 +671,72 @@ describe("Reflector.invoke — v0.2.0 (K2-020) per-key throttle + lesson v2 comb
 		expect(incr).not.toHaveBeenCalled();
 	});
 });
+
+describe("K3-024 — LLM enrichment opt-in", () => {
+	it("appends enrich result to lesson when callback returns a string", async () => {
+		const { saved, service } = createMock();
+		const enrich = vi.fn(
+			async (_lesson: string, _stderr: string, _stdout: string) =>
+				"LLM insight: check for missing import in module scope.",
+		);
+		const r = new Reflector(service, { throttleMs: 0, enrich });
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "tsc",
+			stderr: "error TS2304: Cannot find name 'foo'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "enrich-sess",
+		});
+		expect(saved.length).toBe(1);
+		expect(saved[0].content).toContain("LLM insight");
+		expect(saved[0].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+		expect(enrich).toHaveBeenCalledTimes(1);
+	});
+
+	it("leaves lesson unchanged when enrich returns null", async () => {
+		const { saved, service } = createMock();
+		const enrich = vi.fn(async () => null);
+		const r = new Reflector(service, { throttleMs: 0, enrich });
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "tsc",
+			stderr: "error TS2304: Cannot find name 'bar'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "enrich-null",
+		});
+		expect(saved.length).toBe(1);
+		expect(saved[0].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+		expect(saved[0].content).not.toContain("LLM insight");
+		expect(enrich).toHaveBeenCalledTimes(1);
+	});
+
+	it("non-blocking when enrich throws", async () => {
+		const { saved, service } = createMock();
+		const enrich = vi.fn(async () => {
+			throw new Error("LLM unavailable");
+		});
+		const r = new Reflector(service, { throttleMs: 0, enrich });
+		await r.invoke({
+			toolName: "bash",
+			argsSummary: "tsc",
+			stderr: "error TS2304: Cannot find name 'baz'",
+			stdout: "",
+			exitCode: 1,
+			errorType: "typecheck",
+			sessionId: "enrich-err",
+		});
+		expect(saved.length).toBe(1);
+		expect(saved[0].content).toContain(
+			"Likely cause: import or typo (code TS2304)",
+		);
+		expect(enrich).toHaveBeenCalledTimes(1);
+	});
+});

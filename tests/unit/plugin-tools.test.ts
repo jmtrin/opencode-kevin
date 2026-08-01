@@ -33,6 +33,10 @@ beforeEach(async () => {
 		join(process.cwd(), "migrations", "003_v02_signal.sql"),
 		join(migrationsDir, "003_v02_signal.sql"),
 	);
+	copyFileSync(
+		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+		join(migrationsDir, "004_v03_knowledge.sql"),
+	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
 		dbPath: ":memory:",
 		migrationsDir,

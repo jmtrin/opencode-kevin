@@ -14,11 +14,16 @@ const SQL_003 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
+const SQL_004 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	"utf8",
+);
 
 function makeMigratedStore(): Store {
 	const store = new Store({ path: ":memory:" });
 	store.exec(SQL_001);
 	store.exec(SQL_003);
+	store.exec(SQL_004);
 	return store;
 }
 

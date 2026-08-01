@@ -13,10 +13,27 @@ export interface ReflectionInput {
 	sessionId: string;
 	/** Optional project scope for v0.2.0 dedup + per-fingerprint throttle. */
 	projectId?: string | null;
+	/** v0.3.0 fix — callID of the failing tool_call. Used by onLinkError
+	 * (see ReflectorOptions) to stamp tool_calls.error_fingerprint so the
+	 * feedback loop can match recurrences by the SAME identity dimension
+	 * the error memory uses. */
+	callID?: string;
 }
 
 export interface ReflectorOptions {
 	throttleMs?: number;
+	/** v0.3.0 (K3-018) — optional LLM enrichment callback. Default no-op. */
+	enrich?: (
+		lesson: string,
+		stderr: string,
+		stdout: string,
+	) => Promise<string | null>;
+	/** v0.3.0 fix — link a failing tool_call to the stderr-based fingerprint
+	 * the matching error memory uses. Default no-op. The caller (index.ts)
+	 * provides an implementation that UPDATEs tool_calls.error_fingerprint
+	 * for the given callID, so boost/penalize feedback queries stop missing
+	 * recurrences by fingerprint mismatch. */
+	onLinkError?: (callID: string, fingerprint: string) => void;
 }
 
 export interface HeuristicLessonInput {
@@ -71,7 +88,10 @@ const SUGGESTIONS: Record<string, string> = {
 // (1) TS\d{4,5} > (2) Python lint > (3) syscall > (4) generic `Error: <Name>` >
 // (5) `Command "<cmd>" failed` > (6) v0.1.x SUGGESTIONS fallback.
 
-const TS_CODE_RULES: Record<string, string> = {
+// v0.2.0 (K2-018) — shared per-error-code rule table. Exported so
+// kevin_why.ts reuses the SAME hints instead of duplicating them
+// (bug #6).
+export const TS_CODE_RULES: Record<string, string> = {
 	"2304": "import or typo",
 	"2322": "type mismatch",
 	"2740": "missing or wrong property",
@@ -99,6 +119,12 @@ export class Reflector {
 	private lastReflectionByFp = new Map<string, number>();
 	private throttleMs: number;
 	private metrics: Metrics | null;
+	private enrichFn: (
+		lesson: string,
+		stderr: string,
+		stdout: string,
+	) => Promise<string | null>;
+	private onLinkErrorFn: (callID: string, fingerprint: string) => void;
 
 	constructor(
 		private memoryService: MemoryService,
@@ -107,6 +133,8 @@ export class Reflector {
 	) {
 		this.throttleMs = options?.throttleMs ?? DEFAULT_THROTTLE_MS;
 		this.metrics = metrics ?? null;
+		this.enrichFn = options?.enrich ?? (async () => null);
+		this.onLinkErrorFn = options?.onLinkError ?? (() => {});
 	}
 
 	async invoke(input: ReflectionInput): Promise<string | null> {
@@ -130,31 +158,11 @@ export class Reflector {
 			),
 		});
 
-		const metadata: Record<string, unknown> = {};
-		let finalContent: string;
-		if (sourceOutput.length > 0) {
-			const fullLen =
-				lesson.length + CONTEXT_PREFIX.length + sourceOutput.length;
-			if (fullLen <= MAX_CONTENT_CHARS) {
-				finalContent = `${lesson}${CONTEXT_PREFIX}${sourceOutput}`;
-			} else {
-				const budget =
-					MAX_CONTENT_CHARS -
-					lesson.length -
-					CONTEXT_PREFIX.length -
-					TRUNC_SUFFIX.length;
-				const truncated = sourceOutput.slice(0, Math.max(0, budget));
-				finalContent = `${lesson}${CONTEXT_PREFIX}${truncated}${TRUNC_SUFFIX}`;
-				metadata.truncated = true;
-			}
-		} else {
-			finalContent = lesson;
-		}
-
-		// K2-007: per-fingerprint throttle keyed by (project_id-salted) hash of
-		// the source output (or lesson when the output is empty). The same
-		// fingerprint is also passed to MemoryService.save so dedup and throttle
-		// agree on identity.
+		// v0.3.0 fix (bug #5) — the per-fingerprint throttle check runs
+		// BEFORE the optional LLM enrichment, so throttled repeats never
+		// waste an LLM call. The fingerprint is computed from the source
+		// output when present, otherwise from the PRE-enrichment lesson,
+		// keeping the identity stable and identical to the saved memory's.
 		const projectId = input.projectId ?? null;
 		const fpContent = sourceOutput.length > 0 ? sourceOutput : lesson;
 		const fp = computeFingerprint(fpContent, projectId ?? undefined);
@@ -165,6 +173,49 @@ export class Reflector {
 		}
 		this.lastReflectionByFp.set(fp, now);
 
+		// v0.3.0 (K3-018): optional LLM enrichment opt-in. Runs only when
+		// the throttle check passed (bug #5).
+		let enrichedLesson = lesson;
+		try {
+			const enrichment = await this.enrichFn(
+				lesson,
+				redactedStderr,
+				redactedStdout,
+			);
+			if (enrichment) {
+				enrichedLesson = `${lesson}\n${enrichment}`;
+			}
+		} catch {
+			// enrichment failures are non-blocking
+		}
+
+		const metadata: Record<string, unknown> = {};
+		if (input.callID) {
+			metadata.origin_call_id = input.callID;
+		}
+		let finalContent: string;
+		if (sourceOutput.length > 0) {
+			const fullLen =
+				enrichedLesson.length + CONTEXT_PREFIX.length + sourceOutput.length;
+			if (fullLen <= MAX_CONTENT_CHARS) {
+				finalContent = `${enrichedLesson}${CONTEXT_PREFIX}${sourceOutput}`;
+			} else {
+				const budget =
+					MAX_CONTENT_CHARS -
+					enrichedLesson.length -
+					CONTEXT_PREFIX.length -
+					TRUNC_SUFFIX.length;
+				const truncated = sourceOutput.slice(0, Math.max(0, budget));
+				finalContent = `${enrichedLesson}${CONTEXT_PREFIX}${truncated}${TRUNC_SUFFIX}`;
+				metadata.truncated = true;
+			}
+		} else {
+			finalContent = enrichedLesson;
+		}
+
+		// K2-007: the per-fingerprint throttle check ran above (before
+		// enrichment); `fp` is reused here so dedup/throttle and the saved
+		// memory agree on identity.
 		const id = this.memoryService.save({
 			type: "error",
 			content: finalContent,
@@ -176,6 +227,19 @@ export class Reflector {
 			projectId: projectId ?? undefined,
 			fingerprint: fp,
 		});
+
+		// v0.3.0 fix — stamp the failing tool_call with the stderr-based
+		// fingerprint so the feedback loop's recurrence queries can match
+		// it (closes the fingerprint-mismatch bug). Fires even after the
+		// dedup path returned an existing memory id, since the current
+		// call IS a new occurrence of the same error.
+		if (input.callID && this.onLinkErrorFn) {
+			try {
+				this.onLinkErrorFn(input.callID, fp);
+			} catch {
+				// linking failure is non-blocking
+			}
+		}
 
 		return id;
 	}

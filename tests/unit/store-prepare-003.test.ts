@@ -13,6 +13,10 @@ const SQL_003 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
+const SQL_004 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	"utf8",
+);
 
 describe("Store + migration 003 surface (K2-005)", () => {
 	// Helper: returns a Store whose DB has 001+003 applied in-process.
@@ -20,6 +24,7 @@ describe("Store + migration 003 surface (K2-005)", () => {
 		const store = new Store({ path: ":memory:" });
 		store.exec(SQL_001);
 		store.exec(SQL_003);
+		store.exec(SQL_004);
 		return store;
 	}
 
@@ -28,9 +33,12 @@ describe("Store + migration 003 surface (K2-005)", () => {
 		const rows = store
 			.prepare("SELECT key, value FROM kevin_metrics ORDER BY key")
 			.all() as { key: string; value: number }[];
-		expect(rows.length).toBe(6);
+		expect(rows.length).toBe(9);
 		expect(rows.map((r) => r.key)).toEqual([
+			"causal_links",
 			"duplicate_suppressions",
+			"memories_superseded",
+			"patterns_causal",
 			"patterns_mined",
 			"reflections_throttled",
 			"tokens_injected_compacting",
@@ -47,6 +55,8 @@ describe("Store + migration 003 surface (K2-005)", () => {
 			.prepare("SELECT key, value FROM kevin_settings ORDER BY key")
 			.all() as { key: string; value: string }[];
 		expect(rows).toEqual([
+			{ key: "cross_project_enabled", value: "0" },
+			{ key: "llm_reflection_enabled", value: "0" },
 			{ key: "patternminer_enabled", value: "0" },
 			{ key: "tool_calls_dedup_enabled", value: "0" },
 		]);

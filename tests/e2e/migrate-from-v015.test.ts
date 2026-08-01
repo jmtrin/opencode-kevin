@@ -17,6 +17,10 @@ const SQL_003 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
+const SQL_004 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -78,6 +82,7 @@ CREATE TABLE IF NOT EXISTS _001_already_applied_ (id INTEGER);
 `,
 		);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 
 		const migrate = new Migrate(store, migrationsDir);
 		const result = await migrate.run();
@@ -116,6 +121,7 @@ CREATE TABLE IF NOT EXISTS _001_already_applied_ (id INTEGER);
 			"CREATE TABLE IF NOT EXISTS _001_already_ (id INTEGER);",
 		);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 
 		const migrate = new Migrate(store, migrationsDir);
 		const first = await migrate.run();
@@ -156,6 +162,7 @@ CREATE TABLE IF NOT EXISTS _001_already_applied_ (id INTEGER);
 			"CREATE TABLE IF NOT EXISTS _001_already_ (id INTEGER);",
 		);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 
 		await new Migrate(store, migrationsDir).run();
 
@@ -186,6 +193,7 @@ CREATE TABLE IF NOT EXISTS _001_already_applied_ (id INTEGER);
 			"CREATE TABLE IF NOT EXISTS _001_already_ (id INTEGER);",
 		);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 
 		const idx = store
@@ -203,17 +211,18 @@ CREATE TABLE IF NOT EXISTS _001_already_applied_ (id INTEGER);
 			"CREATE TABLE IF NOT EXISTS _001_already_ (id INTEGER);",
 		);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 
 		const metricsCount = store
 			.prepare("SELECT COUNT(*) AS c FROM kevin_metrics")
 			.get() as { c: number };
-		expect(metricsCount.c).toBe(6);
+		expect(metricsCount.c).toBe(9);
 
 		const settingsCount = store
 			.prepare("SELECT COUNT(*) AS c FROM kevin_settings")
 			.get() as { c: number };
-		expect(settingsCount.c).toBe(2);
+		expect(settingsCount.c).toBe(4);
 
 		// Verify specific keys
 		const pm = store

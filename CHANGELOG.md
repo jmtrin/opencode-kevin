@@ -4,6 +4,42 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-07-25
+
+### Added — Knowledge + Causality
+
+- **Migration 004 (`004_v03_knowledge.sql`)**: table rebuild with expanded CHECK constraints (`type`: +`rule`/`solution`; `origin`: +`causal`/`imported`); `memories.evidence_count` INTEGER NOT NULL DEFAULT 0; `memories.last_verified_at` TEXT; `memories.status` TEXT NOT NULL DEFAULT 'active' CHECK('active'/'superseded'/'stale'/'archived'); `tool_calls.fix_for_fingerprint` TEXT; `tool_calls.error_fingerprint` TEXT (stamped by Reflector via callID — fixes feedback-loop fingerprint mismatch); indexes `idx_tool_calls_fix_fp`, `idx_memories_fp`, `idx_tool_calls_error_fp`. New metrics seeds (`patterns_causal`, `causal_links`, `memories_superseded`) and settings seeds (`llm_reflection_enabled`, `cross_project_enabled`). Additive + idempotent.
+- **CausalChain (`plugin/CausalChain.ts`)**: detects fix→failure pairs in tool_calls; `onSuccess` links `fix_for_fingerprint` on successful tool calls only when within 10 tool calls of the failure and a matching active error memory exists (<24h) — prevents spurious links (e.g. an unrelated `ls` after a typecheck error); `onSessionIdle` promotes recurring errors to causal patterns with cumulative evidence_count across all sessions. Metrics: `causal_links`, `patterns_causal`.
+- **kevin_why tool (`plugin/kevin_why.ts`)**: FTS5 query for causal patterns (tokenized AND-match, not exact phrase), builds failure→fix trace from memories + tool_calls, includes `related_rules` from TS_CODE_RULES lookup (shared with Reflector, no duplication). Returns `WhyResult { summary, confidence, evidence_count, last_verified, trace[], related_rules[] }`.
+- **MemoryService.promoteToPattern** (K3-004): creates `pattern` memory with `origin='causal'` from error memory. Idempotent — an existing active causal pattern with the same fingerprint is updated instead of duplicated. Confidence derived: `MIN(1.0, 0.5 + 0.1 * evidenceCount)`. Audit trail preserved (original error not deleted).
+- **New memory types**: `rule`, `solution` in type CHECK + `kevin_save`/`kevin_query` enums.
+- **New memory origins**: `causal`, `imported` in origin CHECK + origin_boost (causal ×2, imported ×1).
+- **OKF export (`plugin/okf-export.ts` + `kevin_export` tool)**: exports `decision`/`rule`/`pattern` memories in YAML frontmatter or markdown format. No raw errors exported.
+- **OKF import (`plugin/okf-import.ts` + `kevin_import` tool)**: ingests markdown bundles. Each entry becomes `context` memory with `origin='imported'`. Multi-entry bundles fully parsed (fixed: only the first entry was imported); `evidence_count`/`last_verified_at` preserved on round-trip; ids generated with `uuidv7()`. Fingerprint collision → supersede (counted via `countSupersedeCandidates`).
+- **Supersede model** (K3-014): when saving `decision`/`rule` with same fingerprint, old row marked `status='superseded'`, new row `status='active'`. `includeSuperseded` flag on query/recall.
+- **Feedback loop negative half** (K3-013): `penalizeRecurringReflectors` decrements `relevance_score` by 0.05 (floor 0) for reflector errors whose fingerprint recurred as failing tool_calls. Increments `memories_superseded` metric. Fixed: recurrence now matched via `tool_calls.error_fingerprint` (stamped by Reflector) — previously the memory fingerprint never matched `tool_calls.fingerprint` (tool|args|success hash), so the loop was inert in real usage.
+- **Cross-project opt-in** (K3-019): `kevin_settings.cross_project_enabled` gates cross-project rows. When disabled, imported memories with NULL project_id are excluded from injection and `kevin_query`.
+- **LLM reflection opt-in** (K3-018): Reflector accepts optional `enrich` callback. When `llm_reflection_enabled=1`, calls enrich fn; result appended to lesson. Errors non-blocking. Throttle check runs before enrichment so throttled fingerprints never trigger LLM calls.
+- **ToolCallObserver**: `tool_calls.id` stores the opencode `callID` (fallback `uuidv7()`) so Reflector's `error_fingerprint` stamping and origin-call exclusion match the right row.
+- **HITL prompt mutation** (K3-020): ContextInjector generates `<kevin-suggestion>` block after negative half fires, prepended to system.transform/compacting output. Suggests adding AGENTS.md entry.
+- **Progressive disclosure evidence**: `kevin_query` supports `evidence: boolean` flag → includes `confidence`, `evidence_count`, `last_verified_at` in slim payload.
+- **MemoryService status filter**: all query paths filter `WHERE status = 'active'` by default; `includeSuperseded` bypasses.
+
+### Changed
+
+- `MemoryService.save()`: 14→15 params (new `evidence_count`, `last_verified_at`, `status`). `confidence` removed from `SaveInput` — always derived from `evidence_count`.
+- `MemoryService.query()`/`queryRelevant()`/`loadAll()`/`getRelevant()`: all respect `status='active'` filter and `includeSuperseded` flag.
+- `CausalChain.onSuccess`: source_session filter removed (allows cross-session causal linking when dedup prevents new error creation); links only failures within 10 tool calls of the success with an active <24h error memory.
+- `CausalChain.onSessionIdle`: evidence_count now counts all fixes across all sessions (cumulative), not just current session.
+- `MemoryService`: `readOriginCallId` helper parses `origin_call_id` from memory metadata; `countSupersedeCandidates` counts rows a save will supersede.
+
+### Tests
+
+- K3-025: full causal cycle (fail → fix → pattern → kevin_why) in `tests/e2e/plugin-complete.test.ts`.
+- K3-026: cap test — negative half fires on recurring fingerprint; cross-session evidence_count accumulation raises confidence.
+- K3-027: backward-compat migration from v0.2.0 DB in `tests/e2e/migrate-from-v020.test.ts` (6 tests).
+- K3-024: LLM enrichment integration test in `tests/unit/reflector.test.ts` (3 tests: append, null, error).
+
 ## [0.2.0] — 2026-07-18
 
 ### Added — Signal Quality release

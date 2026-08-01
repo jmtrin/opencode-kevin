@@ -14,6 +14,9 @@ export const METRIC_KEYS = [
 	"duplicate_suppressions",
 	"tool_calls_deduped",
 	"patterns_mined",
+	"patterns_causal",
+	"causal_links",
+	"memories_superseded",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

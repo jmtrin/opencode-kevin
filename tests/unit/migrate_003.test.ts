@@ -16,6 +16,10 @@ const SQL_003 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
+const SQL_004 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -62,20 +66,22 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("applies 003 after 001 and registers the version", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		const migrate = new Migrate(store, migrationsDir);
 		const result = await migrate.run();
-		expect(result.applied).toEqual(["001", "003"]);
+		expect(result.applied).toEqual(["001", "003", "004"]);
 		expect(result.from).toBe("000");
-		expect(result.to).toBe("003");
+		expect(result.to).toBe("004");
 		const versions = store
 			.prepare("SELECT version FROM schema_version ORDER BY version")
 			.all() as { version: string }[];
-		expect(versions.map((v) => v.version)).toEqual(["001", "003"]);
+		expect(versions.map((v) => v.version)).toEqual(["001", "003", "004"]);
 	});
 
 	it("adds nullable project_id, fingerprint, origin columns to memories", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		expect(columnExists("memories", "project_id")).toBe(true);
 		expect(columnExists("memories", "fingerprint")).toBe(true);
@@ -85,6 +91,7 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("adds nullable project_id, fingerprint columns to tool_calls", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		expect(columnExists("tool_calls", "project_id")).toBe(true);
 		expect(columnExists("tool_calls", "fingerprint")).toBe(true);
@@ -93,6 +100,7 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("creates the partial UNIQUE index uq_memories_error_fp", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		expect(indexExists("uq_memories_error_fp")).toBe(true);
 	});
@@ -100,13 +108,17 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("creates kevin_metrics table seeded with the six counters at zero", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		expect(tableExists("kevin_metrics")).toBe(true);
 		const rows = store
 			.prepare("SELECT key, value FROM kevin_metrics ORDER BY key")
 			.all() as { key: string; value: number }[];
 		expect(rows).toEqual([
+			{ key: "causal_links", value: 0 },
 			{ key: "duplicate_suppressions", value: 0 },
+			{ key: "memories_superseded", value: 0 },
+			{ key: "patterns_causal", value: 0 },
 			{ key: "patterns_mined", value: 0 },
 			{ key: "reflections_throttled", value: 0 },
 			{ key: "tokens_injected_compacting", value: 0 },
@@ -118,12 +130,15 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("creates kevin_settings table seeded with opt-in flags off", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		expect(tableExists("kevin_settings")).toBe(true);
 		const rows = store
 			.prepare("SELECT key, value FROM kevin_settings ORDER BY key")
 			.all() as { key: string; value: string }[];
 		expect(rows).toEqual([
+			{ key: "cross_project_enabled", value: "0" },
+			{ key: "llm_reflection_enabled", value: "0" },
 			{ key: "patternminer_enabled", value: "0" },
 			{ key: "tool_calls_dedup_enabled", value: "0" },
 		]);
@@ -140,6 +155,7 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 			.run();
 		// Now apply 003.
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		const row = store
 			.prepare("SELECT origin FROM memories WHERE id = 'm-legacy'")
@@ -150,6 +166,7 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("enforces the origin CHECK constraint on new writes", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		expect(() =>
 			store
@@ -177,6 +194,7 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("dedups reflector-sourced error memories via the partial UNIQUE index", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		// First reflector error for (proj-A, fp-1) succeeds.
 		store
@@ -231,11 +249,12 @@ describe("Migration 003 — v0.2.0 Signal Quality", () => {
 	it("does not run 003 if schema_version already has '003'", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		const migrate = new Migrate(store, migrationsDir);
 		await migrate.run();
 		const second = await migrate.run();
 		expect(second.applied).toEqual([]);
-		expect(second.from).toBe("003");
-		expect(second.to).toBe("003");
+		expect(second.from).toBe("004");
+		expect(second.to).toBe("004");
 	});
 });

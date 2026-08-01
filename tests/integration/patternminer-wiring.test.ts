@@ -28,6 +28,10 @@ beforeEach(async () => {
 		join(process.cwd(), "migrations", "003_v02_signal.sql"),
 		join(migrationsDir, "003_v02_signal.sql"),
 	);
+	copyFileSync(
+		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+		join(migrationsDir, "004_v03_knowledge.sql"),
+	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
 		dbPath: ":memory:",
 		migrationsDir,
@@ -123,6 +127,10 @@ describe("PatternMiner wiring (K2-022) — session.idle triggers mine()", () => 
 		copyFileSync(
 			join(process.cwd(), "migrations", "001_initial.sql"),
 			join(mig2, "001_initial.sql"),
+		);
+		copyFileSync(
+			join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+			join(mig2, "004_v03_knowledge.sql"),
 		);
 		const sql003 = readFileSync(
 			join(process.cwd(), "migrations", "003_v02_signal.sql"),

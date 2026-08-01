@@ -24,6 +24,10 @@ const SQL_003 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
 	"utf8",
 );
+const SQL_004 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -110,6 +114,7 @@ describe("Migrate post-apply hooks", () => {
 			.run();
 		// Apply 003 now (the 001-seeded row has no origin column until 003 runs).
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		await new Migrate(store, migrationsDir).run();
 		const row = store
 			.prepare("SELECT origin FROM memories WHERE id = 'm-legacy'")
@@ -120,6 +125,7 @@ describe("Migrate post-apply hooks", () => {
 	it("built-in 003 hook is invoked exactly once when 003 is applied", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 		writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
+		writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
 		const spy: Mock = vi.fn();
 		const migrate = new Migrate(store, migrationsDir);
 		// Override the built-in hook with a spy to count invocations.

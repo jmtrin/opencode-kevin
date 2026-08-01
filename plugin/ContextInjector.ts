@@ -98,10 +98,43 @@ function isWordChar(ch: string): boolean {
 }
 
 export class ContextInjector {
+	private lastRecurrenceCount = 0;
+
 	constructor(
 		private memoryService: MemoryService,
 		private metrics: Metrics | null = null,
 	) {}
+
+	/**
+	 * v0.3.0 (K3-020) — notify the injector that the negative feedback half
+	 * fired N times in the last session.idle. The next system.transform or
+	 * compacting hook will prepend a HITL suggestion block.
+	 */
+	setRecurrences(count: number): void {
+		this.lastRecurrenceCount = count;
+	}
+
+	/**
+	 * v0.3.0 (K3-020) — generate a HITL suggestion block when recurrences
+	 * occurred. Returns the block or empty string. Resets the counter.
+	 */
+	generateSuggestion(): string {
+		if (this.lastRecurrenceCount === 0) return "";
+		const block = `<kevin-suggestion>
+The same error pattern recurred ${this.lastRecurrenceCount} time(s) this session.
+Consider adding a skill or convention to AGENTS.md to prevent this.
+
+Draft:
+\`\`\`markdown
+## Recurring pattern
+- ${this.lastRecurrenceCount} recurrence(s) this session
+- Kevin's confidence in this pattern is low
+- Consider documenting the fix in AGENTS.md
+\`\`\`
+</kevin-suggestion>`;
+		this.lastRecurrenceCount = 0;
+		return block;
+	}
 
 	/**
 	 * v0.2.0 (K2-024): origin-aware ranking at injection time is delegated

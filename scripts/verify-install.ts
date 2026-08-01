@@ -61,6 +61,7 @@ async function main(): Promise<void> {
 	mkdirSync(migrationsDir, { recursive: true });
 	const sqlSrc = join(process.cwd(), "migrations", "001_initial.sql");
 	const sql003Src = join(process.cwd(), "migrations", "003_v02_signal.sql");
+	const sql004Src = join(process.cwd(), "migrations", "004_v03_knowledge.sql");
 	if (!existsSync(sqlSrc)) {
 		console.log("\u2717 No existe migrations/001_initial.sql");
 		failed++;
@@ -69,6 +70,9 @@ async function main(): Promise<void> {
 	copyFileSync(sqlSrc, join(migrationsDir, "001_initial.sql"));
 	if (existsSync(sql003Src)) {
 		copyFileSync(sql003Src, join(migrationsDir, "003_v02_signal.sql"));
+	}
+	if (existsSync(sql004Src)) {
+		copyFileSync(sql004Src, join(migrationsDir, "004_v03_knowledge.sql"));
 	}
 
 	const store = new Store({ path: ":memory:" });
