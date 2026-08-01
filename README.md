@@ -6,6 +6,7 @@ Kevin is an [OpenCode](https://opencode.ai) plugin that **observes** every agent
 
 - **Local-first**: SQLite + FTS5, no external services, no network calls.
 - **Global memory**: a single `~/.opencode-kevin/kevin.db` shared across all your projects (WAL mode → safe for concurrent sessions). No per-project folders.
+- **Knowledge + Causality (v0.3.0)**: causal failure→fix chains, `kevin_why` explanations, OKF export/import, a supersede model, and human-in-the-loop AGENTS.md suggestions.
 - **Standalone**: works without any other plugin. With the ecosystem, it learns more richly.
 
 ---
@@ -30,7 +31,7 @@ For a **single project**, put the same `plugin` array in `./opencode.json` or `.
 
 ### 2. Restart OpenCode
 
-Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes six tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`.
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes nine tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`, `kevin_why`, `kevin_export`, `kevin_import`.
 
 ### 3. Where data lives
 
@@ -89,32 +90,43 @@ Use `:memory:` for `dbPath` in tests.
          ▼
   ┌─────────────────┐
   │   OBSERVE        │  ToolCallObserver records every call
-  │  ToolCallObserver│  (tool, args redacted, success, duration, error_type)
-  │                  │  + stripPrivate blocks + opt-in dedup (v0.2.0)
+  │  ToolCallObserver│  (tool, args redacted, success, duration, error_type,
+  │                  │   id = callID) + stripPrivate + opt-in dedup (v0.2.0)
   └────────┬────────┘
-           │ on failure
-           ▼
-  ┌─────────────────┐
-  │   LEARN          │  Reflector generates a heuristic lesson
-  │   Reflector      │  per-error-code code table (v0.2.0 lesson v2),
-  │                  │  per-fingerprint throttle, origin='reflector',
-  │                  │  fingerprint=FNV-1a 64-bit
-  └────────┬────────┘
-           │
-           ▼
-  ┌─────────────────┐
-  │   SHARE          │  ContextInjector injects relevant lessons
-  │ ContextInjector  │  pre-prompt (1500 tokens) and on compacting (2000 tokens)
-  │                  │  + <protect> wrapper + id: line (v0.2.0)
+           │ on failure             │ on success
+           ▼                        ▼
+  ┌─────────────────┐   ┌─────────────────────────┐
+  │   LEARN          │   │  CAUSAL CHAIN (v0.3.0)  │
+  │   Reflector      │   │  CausalChain.onSuccess   │
+  │  heuristic lesson │   │  links the fix to the   │
+  │  per-error-code  │   │  failure within 10 tool │
+  │  rule table      │   │  calls (error_fingerprint)
+  │  (v0.2.0 v2),    │   └───────────┬─────────────┘
+  │  per-fingerprint │               │
+  │  throttle BEFORE │               │ session.idle
+  │  LLM enrich      │               ▼
+  │  (opt-in v0.3.0),│   ┌─────────────────────────┐
+  │  stamps          │   │  CausalChain.onSessionIdle│
+  │  error_fingerprint│  │  promotes recurring errors│
+  └────────┬────────┘   │  → causal patterns (idempotent,
+           │             │   cumulative evidence)     │
+           ▼             └───────────┬───────────────┘
+  ┌─────────────────┐               │
+  │   SHARE          │◄──────────────┘
+  │ ContextInjector  │  injects relevant lessons pre-prompt
+  │                  │  (1500 tokens) + on compacting (2000)
+  │                  │  + <protect> + id: line (v0.2.0)
   │                  │  + origin-aware rank (v0.2.0)
-  │                  │  + conditional budget (v0.2.0)
+  │                  │  + <kevin-suggestion> after negative
+  │                  │    feedback half (HITL, v0.3.0)
   └────────┬────────┘
            │ session.idle
            ▼
   ┌─────────────────┐
-  │  RETROSPECTIVE   │  Retrospective generates ~/.opencode-kevin/retrospectives/<session>.md
-  │                  │  with origin labels, false-positive recap, metrics snapshot (v0.2.0)
+  │  RETROSPECTIVE   │  generates ~/.opencode-kevin/retrospectives/<session>.md
+  │                  │  with origin labels, FP recap, metrics snapshot (v0.2.0)
   │                  │  + boostPositiveReflectors (v0.2.0)
+  │                  │  + penalizeRecurringReflectors (v0.3.0)
   │                  │  + PatternMiner.mine (opt-in, v0.2.0)
   └─────────────────┘
 ```
@@ -123,7 +135,7 @@ Use `:memory:` for `dbPath` in tests.
 
 ## Tools
 
-Kevin exposes 6 tools callable by the agent:
+Kevin exposes 9 tools callable by the agent:
 
 ### `kevin_save`
 
@@ -134,11 +146,13 @@ kevin_save({ type: "decision", content: "We use vitest for tests", scope: "proje
 // → { "id": "0195a3b2-..." }
 ```
 
-`type`: `error` | `pattern` | `decision` | `context`. `scope`: `project` (persists) | `session` (TTL 24h).
+`type`: `error` | `pattern` | `decision` | `context` | `rule` | `solution` (v0.3.0). `scope`: `project` (persists) | `session` (TTL 24h).
+
+Saving a `decision` or `rule` with the same `fingerprint` as an existing active row supersedes the old one (v0.3.0 — `status='superseded'`, hidden from default queries).
 
 ### `kevin_query`
 
-Searches memories by text (FTS5 + bm25). Returns a **slim** payload by default (v0.2.0). Pass `full: true` for the v0.1.x full content body.
+Searches memories by text (FTS5 + bm25). Returns a **slim** payload by default (v0.2.0). Pass `full: true` for the v0.1.x full content body, or `evidence: true` (v0.3.0) to include `confidence`, `evidence_count`, `last_verified_at` in the slim payload.
 
 ```
 kevin_query({ query: "typecheck", type: "error", limit: 5 })
@@ -156,12 +170,13 @@ Fetches a **single full memory** by id (v0.2.0 — progressive disclosure). Use 
 kevin_get({ id: "0195a3b2-..." })
 // → { "id": "...", "type": "error", "content": "...", "scope": "project",
 //      "relevanceScore": 0.55, "origin": "reflector", "fingerprint": "cbf29ce484222325",
-//      "projectId": null, "metadata": null }
+//      "projectId": null, "metadata": null,
+//      "evidenceCount": 0, "lastVerifiedAt": null, "status": "active" }
 ```
 
 ### `kevin_recall`
 
-Retrieves relevant memories (greedy fill by relevance). Without `query`, returns all memories in scope.
+Retrieves relevant memories (greedy fill by relevance). Without `query`, returns all memories in scope. Pass `includeSuperseded: true` to include superseded rows (v0.3.0).
 
 ```
 kevin_recall({ query: "auth", limit: 3 })
@@ -170,15 +185,16 @@ kevin_recall({ query: "auth", limit: 3 })
 
 ### `kevin_status`
 
-Global counts and metrics (v0.2.0 adds `memories_reflector`, `memories_agent`, `memories_pattern`, and a `metrics` object with 6 seeded counters).
+Global counts and metrics. v0.2.0 adds `memories_reflector`, `memories_agent`, `memories_pattern` and a `metrics` object; v0.3.0 adds `memories_causal` and 3 more seeded counters (`patterns_causal`, `causal_links`, `memories_superseded`).
 
 ```
 kevin_status({})
 // → { "memories": 42, "memories_reflector": 12, "memories_agent": 30, "memories_pattern": 0,
-//      "tool_calls": 318, "retrospectives": 7,
+//      "memories_causal": 1, "tool_calls": 318, "retrospectives": 7,
 //      "metrics": { "tokens_injected_pre_prompt": 51, "tokens_injected_compacting": 0,
 //                   "reflections_throttled": 3, "duplicate_suppressions": 2,
-//                   "tool_calls_deduped": 0, "patterns_mined": 0 } }
+//                   "tool_calls_deduped": 0, "patterns_mined": 0,
+//                   "patterns_causal": 1, "causal_links": 2, "memories_superseded": 0 } }
 ```
 
 ### `kevin_retrospective`
@@ -191,6 +207,26 @@ kevin_retrospective({ session_id: "sess-abc" })
 // or → { "message": "No failures in session sess-abc." }
 ```
 
+### `kevin_why` (v0.3.0)
+
+Explains *why* a failure keeps happening: looks up causal patterns for the query and builds a failure → fix trace from memories + tool_calls, including related TypeScript error-code rules.
+
+```
+kevin_why({ query: "TS2304 cannot find name" })
+// → { "summary": "TS2304 recurs because ... Confirmed by 2 fixes.",
+//      "confidence": 0.7, "evidence_count": 2, "last_verified": "2026-08-01 10:00:00",
+//      "trace": [ { "type": "error", "summary": "..." }, { "type": "fix", "tool": "bash" } ],
+//      "related_rules": [ { "code": "TS2304", "suggestion": "import or typo" } ] }
+```
+
+### `kevin_export` (v0.3.0)
+
+Exports knowledge for sharing: `decision`/`rule`/`pattern` memories (active only, no raw errors) as YAML-frontmatter blocks (`format: "okf"`) or markdown (`format: "markdown"`). Includes `id`, `type`, `confidence`, `evidence_count`, `last_verified_at`, `fingerprint`.
+
+### `kevin_import` (v0.3.0)
+
+Ingests an exported bundle. Each entry becomes a `context` memory with `origin='imported'`; a fingerprint collision with an existing `decision`/`rule` supersedes the old row. Returns `{ imported, superseded }`.
+
 ---
 
 ## Hooks
@@ -200,11 +236,11 @@ Kevin subscribes to 6 OpenCode hooks:
 | Hook | What Kevin does |
 |---|---|
 | `tool.execute.before` | Records tool call start (callID + redacted args) |
-| `tool.execute.after` | Records result; on failure → Reflector.invoke async (throttled) |
-| `experimental.chat.system.transform` | Injects relevant lessons in `<kevin-context>` (1500 tokens) |
-| `experimental.session.compacting` | Re-injects lessons in `<kevin-memory>` after compacting (2000 tokens) |
+| `tool.execute.after` | Records result (id = callID); on failure → Reflector.invoke async (throttled); on success → CausalChain.onSuccess links the fix (v0.3.0) |
+| `experimental.chat.system.transform` | Injects relevant lessons in `<kevin-context>` (1500 tokens) + optional `<kevin-suggestion>` (v0.3.0) |
+| `experimental.session.compacting` | Re-injects lessons in `<kevin-memory>` after compacting (2000 tokens) + optional `<kevin-suggestion>` |
 | `event` (`session.created`) | Captures current `sessionID` |
-| `event` (`session.idle`) | Generates retrospective.md for the session |
+| `event` (`session.idle`) | Generates retrospective.md; boosts positive lessons (v0.2.0); penalizes recurring failures (v0.3.0); promotes causal patterns + mines patterns (opt-in); flushes metrics |
 
 **Redaction**: absolute paths (`C:\Users\...`, `/home/...`) → `<path>` and secrets (`API_KEY=`, `Bearer`, `token`) → `<redacted>` before persisting anything. v0.2.0 adds `<private>…</private>` block redaction: sweeps tool call args and output before persistence, replaces with `<private: redacted N chars>`.
 
@@ -260,14 +296,18 @@ plugin/
   index.ts              # Entry point: KevinPlugin
   Store.ts              # Wrapper SQLite (node:sqlite / bun:sqlite / better-sqlite3 fallback)
   Migrate.ts            # Idempotent migrations + post-apply hooks
-  MemoryService.ts      # save/query/getRelevant (FTS5 + bm25 + origin-aware rank)
+  MemoryService.ts      # save/query/getRelevant (FTS5 + bm25 + origin-aware rank + supersede)
   ToolCallObserver.ts   # onBefore/onAfter + redact + inferErrorType + dedup (opt-in)
-  Reflector.ts          # Heuristic lessons + per-fingerprint throttle + lesson v2
-  ContextInjector.ts    # deriveQuery + pre-prompt/compacting injection + conditional budget
+  Reflector.ts          # Heuristic lessons + per-fingerprint throttle + lesson v2 + LLM enrich
+  CausalChain.ts        # v0.3.0 — links fixes to failures + promotes causal patterns
+  ContextInjector.ts    # deriveQuery + pre-prompt/compacting injection + <kevin-suggestion>
   Retrospective.ts      # Generates retrospective.md + FP recap + metrics snapshot
   fingerprint.ts        # FNV-1a 64-bit (in-house, no node:crypto)
   metrics.ts            # In-memory counters + debounced flush to kevin_metrics
   PatternMiner.ts       # Opt-in deterministic 2-gram/3-gram miner
+  kevin_why.ts          # v0.3.0 — kevin_why tool: failure→fix traces + related rules
+  okf-export.ts         # v0.3.0 — kevin_export: OKF/markdown export
+  okf-import.ts         # v0.3.0 — kevin_import: bundle parser + import
   memory-format.ts      # escapeInjectedText, formatMemories, <protect> + id: line wrappers
   redact.ts             # redactPaths + stripPrivate
   uuid.ts               # UUIDv7
@@ -275,6 +315,7 @@ migrations/
   001_initial.sql       # schema: memories, tool_calls, retrospectives
   002_indexes.sql       # FTS5 + indexes
   003_v02_signal.sql    # v0.2.0 Signal Quality: fingerprint, origin, metrics, dedup indexes
+  004_v03_knowledge.sql # v0.3.0 Knowledge + Causality: evidence/status/supersede, error_fingerprint
 tests/{unit,integration,e2e}/
 scripts/
   copy-migrations.mjs   # build step: copies *.sql to dist/migrations
