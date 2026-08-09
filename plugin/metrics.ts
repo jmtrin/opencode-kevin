@@ -17,6 +17,10 @@ export const METRIC_KEYS = [
 	"patterns_causal",
 	"causal_links",
 	"memories_superseded",
+	"injections_total",
+	"injections_effective",
+	"injections_ineffective",
+	"patterns_promoted_new",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];
@@ -107,6 +111,18 @@ export class Metrics {
 	 */
 	get(key: MetricKey): number {
 		return this.cache.get(key) ?? 0;
+	}
+
+	/**
+	 * v0.4.0 (K4-008): injection precision = effective / total settled
+	 * injections. 0 when the ledger has no entries yet (no division by zero).
+	 * Computed from the cached counters — does NOT flush.
+	 */
+	precisionRate(): number {
+		const total = this.cache.get("injections_total") ?? 0;
+		if (total <= 0) return 0;
+		const effective = this.cache.get("injections_effective") ?? 0;
+		return Math.min(1, effective / total);
 	}
 
 	/** True iff a debounced flush is scheduled. Useful for tests. */

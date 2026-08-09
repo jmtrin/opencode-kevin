@@ -14,7 +14,7 @@ import { Migrate } from "../../plugin/Migrate.js";
 import { Retrospective } from "../../plugin/Retrospective.js";
 import { Store } from "../../plugin/Store.js";
 import { ToolCallObserver } from "../../plugin/ToolCallObserver.js";
-import type { Metrics } from "../../plugin/metrics.js";
+import { METRIC_KEYS, Metrics } from "../../plugin/metrics.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_SQL = readFileSync(
@@ -77,6 +77,40 @@ function callTool(
 }
 
 describe("e2e — session with failures → retrospective.md", () => {
+	it("BUG-014 — renders a Spanish label for every metric key (no raw-key fallback)", async () => {
+		// Metrics seeds all 13 METRIC_KEYS in its snapshot (zeroed), so
+		// the "## Métricas" section must render 13 labelled lines.
+		// A failing call is required for generate() to render at all.
+		callTool("bash", { command: "npm test" }, false, {
+			stderr: "error TS2304: Cannot find name 'foo'",
+			exitCode: 1,
+		});
+		const metrics = new Metrics(store);
+		const retroWithMetrics = new Retrospective(
+			store,
+			memories,
+			{
+				dir: retroDir,
+			},
+			metrics,
+		);
+		const path = await retroWithMetrics.generate(SESSION_ID);
+		expect(path).not.toBeNull();
+		const content = readFileSync(path as string, "utf8");
+		const metricsSection = content.split("## Métricas")[1] ?? "";
+		expect(metricsSection).toContain("Inyecciones totales: 0");
+		expect(metricsSection).toContain("Inyecciones efectivas: 0");
+		expect(metricsSection).toContain("Inyecciones ineficaces: 0");
+		expect(metricsSection).toContain("Patrones promovidos (nuevos): 0");
+		expect(metricsSection).toContain("Patrones causales: 0");
+		expect(metricsSection).toContain("Enlaces causales: 0");
+		expect(metricsSection).toContain("Memorias superadas: 0");
+		for (const key of METRIC_KEYS) {
+			// No raw key ever leaks into the section.
+			expect(metricsSection).not.toContain(`- ${key}:`);
+		}
+	});
+
 	it("generates a retrospective file and table row when there are failures", async () => {
 		callTool("bash", { command: "npm test" }, true);
 		callTool("edit", { filePath: "/a.ts" }, true);
@@ -240,10 +274,13 @@ describe("e2e — retrospective v0.2.0 (K2-025) origin labels + FP recap + metri
 		);
 	});
 
-	it("lists a FP when a tool_call has matching fingerprint (simulated recurrence)", async () => {
-		// Direct INSERT into tool_calls with fingerprint populated (simulating K2-027 wiring)
+	it("lists a FP when a tool_call carries the lesson's error fingerprint (real wiring)", async () => {
+		// BUG-004 — the recap matches `COALESCE(error_fingerprint,
+		// fingerprint)`; the production wiring (Reflector.onLinkError)
+		// stamps error_fingerprint, so the fixture seeds THAT column, not
+		// the legacy tool|args|success hash.
 		store.exec(
-			`INSERT INTO tool_calls (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, fingerprint)
+			`INSERT INTO tool_calls (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, error_fingerprint)
        VALUES ('fp-tool-1', '${SESSION_ID}', datetime('now'), 'bash', 'cmd', 0, 5, null, 'typecheck', '{}', 'proj-X', 'cccccccccccccccc')`,
 		);
 		memories.save({
@@ -270,6 +307,38 @@ describe("e2e — retrospective v0.2.0 (K2-025) origin labels + FP recap + metri
 			.split("## Métricas")[0];
 		expect(fpSection).toContain("reflector lesson recurrence");
 		expect(fpSection).toContain("cccccccccccccccc");
+		expect(fpSection).toContain("recurrencias: 1");
+	});
+
+	it("lists a FP when the recap matches the legacy fingerprint hash too", async () => {
+		// BUG-004 — pre-0.3 tool_calls rows have no error_fingerprint; the
+		// COALESCE falls back to the legacy `fingerprint` column.
+		store.exec(
+			`INSERT INTO tool_calls (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, fingerprint)
+       VALUES ('fp-tool-2', '${SESSION_ID}', datetime('now'), 'bash', 'cmd', 0, 5, null, 'typecheck', '{}', 'proj-X', 'dddddddddddddddd')`,
+		);
+		memories.save({
+			type: "error",
+			content: "reflector lesson legacy fp",
+			scope: "project",
+			sourceSession: SESSION_ID,
+			origin: "reflector",
+			projectId: "proj-X",
+			fingerprint: "dddddddddddddddd",
+		});
+		callTool("bash", { command: "build" }, false, {
+			stderr: "error runtime: boom",
+			exitCode: 1,
+		});
+
+		const path = await retrospective.generate(SESSION_ID);
+		expect(path).not.toBeNull();
+		const content = readFileSync(path as string, "utf8");
+
+		const fpSection = content
+			.split("## False-positive recap")[1]
+			.split("## Métricas")[0];
+		expect(fpSection).toContain("reflector lesson legacy fp");
 		expect(fpSection).toContain("recurrencias: 1");
 	});
 

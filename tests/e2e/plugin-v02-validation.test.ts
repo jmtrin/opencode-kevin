@@ -30,6 +30,10 @@ beforeEach(async () => {
 		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
 		join(migrationsDir, "004_v03_knowledge.sql"),
 	);
+	copyFileSync(
+		join(process.cwd(), "migrations", "005_v04_signal.sql"),
+		join(migrationsDir, "005_v04_signal.sql"),
+	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
 		dbPath: ":memory:",
 		migrationsDir,
@@ -224,7 +228,8 @@ describe("e2e — K2-028 validation protocol (v0.2.0 Signal Quality)", () => {
 		expect(block).toContain("</protect>");
 		expect(block).toContain("id:"); // K2-012 id line
 		expect(block).toContain("[error] When"); // lesson v2 body
-		expect(block).toContain("Likely cause: import or typo (code TS2304)"); // lesson v2 dispatched hint (K2-018)
+		expect(block).toContain("Verify types and imports"); // snippet line 2 (K4-012)
+		expect(block).not.toContain("Likely cause"); // snippet = first 2 lines only (K4-012)
 
 		// 9. Anti-gaming: NO agent-sourced 'error' memory was created during this validation
 		// (i.e. test code never called kevin_save; only Reflector ran)

@@ -68,12 +68,12 @@ describe("e2e — reflection flow (failure → memory → recall)", () => {
 		});
 		expect(id).not.toBeNull();
 
-		const queryResults = memories.query({ text: "typecheck", full: true });
+		const queryResults = memories.query({ text: "TS2304", full: true });
 		expect(queryResults.length).toBe(1);
 		expect(queryResults[0].id).toBe(id);
 		expect(queryResults[0].content).toContain("Verify types and imports");
 
-		const rec = memories.getRelevant({ query: "typecheck", maxTokens: 2000 });
+		const rec = memories.getRelevant({ query: "TS2304", maxTokens: 2000 });
 		const ids = rec.map((m) => m.id);
 		expect(ids).toContain(id);
 		expect(rec[0].type).toBe("error");
@@ -89,9 +89,9 @@ describe("e2e — reflection flow (failure → memory → recall)", () => {
 			errorType: "typecheck",
 			sessionId: "e2e-sess-2",
 		});
-		const rec = memories.getRelevant({ query: "typecheck", maxTokens: 2000 });
+		const rec = memories.getRelevant({ query: "TS2304", maxTokens: 2000 });
 		expect(rec.length).toBeGreaterThan(0);
-		expect(rec[0].content).toContain("When bash fails with typecheck");
+		expect(rec[0].content).toContain("When bash fails with TS2304");
 		expect(rec[0].content).toContain("Suggestion: Verify types and imports");
 	});
 

@@ -43,6 +43,18 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v0.4.0 Signal over Noise: backfill recurrence_count for legacy rows.
+	// recurrence_count has NOT NULL DEFAULT 0, so SQLite already populates
+	// pre-existing rows; fix_args and last_injected_at are nullable and need
+	// no coercion. This hook is belt-and-braces in case a partial DB skipped
+	// the defaults.
+	"005": (store) => {
+		store
+			.prepare(
+				"UPDATE memories SET recurrence_count = 0 WHERE recurrence_count IS NULL",
+			)
+			.run();
+	},
 };
 
 export class Migrate {

@@ -37,6 +37,10 @@ beforeEach(async () => {
 		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
 		join(migrationsDir, "004_v03_knowledge.sql"),
 	);
+	copyFileSync(
+		join(process.cwd(), "migrations", "005_v04_signal.sql"),
+		join(migrationsDir, "005_v04_signal.sql"),
+	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
 		dbPath: ":memory:",
 		migrationsDir,
@@ -388,13 +392,13 @@ describe("tool.execute.after — success=true override via ERROR_LINE_RE", () =>
 		const parsed = parse(status as { output: string }) as { memories: number };
 		expect(parsed.memories).toBeGreaterThanOrEqual(1);
 		const query = await hooks.tool?.kevin_query.execute(
-			{ query: "typecheck", limit: 10, full: true },
+			{ query: "TS2304", limit: 10, full: true },
 			ctx,
 		);
 		const mems = parse(query as { output: string }) as Array<{
 			content: string;
 		}>;
-		expect(mems.some((m) => m.content.includes("typecheck"))).toBe(true);
+		expect(mems.some((m) => m.content.includes("TS2304"))).toBe(true);
 	});
 
 	it("exitCode non-zero prevalece sobre meta.success=true", async () => {
@@ -436,7 +440,7 @@ describe("tool.execute.after — success=true override via ERROR_LINE_RE", () =>
 		const parsed = parse(status as { output: string }) as { memories: number };
 		expect(parsed.memories).toBeGreaterThanOrEqual(1);
 		const query = await hooks.tool?.kevin_query.execute(
-			{ query: "typecheck", limit: 10, full: true },
+			{ query: "TS2304", limit: 10, full: true },
 			ctx,
 		);
 		const mems = parse(query as { output: string }) as Array<{

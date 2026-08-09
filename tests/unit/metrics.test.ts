@@ -76,9 +76,13 @@ describe("Metrics", () => {
 			[
 				"causal_links",
 				"duplicate_suppressions",
+				"injections_effective",
+				"injections_ineffective",
+				"injections_total",
 				"memories_superseded",
 				"patterns_causal",
 				"patterns_mined",
+				"patterns_promoted_new",
 				"reflections_throttled",
 				"tokens_injected_compacting",
 				"tokens_injected_pre_prompt",

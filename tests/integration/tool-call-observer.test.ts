@@ -90,10 +90,16 @@ describe("ToolCallObserver — unit (redact, error_type, summarize)", () => {
 		it("redacts Bearer token", () => {
 			expect(observer.redactSecrets("Bearer xyz123")).toBe("Bearer <redacted>");
 		});
-		it("redacts token keyword", () => {
-			expect(observer.redactSecrets("token abcde12345")).toBe(
-				"token <redacted>",
+		it("redacts token assignment values", () => {
+			expect(observer.redactSecrets("token=abcde12345")).toBe(
+				"token=<redacted>",
 			);
+		});
+		it("BUG-013 — does not mangle harmless 'token <word>' phrasing", () => {
+			expect(observer.redactSecrets("token budget is full")).toBe(
+				"token budget is full",
+			);
+			expect(observer.redactSecrets("token count: 12")).toBe("token count: 12");
 		});
 		it("does not change clean text", () => {
 			expect(observer.redactSecrets("npm install vitest")).toBe(
@@ -102,11 +108,11 @@ describe("ToolCallObserver — unit (redact, error_type, summarize)", () => {
 		});
 		it("redacts multiple occurrences in one string", () => {
 			const out = observer.redactSecrets(
-				"API_KEY=aaa and Bearer bbb and token ccc",
+				"API_KEY=aaa and Bearer bbb and token=ccc",
 			);
 			expect(out).toContain("API_KEY=<redacted>");
 			expect(out).toContain("Bearer <redacted>");
-			expect(out).toContain("token <redacted>");
+			expect(out).toContain("token=<redacted>");
 			expect(out).not.toContain("aaa");
 			expect(out).not.toContain("bbb");
 			expect(out).not.toContain("ccc");

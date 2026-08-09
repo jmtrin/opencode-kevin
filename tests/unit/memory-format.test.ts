@@ -3,6 +3,7 @@ import {
 	type MemoryBlockItem,
 	escapeInjectedText,
 	formatMemories,
+	formatMemorySnippets,
 } from "../../plugin/memory-format.js";
 
 function row(
@@ -144,6 +145,40 @@ describe("memory-format.formatMemories — v0.2.0 (K2-012)", () => {
 		);
 		expect(out).toContain("<protect>");
 		expect(out).toContain("[error] boom");
+	});
+});
+
+describe("K4-023 — weak lessons render with the (low confidence) marker", () => {
+	it("formatMemories marks weak rows", () => {
+		const out = formatMemories(
+			[row({ id: "m", type: "pattern", content: "boom", weak: true })],
+			"context",
+		);
+		expect(out).toContain("[pattern] (low confidence) boom");
+	});
+
+	it("formatMemories does not mark strong rows", () => {
+		const out = formatMemories(
+			[row({ id: "m", type: "pattern", content: "boom" })],
+			"context",
+		);
+		expect(out).not.toContain("(low confidence)");
+	});
+
+	it("formatMemorySnippets marks weak rows", () => {
+		const out = formatMemorySnippets(
+			[
+				row({
+					id: "m",
+					type: "pattern",
+					content: "Causal pattern: boom\nmore lines\nthird line cut",
+					weak: true,
+				}),
+			],
+			"context",
+		);
+		expect(out).toContain("[pattern] (low confidence) Causal pattern: boom");
+		expect(out).not.toContain("third line cut");
 	});
 });
 

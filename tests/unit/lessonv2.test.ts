@@ -99,7 +99,10 @@ describe("Reflector.dispatchLesson — v0.2.0 (K2-018/K2-019)", () => {
 		it("EADDRINUSE", () => {
 			const d = r.dispatchLesson("Error: listen EADDRINUSE", "", "runtime");
 			expect(d.code).toBe("EADDRINUSE");
-			expect(d.hint).toBe("review syscall: EADDRINUSE");
+			// v0.4.0 (K4-022): dedicated port hint.
+			expect(d.hint).toBe(
+				"free the port (netstat -ano | findstr :PORT) or change the port",
+			);
 		});
 
 		it("ENOENT", () => {
@@ -279,13 +282,16 @@ describe("Reflector.generateHeuristicLesson — v0.2.0 composition (K2-018)", ()
 			toolName: "node",
 			errorType: "runtime",
 			firstErrorLine: "Error: listen EADDRINUSE",
-			dispatched: { code: "EADDRINUSE", hint: "review syscall: EADDRINUSE" },
+			dispatched: {
+				code: "EADDRINUSE",
+				hint: "free the port (netstat -ano | findstr :PORT) or change the port",
+			},
 		});
 		expect(lesson).toContain(
 			"Suggestion: Check error message and stack trace for root cause.",
 		);
 		expect(lesson).toContain(
-			"Likely cause: review syscall: EADDRINUSE (code EADDRINUSE)",
+			"Likely cause: free the port (netstat -ano | findstr :PORT) or change the port (code EADDRINUSE)",
 		);
 	});
 

@@ -45,6 +45,15 @@ const METRIC_KEY_LABELS: Record<string, string> = {
 	duplicate_suppressions: "Supresiones por dedup",
 	tool_calls_deduped: "Tool calls deduped",
 	patterns_mined: "Patrones minados",
+	// BUG-014 — v0.4.0 keys (K4-006/K4-008/K4-025) had no Spanish labels,
+	// so the "## Métricas" section printed raw keys for them.
+	injections_total: "Inyecciones totales",
+	injections_effective: "Inyecciones efectivas",
+	injections_ineffective: "Inyecciones ineficaces",
+	patterns_promoted_new: "Patrones promovidos (nuevos)",
+	patterns_causal: "Patrones causales",
+	causal_links: "Enlaces causales",
+	memories_superseded: "Memorias superadas",
 };
 
 function originLabel(
@@ -165,7 +174,7 @@ export class Retrospective {
 			const row = this.store
 				.prepare(
 					`SELECT COUNT(*) AS c FROM tool_calls
-				 WHERE fingerprint = ?
+				 WHERE COALESCE(error_fingerprint, fingerprint) = ?
 				   AND success = 0
 				   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))`,
 				)

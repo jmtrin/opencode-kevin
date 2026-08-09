@@ -7,6 +7,8 @@ Kevin is an [OpenCode](https://opencode.ai) plugin that **observes** every agent
 - **Local-first**: SQLite + FTS5, no external services, no network calls.
 - **Global memory**: a single `~/.opencode-kevin/kevin.db` shared across all your projects (WAL mode → safe for concurrent sessions). No per-project folders.
 - **Knowledge + Causality (v0.3.0)**: causal failure→fix chains, `kevin_why` explanations, OKF export/import, a supersede model, and human-in-the-loop AGENTS.md suggestions.
+- **Signal over Noise (v0.4.0)**: a quality gate that stores weak lessons without injecting them, an injection ledger with honest `precision_rate`, two-sided confidence, and a fixed compacting hook.
+- **Audited**: the v0.4.0 bug catalog (`docs/Kevin_v0.4.0_Bugs.md`) is fully closed — 16/16 bugs fixed and regression-tested (evidence in `kevin_query`/`kevin_get`, OKF round-trip fidelity, causal refresh guard, redaction precision, cross-session isolation).
 - **Standalone**: works without any other plugin. With the ecosystem, it learns more richly.
 
 ---
@@ -31,7 +33,7 @@ For a **single project**, put the same `plugin` array in `./opencode.json` or `.
 
 ### 2. Restart OpenCode
 
-Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes nine tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`, `kevin_why`, `kevin_export`, `kevin_import`.
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes ten tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`, `kevin_why`, `kevin_export`, `kevin_import`, `kevin_config`.
 
 ### 3. Where data lives
 
@@ -135,7 +137,7 @@ Use `:memory:` for `dbPath` in tests.
 
 ## Tools
 
-Kevin exposes 9 tools callable by the agent:
+Kevin exposes 10 tools callable by the agent:
 
 ### `kevin_save`
 
@@ -171,7 +173,8 @@ kevin_get({ id: "0195a3b2-..." })
 // → { "id": "...", "type": "error", "content": "...", "scope": "project",
 //      "relevanceScore": 0.55, "origin": "reflector", "fingerprint": "cbf29ce484222325",
 //      "projectId": null, "metadata": null,
-//      "evidenceCount": 0, "lastVerifiedAt": null, "status": "active" }
+//      "evidenceCount": 2, "recurrenceCount": 1, "lastVerifiedAt": "2026-08-01 10:00:00",
+//      "status": "active", "confidence": 0.55, "fixArgs": "npm i -g rg" }
 ```
 
 ### `kevin_recall`
@@ -185,7 +188,7 @@ kevin_recall({ query: "auth", limit: 3 })
 
 ### `kevin_status`
 
-Global counts and metrics. v0.2.0 adds `memories_reflector`, `memories_agent`, `memories_pattern` and a `metrics` object; v0.3.0 adds `memories_causal` and 3 more seeded counters (`patterns_causal`, `causal_links`, `memories_superseded`).
+Global counts and metrics. v0.2.0 adds `memories_reflector`, `memories_agent`, `memories_pattern` and a `metrics` object; v0.3.0 adds `memories_causal` and 3 more seeded counters (`patterns_causal`, `causal_links`, `memories_superseded`); v0.4.0 adds the precision block: `injections_total`, `injections_effective`, `injections_ineffective`, `precision_rate`, `patterns_promoted_new`, and per-origin `recurrence_by_origin`.
 
 ```
 kevin_status({})
@@ -194,7 +197,10 @@ kevin_status({})
 //      "metrics": { "tokens_injected_pre_prompt": 51, "tokens_injected_compacting": 0,
 //                   "reflections_throttled": 3, "duplicate_suppressions": 2,
 //                   "tool_calls_deduped": 0, "patterns_mined": 0,
-//                   "patterns_causal": 1, "causal_links": 2, "memories_superseded": 0 } }
+//                   "patterns_causal": 1, "causal_links": 2, "memories_superseded": 0 },
+//      "injections_total": 14, "injections_effective": 11, "injections_ineffective": 3,
+//      "precision_rate": 0.79, "patterns_promoted_new": 2,
+//      "recurrence_by_origin": { "reflector": 3, "causal": 1 } }
 ```
 
 ### `kevin_retrospective`
@@ -221,11 +227,31 @@ kevin_why({ query: "TS2304 cannot find name" })
 
 ### `kevin_export` (v0.3.0)
 
-Exports knowledge for sharing: `decision`/`rule`/`pattern` memories (active only, no raw errors) as YAML-frontmatter blocks (`format: "okf"`) or markdown (`format: "markdown"`). Includes `id`, `type`, `confidence`, `evidence_count`, `last_verified_at`, `fingerprint`.
+Exports knowledge for sharing: `decision`/`rule`/`pattern` memories (active only, no raw errors) as YAML-frontmatter blocks (`format: "okf"`) or markdown (`format: "markdown"`). Includes `id`, `type`, `confidence` (two-sided v0.4.0 formula), `evidence_count`, `recurrence_count`, `last_verified_at`, `fingerprint`. Timestamps are treated as UTC — a re-import reproduces the exact source values.
 
 ### `kevin_import` (v0.3.0)
 
 Ingests an exported bundle. Each entry becomes a `context` memory with `origin='imported'`; a fingerprint collision with an existing `decision`/`rule` supersedes the old row. Returns `{ imported, superseded }`.
+
+### `kevin_config` (v0.4.0)
+
+Reads/writes `kevin_settings` without SQL. `action: "list"` returns every setting; `action: "set"` upserts a value (default `"1"` when omitted) and rejects unknown keys unless `strict: false`.
+
+```
+kevin_config({ action: "list" })
+// → { "quality_gate_enabled": "1", "lesson_snippet_injection": "1", "llm_reflection_enabled": "0", ... }
+
+kevin_config({ action: "set", key: "quality_gate_enabled", value: "0" })
+// → { "ok": true }
+```
+
+Known keys: `quality_gate_enabled`, `lesson_snippet_injection`, `llm_reflection_enabled`, `cross_project_enabled`, `patternminer_enabled`, `tool_calls_dedup_enabled` (v0.4.0).
+
+---
+
+## Precision (v0.4.0)
+
+Weak lessons — errors the reflector cannot dispatch to a deterministic rule — are **stored but never injected** while `quality_gate_enabled = '1'` (default). Injection now goes through a ledger: every pre-prompt/compacting injection is recorded and settled as effective or ineffective at session idle, so `kevin_status` reports the honest picture (`injections_total`, `injections_effective/ineffective`, `precision_rate`, `patterns_promoted_new`) instead of raw "lessons shared" counts. Recurrences demote lessons (`recurrence_count` → `stale`) and lower confidence. Debug mode: `kevin_config({ action: "set", key: "quality_gate_enabled", value: "0" })` re-injects weak lessons with a `(low confidence)` marker.
 
 ---
 
@@ -301,13 +327,18 @@ plugin/
   Reflector.ts          # Heuristic lessons + per-fingerprint throttle + lesson v2 + LLM enrich
   CausalChain.ts        # v0.3.0 — links fixes to failures + promotes causal patterns
   ContextInjector.ts    # deriveQuery + pre-prompt/compacting injection + <kevin-suggestion>
+  QualityGate.ts        # v0.4.0 — weak-lesson gate (stored, not injected by default)
+  InjectionLedger.ts    # v0.4.0 — injection ledger + settle → precision_rate
   Retrospective.ts      # Generates retrospective.md + FP recap + metrics snapshot
+  LessonFixer.ts        # v0.4.0 — deterministic fix_args capture + promotion enrichment
+  confidence.ts         # v0.4.0 — two-sided computeConfidence (evidence + recurrence)
   fingerprint.ts        # FNV-1a 64-bit (in-house, no node:crypto)
   metrics.ts            # In-memory counters + debounced flush to kevin_metrics
   PatternMiner.ts       # Opt-in deterministic 2-gram/3-gram miner
   kevin_why.ts          # v0.3.0 — kevin_why tool: failure→fix traces + related rules
   okf-export.ts         # v0.3.0 — kevin_export: OKF/markdown export
   okf-import.ts         # v0.3.0 — kevin_import: bundle parser + import
+  query-tokenizer.ts    # v0.4.0 — FTS5 tokenizer for query sanitization
   memory-format.ts      # escapeInjectedText, formatMemories, <protect> + id: line wrappers
   redact.ts             # redactPaths + stripPrivate
   uuid.ts               # UUIDv7
@@ -316,6 +347,7 @@ migrations/
   002_indexes.sql       # FTS5 + indexes
   003_v02_signal.sql    # v0.2.0 Signal Quality: fingerprint, origin, metrics, dedup indexes
   004_v03_knowledge.sql # v0.3.0 Knowledge + Causality: evidence/status/supersede, error_fingerprint
+  005_v04_signal.sql    # v0.4.0 Signal over Noise: recurrence_count, fix_args, last_injected_at
 tests/{unit,integration,e2e}/
 scripts/
   copy-migrations.mjs   # build step: copies *.sql to dist/migrations

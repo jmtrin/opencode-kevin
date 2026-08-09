@@ -22,13 +22,15 @@ function createMockMetrics(): {
 	return { metrics, incr };
 }
 
-function createMock(memories: Memory[]) {
+function createMock(memories: Memory[], settingValue = "1") {
 	const calls: GetRelevantInput[] = [];
 	const service = {
 		getRelevant(input: GetRelevantInput): Memory[] {
 			calls.push(input);
 			return memories;
 		},
+		bumpRelevance: vi.fn(),
+		getSetting: vi.fn(() => settingValue),
 	} as unknown as MemoryService;
 	return { calls, service };
 }
@@ -348,6 +350,8 @@ describe("ContextInjector — v0.2.0 (K2-013) metrics + conditional budget", () 
 				calls.push(input);
 				return calls.length === 1 ? firstMemories : [];
 			},
+			bumpRelevance: vi.fn(),
+			getSetting: vi.fn(() => "1"),
 		} as unknown as MemoryService;
 		const { metrics, incr } = createMockMetrics();
 		const injector = new ContextInjector(service, metrics);

@@ -27,6 +27,10 @@ const MIGRATION_004_SQL = readFileSync(
 	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
+const MIGRATION_005_SQL = readFileSync(
+	join(__dirname, "..", "..", "migrations", "005_v04_signal.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -44,6 +48,7 @@ beforeEach(() => {
 		join(migrationsDir, "004_v03_knowledge.sql"),
 		MIGRATION_004_SQL,
 	);
+	writeFileSync(join(migrationsDir, "005_v04_signal.sql"), MIGRATION_005_SQL);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 	memories = new MemoryService(store);
@@ -69,7 +74,7 @@ describe("Reflector + MemoryService integration", () => {
 		});
 		expect(id).not.toBeNull();
 
-		const results = memories.query({ text: "typecheck", full: true });
+		const results = memories.query({ text: "TS2304", full: true });
 		expect(results.length).toBe(1);
 		expect(results[0].id).toBe(id);
 		expect(results[0].type).toBe("error");
@@ -87,7 +92,7 @@ describe("Reflector + MemoryService integration", () => {
 			errorType: "typecheck",
 			sessionId: "sess-int-2",
 		});
-		const results = memories.query({ text: "typecheck", full: true });
+		const results = memories.query({ text: "TS2304", full: true });
 		expect(results.length).toBe(1);
 		expect(results[0].content).not.toContain("C:\\Users");
 		expect(results[0].content).toContain("<path>:42");
@@ -120,12 +125,12 @@ describe("Reflector + MemoryService integration", () => {
 			sessionId: "sess-int-4",
 		});
 		expect(id).not.toBeNull();
-		expect(memories.query({ text: "typecheck", full: true }).length).toBe(1);
+		expect(memories.query({ text: "TS2304", full: true }).length).toBe(1);
 		const direct = memories.getById(id as string);
 		expect(direct).not.toBeNull();
 		expect(direct?.metadata?.truncated).toBe(true);
 		expect(direct?.metadata?.not_searchable).toBeUndefined();
 		expect(direct?.content).toContain("[truncated]");
-		expect(direct?.content).toContain("When bash fails with typecheck");
+		expect(direct?.content).toContain("When bash fails with TS2304");
 	});
 });

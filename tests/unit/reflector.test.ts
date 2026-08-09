@@ -144,11 +144,26 @@ describe("Reflector.redactSecrets", () => {
 		expect(r.redactSecrets("TOKEN=tok123")).toBe("TOKEN=<redacted>");
 	});
 
-	it("redacts Bearer and token bare values", () => {
+	it("redacts Bearer and token assignment values", () => {
 		expect(r.redactSecrets("Authorization: Bearer abc123")).toBe(
 			"Authorization: Bearer <redacted>",
 		);
-		expect(r.redactSecrets("token abc123 here")).toBe("token <redacted> here");
+		expect(r.redactSecrets("token=abc123 here")).toBe("token=<redacted> here");
+		expect(r.redactSecrets("auth_token = abc123 here")).toBe(
+			"auth_token = <redacted> here",
+		);
+	});
+
+	it("BUG-013 — leaves harmless 'token <word>' phrasing intact", () => {
+		expect(r.redactSecrets("token budget exceeded")).toBe(
+			"token budget exceeded",
+		);
+		expect(r.redactSecrets("max token limit is 4096")).toBe(
+			"max token limit is 4096",
+		);
+		expect(r.redactSecrets("counting tokens in this run")).toBe(
+			"counting tokens in this run",
+		);
 	});
 });
 
@@ -186,7 +201,7 @@ describe("Reflector.invoke", () => {
 			sessionId: "s1",
 		});
 		expect(saved[0].content).toContain(
-			"When bash fails with typecheck: error TS2304",
+			"When bash fails with TS2304: error TS2304",
 		);
 		expect(saved[0].content).toContain("Suggestion: Verify types and imports");
 		expect(saved[0].content).toContain("Context:");
@@ -229,7 +244,7 @@ describe("Reflector.invoke", () => {
 		);
 		expect(saved[0].metadata?.truncated).toBe(true);
 		expect(saved[0].metadata?.not_searchable).toBeUndefined();
-		expect(saved[0].content).toContain("When bash fails with typecheck");
+		expect(saved[0].content).toContain("When bash fails with TS2304");
 	});
 
 	it("does not set not_searchable when content is small", async () => {

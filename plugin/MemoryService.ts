@@ -1,6 +1,9 @@
+import { deterministicFixLine } from "./LessonFixer.js";
 import type { Store } from "./Store.js";
+import { computeConfidence } from "./confidence.js";
 import { fingerprint as computeFingerprint } from "./fingerprint.js";
 import type { Metrics } from "./metrics.js";
+import { toMatchClause, tokenizeQuery } from "./query-tokenizer.js";
 import { uuidv7 } from "./uuid.js";
 
 export type MemoryType =
@@ -45,11 +48,19 @@ export interface Memory {
 	lastVerifiedAt?: string | null;
 	/** v0.3.0 — lifecycle status. Default 'active'. */
 	status?: string | null;
+	/** v0.4.0 — deterministic capture of the linked fix call (K4-014). */
+	fixArgs?: string | null;
+	/** v0.4.0 (BUG-008/010) — negative evidence: how many times the
+	 * fingerprint recurred after injection (demotes confidence). */
+	recurrenceCount?: number | null;
 }
 
 export interface SaveInput {
 	type: MemoryType;
 	content: string;
+	/** v0.4.0 (BUG-008) — preserve the original id on okf import;
+	 * when absent a fresh uuidv7 is generated. */
+	id?: string;
 	scope?: MemoryScope;
 	relevanceScore?: number;
 	sourceTool?: string;
@@ -68,6 +79,9 @@ export interface SaveInput {
 	lastVerifiedAt?: string;
 	/** v0.3.0 — lifecycle status. Default 'active'. */
 	status?: string;
+	/** v0.4.0 (BUG-008/010) — how many times the fingerprint recurred
+	 * after injection (negative evidence, demotes confidence). */
+	recurrenceCount?: number;
 }
 
 export interface QueryInput {
@@ -83,6 +97,10 @@ export interface QueryInput {
 	/** v0.3.0 — when true, includes rows where status = 'superseded'.
 	 * Default false (only active rows). */
 	includeSuperseded?: boolean;
+	/** v0.3.0 (BUG-001) — when true, the slim payload also carries
+	 * `confidence`, `evidence_count` and `last_verified_at` (v0.3.0 K3
+	 * evidence fields). Default false (minimal slim shape). */
+	evidence?: boolean;
 }
 
 /** v0.2.0 — slim query payload (K2-010). Snippet is a short content prefix;
@@ -96,16 +114,38 @@ export interface SlimMemory {
 	snippet: string;
 }
 
+/** v0.3.0 (BUG-001) — slim payload extended with the evidence fields when
+ * `query({ evidence: true })`. Fills the `kevin_query(evidence: true)`
+ * contract without falling back to the full `Memory` shape. */
+export interface SlimMemoryWithEvidence extends SlimMemory {
+	confidence: number | null;
+	evidence_count: number | null;
+	last_verified_at: string | null;
+}
+
 const MAX_SNIPPET_CHARS = 200;
 
-function toSlim(mem: Memory): SlimMemory {
-	const rawScore = (mem.metadata as Record<string, unknown> | null)?.score;
-	return {
+function toSlim(
+	mem: Memory,
+	evidence = false,
+): SlimMemory | SlimMemoryWithEvidence {
+	const base: SlimMemory = {
 		id: mem.id,
 		type: mem.type,
 		scope: mem.scope,
-		score: typeof rawScore === "number" ? rawScore : mem.relevanceScore,
+		score:
+			typeof (mem.metadata as Record<string, unknown> | null)?.score ===
+			"number"
+				? ((mem.metadata as Record<string, unknown>).score as number)
+				: mem.relevanceScore,
 		snippet: mem.content.slice(0, MAX_SNIPPET_CHARS),
+	};
+	if (!evidence) return base;
+	return {
+		...base,
+		confidence: mem.confidence ?? null,
+		evidence_count: mem.evidenceCount ?? null,
+		last_verified_at: mem.lastVerifiedAt ?? null,
 	};
 }
 
@@ -116,6 +156,13 @@ export interface GetRelevantInput {
 	/** v0.3.0 — when true, includes rows where status = 'superseded'.
 	 * Default false (only active rows). */
 	includeSuperseded?: boolean;
+	/**
+	 * v0.4.0 (BUG-016) — when false, the relevance bump (K2-023) is
+	 * skipped. Used by ContextInjector's probe fetch so the decision and
+	 * any retry both see the ORIGINAL ranking; the single bump is applied
+	 * by the fetch that actually produces the injected block.
+	 */
+	bump?: boolean;
 }
 
 interface MemoryRow {
@@ -138,6 +185,10 @@ interface MemoryRow {
 	evidence_count?: number;
 	last_verified_at?: string | null;
 	status?: string;
+	/** v0.4.0 */
+	recurrence_count?: number;
+	/** v0.4.0 */
+	fix_args?: string | null;
 }
 
 const TYPE_PRIORITY: Record<MemoryType, number> = {
@@ -186,6 +237,12 @@ function sqliteUtcNowPlusHours(hours: number): string {
 	)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
+/** Shared column list for row reads (must stay in sync with MemoryRow). */
+const MEMORY_ROW_SELECT = `id, type, content, scope, relevance_score, source_tool, source_session,
+                metadata, created_at, updated_at, expires_at,
+                project_id, fingerprint, origin,
+                evidence_count, recurrence_count, last_verified_at, status, fix_args`;
+
 function mapRow(row: MemoryRow, score?: number): Memory {
 	const mem: Memory = {
 		id: row.id,
@@ -206,11 +263,13 @@ function mapRow(row: MemoryRow, score?: number): Memory {
 		origin: (row.origin as MemoryOrigin | null | undefined) ?? null,
 		confidence:
 			typeof row.evidence_count === "number"
-				? Math.min(1, 0.5 + 0.1 * (row.evidence_count ?? 0))
+				? computeConfidence(row.evidence_count ?? 0, row.recurrence_count ?? 0)
 				: null,
 		evidenceCount: row.evidence_count ?? null,
 		lastVerifiedAt: row.last_verified_at ?? null,
 		status: row.status ?? "active",
+		fixArgs: row.fix_args ?? null,
+		recurrenceCount: row.recurrence_count ?? null,
 	};
 	if (score !== undefined) {
 		if (!mem.metadata) mem.metadata = {};
@@ -252,6 +311,23 @@ export class MemoryService {
 	// have been using since v0.1.0.
 	private store: Store;
 
+	// v0.4.0 (BUG-008) — cached column probe for pre-005 DBs (which lack
+	// `recurrence_count`); save() must not reference the column there.
+	private hasRecurrenceColumn(): boolean {
+		if (this._hasRecurrenceColumn === undefined) {
+			try {
+				this.store
+					.prepare("SELECT recurrence_count FROM memories LIMIT 1")
+					.get();
+				this._hasRecurrenceColumn = true;
+			} catch {
+				this._hasRecurrenceColumn = false;
+			}
+		}
+		return this._hasRecurrenceColumn;
+	}
+	private _hasRecurrenceColumn: boolean | undefined;
+
 	save(input: SaveInput): string {
 		const scope = input.scope ?? "project";
 		const relevanceScore = input.relevanceScore ?? 0.5;
@@ -280,11 +356,14 @@ export class MemoryService {
 			expiresAt = sqliteUtcNowPlusHours(SESSION_DEFAULT_TTL_HOURS);
 		}
 
-		const id = uuidv7();
+		const id = input.id ?? uuidv7();
 
 		// v0.3.0 (K3-014) — supersede model: when saving a decision/rule with
 		// the same fingerprint as an existing active row, mark the old as
 		// superseded and insert the fresh version as active.
+		// v0.4.0 (K4-011) — `memories_superseded` is only counted here,
+		// where a row is truly replaced; penalization of recurring
+		// reflectors no longer increments it.
 		const supersedableTypes: MemoryType[] = ["decision", "rule"];
 		if (fp !== null && supersedableTypes.includes(input.type)) {
 			this.store
@@ -297,17 +376,31 @@ export class MemoryService {
 					   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))`,
 				)
 				.run(fp, input.type, projectId, projectId);
+			const after = this.store.prepare("SELECT changes() AS n").get() as {
+				n: number;
+			};
+			if (after.n > 0) {
+				this.metrics?.incr("memories_superseded", 1);
+			}
 		}
 
 		try {
-			this.store
-				.prepare(
-					`INSERT INTO memories
+			// v0.4.0 (BUG-008) — recurrence_count is only persisted when the
+			// column exists (migration 005); pre-005 DBs get the legacy shape.
+			const withRecurrence = this.hasRecurrenceColumn();
+			const insert = withRecurrence
+				? `INSERT INTO memories
+             (id, type, content, scope, relevance_score, source_tool, source_session,
+              metadata, expires_at, project_id, fingerprint, origin,
+              evidence_count, last_verified_at, status, recurrence_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				: `INSERT INTO memories
              (id, type, content, scope, relevance_score, source_tool, source_session,
               metadata, expires_at, project_id, fingerprint, origin,
               evidence_count, last_verified_at, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+			this.store
+				.prepare(insert)
 				.run(
 					id,
 					input.type,
@@ -324,6 +417,7 @@ export class MemoryService {
 					input.evidenceCount ?? 0,
 					input.lastVerifiedAt ?? null,
 					status,
+					...(withRecurrence ? [input.recurrenceCount ?? 0] : []),
 				);
 			return id;
 		} catch (err) {
@@ -356,13 +450,30 @@ export class MemoryService {
 	getById(id: string): Memory | null {
 		const row = this.store
 			.prepare(
-				`SELECT id, type, content, scope, relevance_score, source_tool, source_session,
-                metadata, created_at, updated_at, expires_at,
-                project_id, fingerprint, origin,
-                evidence_count, last_verified_at, status
+				`SELECT ${MEMORY_ROW_SELECT}
          FROM memories WHERE id = ?`,
 			)
 			.get(id) as MemoryRow | undefined;
+		return row ? mapRow(row) : null;
+	}
+
+	/**
+	 * v0.4.0 (K4-016) — most recent ACTIVE memory for a fingerprint,
+	 * optionally filtered by type. Feeds the HITL suggestion lookup
+	 * (most-recurred fingerprint → its pattern memory).
+	 */
+	getByFingerprint(fingerprint: string, type?: MemoryType): Memory | null {
+		const row = this.store
+			.prepare(
+				`SELECT ${MEMORY_ROW_SELECT}
+         FROM memories
+        WHERE fingerprint = ? AND status = 'active'
+          ${type ? "AND type = ?" : ""}
+        ORDER BY created_at DESC LIMIT 1`,
+			)
+			.get(...(type ? [fingerprint, type] : [fingerprint])) as
+			| MemoryRow
+			| undefined;
 		return row ? mapRow(row) : null;
 	}
 
@@ -405,6 +516,13 @@ export class MemoryService {
 			cols.push("status = ?");
 			vals.push(fields.status);
 		}
+		// v0.4.0 (BUG-008) — recurrence_count is writable so okf-import can
+		// restore negative evidence across a round-trip. Guarded by the
+		// caller (pre-005 DBs lack the column; update() throws).
+		if (fields.recurrenceCount !== undefined) {
+			cols.push("recurrence_count = ?");
+			vals.push(fields.recurrenceCount);
+		}
 		if (cols.length === 0) return;
 		cols.push("updated_at = datetime('now')");
 		vals.push(id);
@@ -419,6 +537,8 @@ export class MemoryService {
 
 	/** v0.1.x behavior — returns full `Memory` rows. */
 	query(input: QueryInput & { full: true }): Memory[];
+	/** v0.3.0 (BUG-001) — slim rows carrying the evidence fields. */
+	query(input: QueryInput & { evidence: true }): SlimMemoryWithEvidence[];
 	/** v0.2.0 default — returns `SlimMemory` rows. */
 	query(input: QueryInput): SlimMemory[];
 	query(input: QueryInput): Memory[] | SlimMemory[] {
@@ -470,7 +590,9 @@ export class MemoryService {
 				(m) =>
 					crossProjectOn || m.projectId !== null || m.origin !== "imported",
 			);
-		return input.full === true ? memories : memories.map(toSlim);
+		return input.full === true
+			? memories
+			: memories.map((m) => toSlim(m, input.evidence === true));
 	}
 
 	private isCrossProjectEnabled(): boolean {
@@ -479,10 +601,28 @@ export class MemoryService {
 				.prepare(
 					"SELECT value FROM kevin_settings WHERE key = 'cross_project_enabled'",
 				)
-				.get() as { value: number } | undefined;
-			return (row?.value ?? 0) === 1;
+				.get() as { value: string } | undefined;
+			// BUG-002 — the column stores TEXT ('0'/'1'); the old numeric
+			// comparison `=== 1` could never match '1'.
+			return (row?.value ?? "0") === "1";
 		} catch {
 			return false;
+		}
+	}
+
+	/**
+	 * v0.4.0 (K4-012) — read a kevin_settings flag by key. Falls back to
+	 * the caller-provided default when the key is missing or the table is
+	 * unavailable (legacy DB without the settings table).
+	 */
+	getSetting(key: string, fallback = "0"): string {
+		try {
+			const row = this.store
+				.prepare("SELECT value FROM kevin_settings WHERE key = ?")
+				.get(key) as { value: string } | undefined;
+			return row?.value ?? fallback;
+		} catch {
+			return fallback;
 		}
 	}
 
@@ -514,12 +654,9 @@ export class MemoryService {
 		scope: MemoryScope | "all",
 		includeSuperseded = false,
 	): Memory[] {
-		const tokens = stripUnbalancedQuotes(text.trim())
-			.split(/\s+/)
-			.filter((t) => t.length > 0)
-			.map((t) => `"${t.replace(/"/g, '""')}"`);
+		const tokens = tokenizeQuery(stripUnbalancedQuotes(text));
 		if (tokens.length === 0) return [];
-		const match = tokens.join(" OR ");
+		const match = toMatchClause(tokens, " OR ");
 
 		let sql = `
       SELECT m.id, m.type, m.content, m.scope, m.relevance_score,
@@ -592,7 +729,7 @@ export class MemoryService {
 			used += len;
 		}
 
-		if (result.length > 0) {
+		if (result.length > 0 && input.bump !== false) {
 			const bump = this.store.prepare(
 				"UPDATE memories SET relevance_score = MIN(?, relevance_score + ?) WHERE id = ?",
 			);
@@ -604,6 +741,21 @@ export class MemoryService {
 	}
 
 	/**
+	 * v0.4.0 (BUG-016) — apply the K2-023 relevance bump to a fixed slice
+	 * of ids, exactly once. Lets ContextInjector probe without mutating
+	 * and still bump the slice it actually injects.
+	 */
+	bumpRelevance(ids: string[]): void {
+		if (ids.length === 0) return;
+		const bump = this.store.prepare(
+			"UPDATE memories SET relevance_score = MIN(?, relevance_score + ?) WHERE id = ?",
+		);
+		this.store.transaction(() => {
+			for (const id of ids) bump.run(RELEVANCE_MAX, RELEVANCE_BUMP, id);
+		});
+	}
+
+	/**
 	 * v0.3.0 (K3-004) — Promote an error memory to a causal pattern.
 	 *
 	 * Creates a new `pattern` memory with `origin = 'causal'`, derived
@@ -612,14 +764,34 @@ export class MemoryService {
 	 * or null when the source error is not eligible (missing fingerprint,
 	 * wrong type, or already promoted).
 	 */
-	promoteToPattern(errorId: string, evidenceCount: number): string | null {
+	/**
+	 * v0.4.0 (K4-009) — returns `{ id, created }` so callers can tell a
+	 * newly-created pattern from an idempotent refresh.
+	 */
+	promoteToPattern(
+		errorId: string,
+		evidenceCount: number,
+		recurrenceCount = 0,
+	): { id: string; created: boolean } | null {
 		const error = this.getById(errorId);
 		if (!error || error.type !== "error" || !error.fingerprint) return null;
 
-		const confidence = Math.min(1.0, 0.5 + 0.1 * evidenceCount);
+		// v0.4.0 (K4-010) — two-sided confidence: recurrence demotes the
+		// pattern's confidence.
+		const confidence = computeConfidence(evidenceCount, recurrenceCount);
 		const now = new Date().toISOString();
 		const summary = error.content.split("\n")[0].slice(0, 200);
-		const content = `Causal pattern: ${summary}\n\nEvidence: ${evidenceCount} confirmed fix(es)\nConfidence: ${(confidence * 100).toFixed(0)}%\n\nOriginal: ${error.content.slice(0, 1000)}`;
+		const base = `Causal pattern: ${summary}\n\nEvidence: ${evidenceCount} confirmed fix(es)\nConfidence: ${(confidence * 100).toFixed(0)}%\n\nOriginal: ${error.content.slice(0, 1000)}`;
+
+		// v0.4.0 (K4-014) — deterministic "Fixed by:" from the linked
+		// success call's args_summary (D4-07). The opt-in LLM phrasing
+		// (K4-015) runs later in CausalChain.onSessionIdle, never here and
+		// never on the failure hot path.
+		const fixLine = deterministicFixLine({
+			content: base,
+			fixArgs: error.fixArgs ?? null,
+		});
+		const content = fixLine ? `${base}\n${fixLine}` : base;
 
 		// v0.3.0 fix (bug #4) — idempotent promotion: the supersede model
 		// only covers decision/rule, so the old code inserted a duplicate
@@ -635,24 +807,37 @@ export class MemoryService {
 				 ORDER BY created_at DESC LIMIT 1`,
 			)
 			.get(error.fingerprint) as { id: string } | undefined;
+		let patternId: string;
 		if (existing) {
 			this.update(existing.id, { content, evidenceCount, lastVerifiedAt: now });
-			return existing.id;
+			patternId = existing.id;
+		} else {
+			patternId = this.save({
+				type: "pattern",
+				content,
+				scope: "project",
+				origin: "causal",
+				sourceTool: error.sourceTool ?? undefined,
+				sourceSession: error.sourceSession ?? undefined,
+				fingerprint: error.fingerprint,
+				evidenceCount,
+				lastVerifiedAt: now,
+				status: "active",
+				projectId: error.projectId ?? undefined,
+			});
 		}
 
-		return this.save({
-			type: "pattern",
-			content,
-			scope: "project",
-			origin: "causal",
-			sourceTool: error.sourceTool ?? undefined,
-			sourceSession: error.sourceSession ?? undefined,
-			fingerprint: error.fingerprint,
-			evidenceCount,
-			lastVerifiedAt: now,
-			status: "active",
-			projectId: error.projectId ?? undefined,
-		});
+		// v0.4.0 (K4-010) — persist the recurrence count on the pattern row
+		// so mapRow (and kevin_why) recompute the SAME demoted confidence.
+		// v0.4.0 (K4-014) — persist fix_args too: the pattern's "Fixed by:"
+		// raw material travels with the row for kevin_why/HITL (K4-016/020).
+		this.store
+			.prepare(
+				"UPDATE memories SET recurrence_count = ?, fix_args = ? WHERE id = ?",
+			)
+			.run(recurrenceCount, error.fixArgs ?? null, patternId);
+
+		return { id: patternId, created: !existing };
 	}
 
 	/**
@@ -783,10 +968,21 @@ export class MemoryService {
 			   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))
 			   AND (? IS NULL OR id <> ?)`,
 		);
+		const settledCheck = this.store.prepare(
+			`SELECT 1 FROM kevin_injections
+			  WHERE session_id = ? AND memory_id = ? AND outcome = 'ineffective'
+			  LIMIT 1`,
+		);
 		const penalizeOne = this.store.prepare(
 			`UPDATE memories
 			 SET relevance_score = MAX(0, relevance_score - ?),
-			     evidence_count = evidence_count + 1,
+			     recurrence_count = recurrence_count + 1,
+			     last_verified_at = datetime('now')
+			 WHERE id = ?`,
+		);
+		const penalizeRelevanceOnly = this.store.prepare(
+			`UPDATE memories
+			 SET relevance_score = MAX(0, relevance_score - ?),
 			     last_verified_at = datetime('now')
 			 WHERE id = ?`,
 		);
@@ -805,9 +1001,36 @@ export class MemoryService {
 				) as { c: number } | undefined;
 				const c = row?.c ?? 0;
 				if (c > 0) {
-					penalizeOne.run(RELEVANCE_PENALTY, l.id);
+					// v0.4.0 (K4-025) — no double-charge: when the
+					// session's injection of this memory was already
+					// settled `ineffective`, `InjectionLedger.settle`
+					// charged recurrence_count (K4-007) and this pass
+					// only applies the relevance penalty. The +1 charge
+					// below is the pre-ledger path (K4-011) for memories
+					// that were never injected this session.
+					const settled = settledCheck.get(sessionId, l.id);
+					if (settled) {
+						penalizeRelevanceOnly.run(RELEVANCE_PENALTY, l.id);
+					} else {
+						// v0.4.0 (K4-011) — recurrence is negative evidence:
+						// it bumps `recurrence_count`, NOT `evidence_count`
+						// (the old code counted recurrence as positive
+						// evidence). No `memories_superseded` increment here —
+						// supersede is only counted when a decision/rule is
+						// truly replaced (see save()).
+						penalizeOne.run(RELEVANCE_PENALTY, l.id);
+						// v0.4.0 (K4-025 / plan §5.1 rule 4, D4-06) — same
+						// recurrence-expels rule the settle enforces: at
+						// `recurrence_count >= 3` the error lesson is demoted
+						// to `status='stale'`.
+						this.store
+							.prepare(
+								`UPDATE memories SET status = 'stale'
+								  WHERE id = ? AND recurrence_count >= 3`,
+							)
+							.run(l.id);
+					}
 					penalized += 1;
-					this.metrics?.incr("memories_superseded", 1);
 				}
 			}
 		});

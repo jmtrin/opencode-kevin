@@ -30,6 +30,10 @@ beforeEach(async () => {
 		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
 		join(migrationsDir, "004_v03_knowledge.sql"),
 	);
+	copyFileSync(
+		join(process.cwd(), "migrations", "005_v04_signal.sql"),
+		join(migrationsDir, "005_v04_signal.sql"),
+	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
 		dbPath: ":memory:",
 		migrationsDir,
@@ -140,11 +144,11 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		);
 
 		await waitForAsync(async () => {
-			const mems = await queryMemories(sess, "typecheck");
+			const mems = await queryMemories(sess, "TS2304");
 			return mems.some((m) => m.content.includes("Verify types and imports"));
 		});
 
-		const memories = await queryMemories(sess, "typecheck");
+		const memories = await queryMemories(sess, "TS2304");
 		const lesson = memories.find((m) =>
 			m.content.includes("Verify types and imports"),
 		);
@@ -191,6 +195,68 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		expect(sysOutput.system.length).toBe(0);
 	});
 
+	it("BUG-011 — session B does not reuse session A's query (no cross-session bleed)", async () => {
+		// Seed one lesson relevant to session A's query.
+		await hooks.tool?.kevin_save.execute(
+			{
+				type: "error",
+				content:
+					"When bash fails with typecheck: error TS2304\nSuggestion: Import the missing module or fix the typo.",
+				scope: "project",
+			},
+			makeCtx("bleed-sess"),
+		);
+
+		// Session A: query set, transform injects.
+		await hooks.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: "bleed-sess-a" } },
+			} as never,
+		});
+		await hooks["chat.message"]?.(
+			{ sessionID: "bleed-sess-a" },
+			{
+				message: {} as never,
+				parts: [
+					{ type: "text", text: "how do I fix the typecheck error?" },
+				] as never,
+			},
+		);
+		const aOutput = { system: [] as string[] };
+		await hooks["experimental.chat.system.transform"]?.(
+			{ sessionID: "bleed-sess-a", model: { provider: "x", id: "y" } as never },
+			aOutput,
+		);
+		expect(aOutput.system.length).toBe(1);
+		expect(aOutput.system[0]).toContain("Import the missing module");
+
+		// Session A ends: the global query must be dropped.
+		await hooks.event?.({
+			event: {
+				type: "session.idle",
+				properties: { sessionID: "bleed-sess-a" },
+			} as never,
+		});
+
+		// Session B starts and transforms BEFORE any chat.message: the old
+		// global-query fallback would re-inject lesson A; the fix resolves
+		// per-session (empty) ?? global (null) → no query → no injection.
+		await hooks.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: "bleed-sess-b" } },
+			} as never,
+		});
+		const bOutput = { system: [] as string[] };
+		await hooks["experimental.chat.system.transform"]?.(
+			{ sessionID: "bleed-sess-b", model: { provider: "x", id: "y" } as never },
+			bOutput,
+		);
+		expect(bOutput.system.length).toBe(0);
+		expect(bOutput.system.join("\n")).not.toContain("<kevin-context>");
+	});
+
 	it("session.idle sin fallos no genera retrospective", async () => {
 		const sess = "no-fail-e2e";
 		await hooks.event?.({
@@ -226,7 +292,7 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 			{
 				type: "error",
 				content:
-					"When bash fails with typecheck: error TS2304\nSuggestion: Verify types and imports before running.",
+					"When bash fails with typecheck: error TS2304\nSuggestion: Import the missing module or fix the typo.",
 				scope: "project",
 			},
 			ctx,
@@ -257,7 +323,7 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		);
 		expect(sysOutput.system.length).toBe(1);
 		expect(sysOutput.system[0]).toContain("<kevin-context>");
-		expect(sysOutput.system[0]).toContain("Verify types and imports");
+		expect(sysOutput.system[0]).toContain("Import the missing module");
 		expect(sysOutput.system[0]).not.toContain("cooking pasta");
 	});
 
@@ -269,7 +335,7 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 			{
 				type: "error",
 				content:
-					"When bash fails with typecheck: error TS2304\nSuggestion: Verify types and imports before running.",
+					"When bash fails with typecheck: error TS2304\nSuggestion: Import the missing module or fix the typo.",
 				scope: "project",
 			},
 			ctx,
@@ -324,8 +390,25 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		expect(sysOutput.system[0]).toContain("&lt;tag&gt;&amp;");
 
 		const compactOutput = { context: [] as string[] };
+		// v0.4.0 (K4-017): the per-session seen-set (plan §5.1 rule 3)
+		// prevents re-injecting the same memory within one session, so the
+		// compacting assert runs in a fresh session.
+		const sess2 = "escaped-memory-sess-2";
+		await hooks.event?.({
+			event: {
+				type: "session.created",
+				properties: { info: { id: sess2 } },
+			} as never,
+		});
+		await hooks["chat.message"]?.(
+			{ sessionID: sess2 },
+			{
+				message: {} as never,
+				parts: [{ type: "text", text: "fix typecheck" }] as never,
+			},
+		);
 		await hooks["experimental.session.compacting"]?.(
-			{ sessionID: sess },
+			{ sessionID: sess2 },
 			compactOutput,
 		);
 		expect(compactOutput.context.length).toBe(1);
@@ -373,16 +456,16 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		});
 
 		await waitForAsync(async () => {
-			const mems = await queryMemories(sess, "typecheck");
+			const mems = await queryMemories(sess, "TS2304");
 			return mems.some((m) => m.content.includes("Verify types and imports"));
 		});
 
-		const mems = await queryMemories(sess, "typecheck");
+		const mems = await queryMemories(sess, "TS2304");
 		const lesson = mems.find((m) =>
 			m.content.includes("Verify types and imports"),
 		);
 		expect(lesson).toBeDefined();
-		expect(lesson?.content).toContain("When bash fails with typecheck");
+		expect(lesson?.content).toContain("When bash fails with TS2304");
 		expect(lesson?.content).toContain("TS2304: Cannot find name 'foo'");
 	});
 
@@ -492,11 +575,11 @@ describe("ciclo completo Observe -> Learn -> Share", () => {
 		);
 
 		await waitForAsync(async () => {
-			const mems = await queryMemories(sess, "typecheck");
+			const mems = await queryMemories(sess, "TS2304");
 			return mems.some((m) => m.content.includes("Verify types and imports"));
 		});
 
-		const memories = await queryMemories(sess, "typecheck");
+		const memories = await queryMemories(sess, "TS2304");
 		const lesson = memories.find((m) =>
 			m.content.includes("Verify types and imports"),
 		);
@@ -631,6 +714,10 @@ describe("K3-026: cap", () => {
 			join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
 			join(migrationsDir, "004_v03_knowledge.sql"),
 		);
+		copyFileSync(
+			join(process.cwd(), "migrations", "005_v04_signal.sql"),
+			join(migrationsDir, "005_v04_signal.sql"),
+		);
 		hooksCap = await KevinPlugin({ directory: tmpRootCap } as PluginInput, {
 			dbPath: ":memory:",
 			migrationsDir,
@@ -750,10 +837,14 @@ describe("K3-026: cap", () => {
 			evidence_count: number;
 		};
 		expect(why.summary).toContain("TS2304");
-		expect(why.confidence).toBeGreaterThanOrEqual(0.6);
+		// v0.4.0 (K4-010) — two-sided confidence: multiple recurrences of
+		// the same fingerprint demote the pattern (0.5 + 0.1 evidence
+		// - 0.15 recurrence = 0.45 here), so the legacy floor of 0.6 no
+		// longer holds for a penalized pattern.
+		expect(why.confidence).toBeGreaterThanOrEqual(0.4);
 		expect(why.evidence_count).toBeGreaterThanOrEqual(1);
 
-		expect(s.metrics.patterns_causal).toBeGreaterThanOrEqual(1);
+		expect(s.metrics.patterns_promoted_new).toBeGreaterThanOrEqual(1);
 	});
 
 	it("two sessions accumulate evidence_count across sessions", async () => {
@@ -837,7 +928,10 @@ describe("K3-026: cap", () => {
 			},
 			{ title: "bash", output: errOut, metadata: {} },
 		);
-		await new Promise((r) => setTimeout(r, 50));
+		await waitForAsync(async () => {
+			const m = await queryCap(sessB, "TS2322");
+			return m.some((x) => x.content.includes("TS2322"));
+		}, 2000);
 		await hooksCap["tool.execute.before"]?.(
 			{ tool: "bash", sessionID: sessB, callID: "b-fix" },
 			{ args: { command: "npm run typecheck" } },
@@ -857,7 +951,17 @@ describe("K3-026: cap", () => {
 				properties: { sessionID: sessB },
 			} as never,
 		});
-		await new Promise((r) => setTimeout(r, 100));
+		await waitForAsync(async () => {
+			const whyR = await hooksCap.tool?.kevin_why.execute(
+				{ query: "TS2322" },
+				makeCtx(sessB),
+			);
+			const why = JSON.parse((whyR as { output: string }).output) as {
+				confidence: number;
+				evidence_count: number;
+			};
+			return why.evidence_count >= 2;
+		}, 2000);
 
 		const whyB = await hooksCap.tool?.kevin_why.execute(
 			{ query: "TS2322" },
@@ -868,7 +972,10 @@ describe("K3-026: cap", () => {
 			evidence_count: number;
 			summary: string;
 		};
-		expect(rB.confidence).toBeGreaterThanOrEqual(0.7);
+		// v0.4.0 (K4-010) — two-sided confidence: session B is a recurrence
+		// of the same fingerprint, so the pattern is demoted by 0.15
+		// (0.5 + 0.2 evidence - 0.15 recurrence = 0.55).
+		expect(rB.confidence).toBeGreaterThanOrEqual(0.5);
 		expect(rB.evidence_count).toBeGreaterThanOrEqual(2);
 		expect(rB.summary).toContain("TS2322");
 	});

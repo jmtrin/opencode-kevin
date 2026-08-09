@@ -9,7 +9,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
+import {
+	MemoryService,
+	type SlimMemory,
+	type SlimMemoryWithEvidence,
+} from "../../plugin/MemoryService.js";
 import { Migrate } from "../../plugin/Migrate.js";
 import { Store } from "../../plugin/Store.js";
 import { METRIC_KEYS, type Metrics } from "../../plugin/metrics.js";
@@ -27,6 +31,10 @@ const SQL_004 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
+const SQL_005 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "005_v04_signal.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -39,6 +47,7 @@ beforeEach(() => {
 	writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);
 	writeFileSync(join(migrationsDir, "004_v03_knowledge.sql"), SQL_004);
+	writeFileSync(join(migrationsDir, "005_v04_signal.sql"), SQL_005);
 	store = new Store({ path: ":memory:" });
 	void new Migrate(store, migrationsDir).run();
 });
@@ -233,6 +242,36 @@ describe("MemoryService v0.2.0 — origin/project/fingerprint/dedup (K2-006)", (
 		expect(rows[0].origin).toBe("reflector");
 		expect(rows[0].projectId).toBe("proj-A");
 		expect(rows[0].fingerprint).toBeTruthy();
+	});
+
+	it("BUG-001 — slim rows carry evidence fields ONLY when evidence: true", () => {
+		const svc = new MemoryService(store);
+		const id = svc.save({
+			type: "rule",
+			content: "when typecheck fails import the module first",
+			scope: "project",
+			evidenceCount: 2,
+			lastVerifiedAt: "2026-08-01 10:00:00",
+		});
+
+		// Default (evidence absent): minimal slim shape, no evidence keys.
+		const plain = svc.query({ text: "typecheck", limit: 5 }) as SlimMemory[];
+		expect(plain[0]?.id).toBe(id);
+		expect(plain[0]).not.toHaveProperty("confidence");
+		expect(plain[0]).not.toHaveProperty("evidence_count");
+		expect(plain[0]).not.toHaveProperty("last_verified_at");
+
+		// evidence: true → the mapper fills the v0.3 evidence payload
+		// (the old code cast slim rows to Memory and read undefined).
+		const ev = svc.query({
+			text: "typecheck",
+			limit: 5,
+			evidence: true,
+		}) as SlimMemoryWithEvidence[];
+		expect(ev[0]?.id).toBe(id);
+		expect(ev[0]?.confidence).toBeCloseTo(0.7, 5); // computeConfidence(2, 0)
+		expect(ev[0]?.evidence_count).toBe(2);
+		expect(ev[0]?.last_verified_at).toBe("2026-08-01 10:00:00");
 	});
 
 	it("MemoryRow mapping falls back to null for projectId/fingerprint on legacy-style inserts (origin defaults to 'agent' per migration 003 DEFAULT)", () => {

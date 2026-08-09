@@ -9,7 +9,8 @@ const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * v0.3.0 fix — A single parsed bundle entry. `evidence_count` and
  * `last_verified_at` are preserved across round-trips (export → import)
  * so causal confidence is not lost when knowledge is shared between
- * projects.
+ * projects. v0.4.0 (BUG-008) — `recurrence_count` too, so the two-sided
+ * v0.4.0 confidence demotion survives the round-trip.
  */
 export interface ParsedEntry {
 	id: string;
@@ -17,6 +18,8 @@ export interface ParsedEntry {
 	content: string;
 	fingerprint: string | null;
 	evidence_count: number;
+	/** v0.4.0 (BUG-008) — recurrence demotion, 0 when absent. */
+	recurrence_count: number;
 	last_verified_at: string | null;
 }
 
@@ -120,6 +123,8 @@ export function parseMarkdownBundle(text: string): ParsedEntry[] {
 		const id = ID_RE.test(fm.id) ? fm.id : uuidv7();
 		const fp = fm.fingerprint ?? null;
 		const evidenceCount = Number.parseInt(fm.evidence_count ?? "0", 10) || 0;
+		const recurrenceCount =
+			Number.parseInt(fm.recurrence_count ?? "0", 10) || 0;
 		const lastVerified = fm.last_verified_at ?? null;
 		entries.push({
 			id,
@@ -127,6 +132,7 @@ export function parseMarkdownBundle(text: string): ParsedEntry[] {
 			content,
 			fingerprint: fp,
 			evidence_count: evidenceCount,
+			recurrence_count: recurrenceCount,
 			last_verified_at: lastVerified,
 		});
 	}
@@ -159,20 +165,44 @@ export function parseMarkdownHeadings(text: string): ParsedEntry[] {
 
 		const fm: Record<string, string> = {};
 		let bodyStart = -1;
+		// True once at least one `- **Key:**` bullet was consumed; the
+		// body starts at the FIRST blank line AFTER the bullet block.
+		// Blank lines before any bullet (e.g. right after the `##` heading)
+		// must be skipped, not treated as body delimiters.
+		let sawBullet = false;
 		for (let k = 1; k < lines.length; k++) {
 			const ln = lines[k];
 			const bulletId = ln.match(/^- \*\*ID:\*\*\s*`([^`]+)`/);
 			const bulletFp = ln.match(/^- \*\*Fingerprint:\*\*\s*`([a-f0-9]+)`/i);
 			const bulletEv = ln.match(/^- \*\*Evidence count:\*\*\s*(\d+)/);
+			const bulletRec = ln.match(/^- \*\*Recurrence count:\*\*\s*(\d+)/);
 			const bulletLv = ln.match(/^- \*\*Last verified:\*\*\s*(.+)$/);
-			if (bulletId) fm.id = bulletId[1];
-			else if (bulletFp) fm.fingerprint = bulletFp[1];
-			else if (bulletEv) fm.evidence_count = bulletEv[1];
-			else if (bulletLv) fm.last_verified_at = bulletLv[1].trim();
-			else if (ln.trim() === "") {
+			if (bulletId) {
+				fm.id = bulletId[1];
+				sawBullet = true;
+			} else if (bulletFp) {
+				fm.fingerprint = bulletFp[1];
+				sawBullet = true;
+			} else if (bulletEv) {
+				fm.evidence_count = bulletEv[1];
+				sawBullet = true;
+			} else if (bulletRec) {
+				fm.recurrence_count = bulletRec[1];
+				sawBullet = true;
+			} else if (bulletLv) {
+				fm.last_verified_at = bulletLv[1].trim();
+				sawBullet = true;
+			} else if (ln.trim() === "") {
 				// First blank line after bullet block — body starts here.
-				if (bodyStart < 0) bodyStart = k + 1;
-				break;
+				if (sawBullet) {
+					bodyStart = k + 1;
+					break;
+				}
+				// Leading blank line (right after the heading) — skip.
+			} else {
+				// Other bullets (e.g. `- **Confidence:**`, `- **Scope:**`)
+				// are not captured — skip them; the bullet block ends at
+				// the next blank line.
 			}
 		}
 		if (bodyStart < 0) bodyStart = 1;
@@ -192,6 +222,7 @@ export function parseMarkdownHeadings(text: string): ParsedEntry[] {
 			content,
 			fingerprint: fm.fingerprint ?? null,
 			evidence_count: Number.parseInt(fm.evidence_count ?? "0", 10) || 0,
+			recurrence_count: Number.parseInt(fm.recurrence_count ?? "0", 10) || 0,
 			last_verified_at: fm.last_verified_at ?? null,
 		});
 	}
@@ -242,15 +273,6 @@ export function importOkf(
 		const fp =
 			entry.fingerprint ?? computeFingerprint(entry.content, undefined);
 
-		const contentWithEvidence =
-			entry.evidence_count > 0
-				? `${entry.content}\n\n[imported evidence_count=${entry.evidence_count}${
-						entry.last_verified_at
-							? `, last_verified_at=${entry.last_verified_at}`
-							: ""
-					}]`
-				: entry.content;
-
 		// Count rows that save() will mark as superseded (decision/rule
 		// with the same fingerprint). The supersede update itself runs
 		// inside MemoryService.save() in a single transaction; we count
@@ -263,12 +285,23 @@ export function importOkf(
 
 		memoryService.save({
 			type: entry.type as "decision" | "rule" | "pattern" | "context",
-			content: contentWithEvidence,
+			// BUG-008 — preserve the bundle id so a round-trip (export →
+			// import) keeps memory identity and `getById` stays stable.
+			id: entry.id,
+			// BUG-009 — the content is the bundle body verbatim. The old
+			// code appended `[imported evidence_count=N, ...]`, which the
+			// ContextInjector later injected verbatim into model prompts;
+			// the values travel via the typed fields below instead.
+			content: entry.content,
 			scope: "project",
 			origin: "imported",
 			fingerprint: fp,
 			evidenceCount:
 				entry.evidence_count > 0 ? entry.evidence_count : undefined,
+			// BUG-008 — restore the recurrence demotion so the re-imported
+			// copy keeps the v0.4.0 two-sided confidence of the source.
+			recurrenceCount:
+				entry.recurrence_count > 0 ? entry.recurrence_count : undefined,
 			lastVerifiedAt: entry.last_verified_at ?? undefined,
 		});
 		imported++;

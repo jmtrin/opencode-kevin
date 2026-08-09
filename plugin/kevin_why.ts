@@ -1,5 +1,7 @@
 import { TS_CODE_RULES } from "./Reflector.js";
 import type { Store } from "./Store.js";
+import { computeConfidence } from "./confidence.js";
+import { toMatchClause, tokenizeQuery } from "./query-tokenizer.js";
 
 export interface WhyInput {
 	query: string;
@@ -16,6 +18,10 @@ export interface WhyResult {
 	summary: string;
 	confidence: number;
 	evidence_count: number;
+	/** v0.4.0 (K4-020) — negative evidence for the honest phrasing. */
+	recurrence_count: number;
+	/** v0.4.0 (K4-020) — deterministic "Fixed by:" raw material, if any. */
+	fix_args: string | null;
 	last_verified: string | null;
 	trace: WhyTraceEvent[];
 	related_rules: string[];
@@ -27,66 +33,64 @@ export function kevinWhy(store: Store, query: string): WhyResult | null {
 	// sequence. Tokenize like MemoryService.queryRelevant: quote each
 	// word (escaping inner quotes) and AND them together, so partial or
 	// multi-word queries still hit the FTS index.
-	const tokens = query
-		.trim()
-		.split(/\s+/)
-		.filter((t) => t.length > 0)
-		.map((t) => `"${t.replace(/"/g, '""')}"`);
+	const tokens = tokenizeQuery(query);
 	if (tokens.length === 0) return null;
-	const match = tokens.join(" AND ");
+	const match = toMatchClause(tokens, " AND ");
 
-	const patternRows = store
-		.prepare(
-			`SELECT m.id, m.content, m.fingerprint, m.evidence_count,
-			        m.last_verified_at, m.created_at
-			 FROM memories_fts
-			 JOIN memories m ON m.rowid = memories_fts.rowid
-			 WHERE memories_fts MATCH ?
-			   AND m.type = 'pattern'
-			   AND m.origin IN ('causal', 'pattern')
-			   AND m.status = 'active'
-			 ORDER BY m.evidence_count DESC, m.created_at DESC
-			 LIMIT 1`,
-		)
-		.all(match) as {
+	// Best-effort (v0.4.0): DBs pre-005 lack `recurrence_count`; degrade
+	// to "no explanation" instead of crashing the calling session.
+	let patternRows: {
 		id: string;
 		content: string;
 		fingerprint: string;
 		evidence_count: number;
+		recurrence_count: number;
+		fix_args: string | null;
 		last_verified_at: string | null;
 		created_at: string;
 	}[];
+	try {
+		patternRows = store
+			.prepare(
+				`SELECT m.id, m.content, m.fingerprint, m.evidence_count,
+				        m.recurrence_count, m.fix_args, m.last_verified_at, m.created_at
+				 FROM memories_fts
+				 JOIN memories m ON m.rowid = memories_fts.rowid
+				 WHERE memories_fts MATCH ?
+				   AND m.type = 'pattern'
+				   AND m.origin IN ('causal', 'pattern')
+				   AND m.status = 'active'
+				 ORDER BY m.evidence_count DESC, m.created_at DESC
+				 LIMIT 1`,
+			)
+			.all(match) as {
+			id: string;
+			content: string;
+			fingerprint: string;
+			evidence_count: number;
+			recurrence_count: number;
+			fix_args: string | null;
+			last_verified_at: string | null;
+			created_at: string;
+		}[];
+	} catch {
+		return null;
+	}
 
 	if (patternRows.length === 0) return null;
 
 	const pattern = patternRows[0];
 	const fp = pattern.fingerprint;
-	const confidence = Math.min(1.0, 0.5 + 0.1 * (pattern.evidence_count ?? 0));
+	// v0.4.0 (K4-010) — two-sided confidence shared with promoteToPattern.
+	const confidence = computeConfidence(
+		pattern.evidence_count ?? 0,
+		pattern.recurrence_count ?? 0,
+	);
 
-	const traceRows = store
-		.prepare(
-			`SELECT tc.session_id, tc.ts, tc.success,
-			        m.id as memory_id, m.type as memory_type, m.created_at as memory_created_at
-			 FROM tool_calls tc
-			 LEFT JOIN memories m ON m.fingerprint = tc.fix_for_fingerprint
-				 AND m.type = 'error' AND m.origin = 'reflector'
-			 WHERE (tc.fix_for_fingerprint = ? OR tc.fingerprint LIKE ?)
-			   AND tc.session_id IN (
-				   SELECT DISTINCT source_session FROM memories
-				   WHERE fingerprint = ? AND type = 'error'
-			   )
-			 ORDER BY tc.ts ASC
-			 LIMIT 20`,
-		)
-		.all(fp, `%${fp.slice(0, 8)}%`, fp) as {
-		session_id: string;
-		ts: string;
-		success: number;
-		memory_id: string | null;
-		memory_type: string | null;
-		memory_created_at: string | null;
-	}[];
-
+	// BUG-007 — the trace is built from the error-memory sessions below;
+	// the legacy `traceRows` probe (executed but unused, with a
+	// never-matching `tc.fingerprint LIKE '%<8-hex>%'` branch against the
+	// tool|args|success hash) was deleted.
 	const trace: WhyTraceEvent[] = [];
 
 	const errorSessions = store
@@ -138,12 +142,36 @@ export function kevinWhy(store: Store, query: string): WhyResult | null {
 		relatedRules.push(hint);
 	}
 
-	const summary = `When tool fails with ${query}: ${confidence >= 0.7 ? "consistently" : "often"} resolved by fixing ${relatedRules.length > 0 ? relatedRules.join(", ") : "the underlying issue"}.`;
+	// v0.4.0 (K4-020) — honest summary (plan §5.3 / D4-11): with
+	// recurrences the pattern is NOT consistently resolved, so the
+	// phrasing reports the real success ratio ("resolved in N of M
+	// attempts") instead of "consistently resolved".
+	const evidenceCount = pattern.evidence_count ?? 0;
+	const recurrence = pattern.recurrence_count ?? 0;
+	let summary: string;
+	if (recurrence > 0) {
+		const fix = pattern.fix_args
+			? `fixing ${pattern.fix_args}`
+			: `fixing ${
+					relatedRules.length > 0
+						? relatedRules.join(", ")
+						: "the underlying issue"
+				}`;
+		summary = `When tool fails with ${query}: resolved in ${evidenceCount} of ${evidenceCount + recurrence} attempts by ${fix}.`;
+	} else {
+		summary = `When tool fails with ${query}: ${
+			confidence >= 0.7 ? "consistently" : "often"
+		} resolved by fixing ${
+			relatedRules.length > 0 ? relatedRules.join(", ") : "the underlying issue"
+		}.`;
+	}
 
 	return {
 		summary,
 		confidence,
-		evidence_count: pattern.evidence_count ?? 0,
+		evidence_count: evidenceCount,
+		recurrence_count: recurrence,
+		fix_args: pattern.fix_args ?? null,
 		last_verified: pattern.last_verified_at ?? null,
 		trace,
 		related_rules: relatedRules,

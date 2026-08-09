@@ -1,3 +1,8 @@
+import {
+	type EnrichFn,
+	enrichAtPromotion,
+	extractFixArgs,
+} from "./LessonFixer.js";
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
 import type { Metrics } from "./metrics.js";
@@ -10,6 +15,10 @@ export class CausalChain {
 		private store: Store,
 		private memoryService: MemoryService,
 		private metrics: Metrics | null,
+		// v0.4.0 (K4-015) — opt-in promotion-time LLM phrasing. Absent in
+		// production (zero network calls by default); injected by tests or
+		// by a future settings-driven wiring.
+		private enrichFn?: EnrichFn,
 	) {}
 
 	// K3-007: link a success to the failing fingerprint only when it
@@ -27,11 +36,13 @@ export class CausalChain {
 	): void {
 		const successRow = this.store
 			.prepare(
-				`SELECT rowid FROM tool_calls
+				`SELECT rowid, tool, args_summary FROM tool_calls
 				 WHERE session_id = ? AND success = 1
 				 ORDER BY rowid DESC LIMIT 1`,
 			)
-			.get(sessionId) as { rowid: number } | undefined;
+			.get(sessionId) as
+			| { rowid: number; tool: string; args_summary: string | null }
+			| undefined;
 		if (!successRow) return;
 
 		const linkedFps = new Set(
@@ -73,7 +84,7 @@ export class CausalChain {
 				.prepare(
 					`SELECT 1 FROM memories
 					 WHERE fingerprint = ? AND type = 'error'
-					   AND origin = 'reflector' AND status = 'active'
+					   AND origin = 'reflector' AND status IN ('active', 'stale')
 					   AND created_at > datetime('now', '-24 hours')
 					 LIMIT 1`,
 				)
@@ -85,15 +96,33 @@ export class CausalChain {
 					"UPDATE tool_calls SET fix_for_fingerprint = ? WHERE rowid = ?",
 				)
 				.run(fail.fp, successRow.rowid);
+
+			// v0.4.0 (K4-014) — deterministic "Fixed by:" raw material
+			// (plan §5.4 / D4-07): copy the linked success call's
+			// args_summary into memories.fix_args for every active row of
+			// that fingerprint (error + pattern), zero LLM cost.
+			const fixArgs = extractFixArgs({
+				tool: successRow.tool,
+				args_summary: successRow.args_summary ?? null,
+			});
+			if (fixArgs) {
+				this.store
+					.prepare(
+						`UPDATE memories SET fix_args = ?
+						 WHERE fingerprint = ? AND status IN ('active', 'stale')`,
+					)
+					.run(fixArgs, fail.fp);
+			}
+
 			this.metrics?.incr("causal_links", 1);
 			return;
 		}
 	}
 
-	onSessionIdle(sessionId: string): number {
+	async onSessionIdle(sessionId: string): Promise<number> {
 		const linkedErrors = this.store
 			.prepare(
-				`SELECT m.id, m.fingerprint,
+				`SELECT m.id, m.fingerprint, m.recurrence_count,
 				        (SELECT COUNT(*)
 				         FROM tool_calls tc_all
 				         WHERE tc_all.fix_for_fingerprint = m.fingerprint) as evidence_count
@@ -105,35 +134,49 @@ export class CausalChain {
 				       FROM tool_calls
 				       WHERE session_id = ? AND fix_for_fingerprint IS NOT NULL
 				   )
-				   AND m.status = 'active'
+				   AND m.status IN ('active', 'stale')
 				 GROUP BY m.fingerprint
 				 HAVING (
-				     SELECT MAX(tc.rowid) FROM tool_calls tc
+				     SELECT MAX(tc.ts) FROM tool_calls tc
 				     WHERE tc.fix_for_fingerprint = m.fingerprint
-				 ) > COALESCE(
-				     (SELECT MAX(m2.rowid) FROM memories m2
+				 ) >= COALESCE(
+				     (SELECT MAX(m2.updated_at) FROM memories m2
 				      WHERE m2.fingerprint = m.fingerprint
 				        AND m2.type = 'pattern'
 				        AND m2.origin = 'causal'),
-				     0
+				     '1970-01-01'
 				 )`,
 			)
 			.all(sessionId) as {
 			id: string;
 			fingerprint: string;
+			recurrence_count: number;
 			evidence_count: number;
 		}[];
 
 		let promoted = 0;
 		for (const err of linkedErrors) {
 			try {
-				const id = this.memoryService.promoteToPattern(
+				const result = this.memoryService.promoteToPattern(
 					err.id,
 					err.evidence_count,
+					err.recurrence_count ?? 0,
 				);
-				if (id) {
+				if (result) {
 					promoted++;
-					this.metrics?.incr("patterns_causal", 1);
+					// v0.4.0 (K4-009) — only a NEW pattern row counts as a
+					// promotion; the idempotent refresh path no longer
+					// inflates the metric. `patterns_causal` is deprecated
+					// (key kept for compat, never incremented).
+					if (result.created) {
+						this.metrics?.incr("patterns_promoted_new", 1);
+						// v0.4.0 (K4-015) — promotion-time LLM enrichment:
+						// at most one call per NEW pattern, gated on
+						// `kevin_settings.llm_reflection_enabled` and the
+						// per-pattern `metadata.enriched` marker. Never on
+						// the failure hot path.
+						await this.enrichIfEnabled(err.id, result.id);
+					}
 				}
 			} catch {
 				// promoteToPattern may fail if the error memory was removed
@@ -141,5 +184,46 @@ export class CausalChain {
 		}
 
 		return promoted;
+	}
+
+	/**
+	 * v0.4.0 (K4-015) — fire the opt-in enrich hook at most once per
+	 * promoted pattern. The hook's one-line phrase replaces the
+	 * deterministic `Fixed by:` line; null keeps it. A call (phrase or
+	 * not) stamps `metadata.enriched` so repeated idle cycles stay at
+	 * one LLM call per pattern.
+	 */
+	private async enrichIfEnabled(
+		errorId: string,
+		patternId: string,
+	): Promise<void> {
+		if (!this.enrichFn || !this.isLlmReflectionEnabled()) return;
+		const pattern = this.memoryService.getById(patternId);
+		if (!pattern) return;
+		const meta = (pattern.metadata ?? {}) as Record<string, unknown>;
+		if (meta.enriched === true) return;
+
+		const phrase = await this.enrichFn({
+			lesson: pattern.content,
+			fixArgs: pattern.fixArgs ?? null,
+			originalError: this.memoryService.getById(errorId)?.content ?? null,
+		});
+
+		const content = phrase
+			? pattern.content.includes("\nFixed by: ")
+				? pattern.content.replace(/\nFixed by: .+$/s, `\n${phrase}`)
+				: `${pattern.content}\n${phrase}`
+			: pattern.content;
+		this.memoryService.update(patternId, {
+			content,
+			metadata: { ...meta, enriched: true },
+		});
+	}
+
+	private isLlmReflectionEnabled(): boolean {
+		const row = this.store
+			.prepare("SELECT value FROM kevin_settings WHERE key = ?")
+			.get("llm_reflection_enabled") as { value: string } | undefined;
+		return row?.value === "1";
 	}
 }

@@ -10,6 +10,7 @@ export interface ToolExecuteInput {
 	agent?: string;
 	sessionId?: string;
 	callID?: string;
+	projectId?: string | null;
 }
 
 export interface ToolExecuteOutput {
@@ -20,12 +21,16 @@ export interface ToolExecuteOutput {
 }
 
 const SECRET_PATTERNS: RegExp[] = [
-	/(API_KEY|SECRET|PASSWORD|TOKEN)\s*[=:]\s*\S+/gi,
+	/\b(API_KEY|SECRET|PASSWORD|TOKEN)\b\s*[=:]\s*\S+/gi,
 	/\bBearer\s+\S+/gi,
-	/\btoken\s+\S+/gi,
+	// BUG-013 — the old `\btoken\s+\S+/gi` mangled harmless phrasing
+	// ("token budget", "token count", "max token limit") that LLM tools
+	// emit routinely. Narrowed to credential contexts: named token
+	// variables WITH an assignment, and `token=<value>` / `token:
+	// <value>` assignments.
+	/\b(access_?token|auth_?token|api_?token)\b\s*[=:]\s*\S+/gi,
+	/\btoken\s*[=:]\s*\S+/gi,
 ];
-
-const SECRET_VALUE_PATTERN = /\s*=\s*\S+(.*)$/;
 
 export class ToolCallObserver {
 	private startTs = new Map<string, number>();
@@ -59,7 +64,7 @@ export class ToolCallObserver {
 				? this.inferErrorType(stderr, stdout, output.exitCode)
 				: null;
 		const metadata = JSON.stringify(this.redactArgs(input.args ?? {}));
-		const projectId: string | null = null;
+		const projectId = input.projectId ?? null;
 		const fp = computeFingerprint(
 			`${input.tool}|${argsSummary}|${success}`,
 			projectId ?? undefined,
@@ -119,10 +124,12 @@ export class ToolCallObserver {
 		let out = text;
 		for (const pat of SECRET_PATTERNS) {
 			out = out.replace(pat, (match) => {
-				const eq = match.match(SECRET_VALUE_PATTERN);
-				if (eq) {
-					const label = match.split(/[=:]/)[0].trim();
-					return `${label}=<redacted>`;
+				// BUG-013 — preserve the original separator so
+				// `auth_token = abc123` keeps its spacing: only the
+				// value is replaced.
+				const m = match.match(/^(.+?)(\s*[=:]\s*)(\S+)$/);
+				if (m) {
+					return `${m[1]}${m[2]}<redacted>`;
 				}
 				const parts = match.split(/\s+/);
 				return `${parts[0]} <redacted>`;

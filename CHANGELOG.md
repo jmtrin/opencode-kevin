@@ -4,6 +4,57 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-08-09
+
+### Added — Signal over Noise
+
+- **QualityGate** (`plugin/QualityGate.ts` + `005_v04_signal.sql`): every reflector lesson is evaluated (`evaluate`: strong `errorType` → actionable; rescued code → actionable; weak/unresolvable → weak). Weak lessons are **stored but never injected** by default (`quality_gate_enabled=1`), ending the "review the error output" noise injections. Debug mode (`quality_gate_enabled=0`) re-enables them with a `(low confidence)` marker.
+- **InjectionLedger + precision_rate** (`plugin/InjectionLedger.ts` + `kevin_injections` table): every injection is recorded (`pre_prompt`/`compacting`, tokens); `session.idle` settles unmeasured rows as `effective`/`ineffective`; `kevin_status` reports `injections_total`, `injections_effective`, `injections_ineffective` and derived `precision_rate` — honest metrics instead of raw counters.
+- **Two-sided confidence** (`plugin/confidence.ts`): shared `computeConfidence(ev, rec) = clamp(0.5 + 0.1·ev − 0.15·rec, 0.05, 0.95)` used by `promoteToPattern` and `kevin_why`. Recurrence now *lowers* confidence (negative half) instead of only evidence raising it.
+- **Deterministic fix_args capture** (`plugin/LessonFixer.ts`): the fix command is captured from the causal chain success call deterministically; `kevin_why` summarizes honestly ("resolved in 3 of 4 attempts", never "consistently" when recurrences exist).
+- **Promotion-time LLM enrichment (opt-in)**: when `llm_reflection_enabled=1`, `CausalChain` may call an LLM to write the `Fixed by:` line at pattern promotion; default stays deterministic (one call max per pattern, `metadata.enriched` seal).
+- **Smarter HITL suggestion**: after a stale/recurring lesson, the injected suggestion block proposes adding an AGENTS.md entry; `retrospective` includes false-positive recap.
+- **Compacting hook fix**: the dead `experimental.session.compacting` hook now resolves the query per-session (map registered in `chat.message`) instead of early-returning on a null global `lastUserQuery` — `tokens_injected_compacting` finally moves.
+- **Project scoping wiring** (`plugin/index.ts`): `kevin_status`/metrics respect the project; `recurrence_by_origin` reports per-origin recurrence totals.
+- **kevin_config tool** (10th tool): `list`/`set` settings (e.g. `quality_gate_enabled`, `lesson_snippet_injection`) without SQL; unknown keys rejected unless `strict: false`.
+- **Corrected metrics**: `patterns_causal` frozen raw key kept for compat; human-facing promotion reading is `patterns_promoted_new`.
+- **Expanded deterministic rule coverage**: `TS2307`, `TS2339`/`TS2305`, `TS6133`, Rust `E0433`/`E0432`, syscall `EADDRINUSE`, and command-not-found (`COMMAND_NOT_FOUND_RE`: `rg: command not found` / PowerShell "The term 'rg' is not recognized").
+
+### Changed
+
+- Injection payload is now a **snippet** (2-line rows + `id:` + `<protect>`) by default (`lesson_snippet_injection=1`); full memory body available via `kevin_get` (progressive disclosure).
+- `kevin_status` precision block: `precision_rate`, `injections_total/effective/ineffective`, `patterns_promoted_new`, `recurrence_by_origin`.
+- `kevin_why` output: `recurrence_count`, `fix_args` fields; honest "N of M attempts" summaries.
+- `session.idle` now wires `ledger.settle` and `CausalChain.onSessionIdle` (best-effort try/catch on legacy DBs without 005).
+
+### Tests
+
+- **K4-025 — closed-loop e2e** (`tests/e2e/closed-loop.test.ts`): fail → inject → recur×3 (stale) → no re-inject → fix → promote → re-inject the pattern, all through public plugin entry points, no `kevin_save`.
+- **K4-026** — backward-compat migration from v0.3 DB (`tests/e2e/migrate-from-v030.test.ts`).
+- **K4-027** — injection purity validation (`tests/e2e/injection-purity.test.ts`): no `unknown`/generic-suggestion/duplicate/non-error rows in injected blocks.
+- **K4-018** — compacting hook regression (`tests/e2e/compacting-hook.test.ts`).
+- 59 test files / 548 tests green; `tsc --noEmit`, Biome, and `npm run verify` clean.
+
+### Fixed
+
+- **Bug backlog closed — 16/16** (catalog + status per task in `docs/Kevin_v0.4.0_Bugs.md`, source-audit verified):
+  - **T1** `kevin_query(evidence: true)` now returns real `confidence`/`evidence_count`/`last_verified_at` in the slim payload (was always `null` via a broken cast).
+  - **T2** `cross_project_enabled` compares TEXT `"1"` (was `'1' === 1`, opt-in permanently off).
+  - **T3** `InjectionLedger.settle` counts cross-session recurrences (lesson created in session A, injected in B, failed after injection → `ineffective`).
+  - **T4** retrospective false-positive recap matches `COALESCE(error_fingerprint, fingerprint)` (was a different identity dimension — dead in production).
+  - **T5** `QualityGate.evaluate` semantics wired into `ContextInjector.admit` (generic-suggestion lessons with `dispatch.code == null` are not admitted).
+  - **T6** `CausalChain.onSessionIdle` refresh guard compares timestamps `MAX(tc.ts) >= MAX(m2.updated_at)` (was cross-table rowid comparison — meaningless). `>=` (not `>`) so a fix in the same second as the pattern refreshes (K3-026 regression).
+  - **T7** `kevin_why` dead `traceRows` query removed; never-matching `LIKE` branch dropped.
+  - **T8** OKF round-trip fidelity: export carries `recurrence_count` + two-sided confidence via `computeConfidence` (legacy one-sided formula only for pre-005 DBs); `save()` persists `recurrence_count` (column-probe guarded) and accepts an explicit `id` so import keeps identity; `formatTimestamp` treats SQLite UTC strings as UTC (no local-offset shift); markdown headings parser captures bullets after heading blank lines.
+  - **T9** `okf-import` no longer embeds the `[imported evidence_count=…]` marker into content (was injected verbatim into model prompts); values travel as typed fields.
+  - **T10** `kevin_get` payload completed: `confidence`, `evidenceCount`, `recurrenceCount`, `lastVerifiedAt`, `status`, `fixArgs`.
+  - **T11** global `lastUserQuery` no longer bleeds across sessions (per-session map in the transform hook; cleared on `session.idle`, deleted on `session.created`).
+  - **T12** HITL suggestion semantics made explicit (once per session, documented in code).
+  - **T13** `redactSecrets` narrowed: harmless "token budget"/"token count" phrasing survives; `token=abc123` redacted (word-boundary + assignment requirement; separator preserved).
+  - **T14** `METRIC_KEY_LABELS` complete: all 13 v0.4 keys render a label (no raw-key fallback).
+  - **T15** fingerprint-less agent memories no longer produce unmeasurable ledger rows (settled as `effective` immediately).
+  - **T16** `ContextInjector.inject()` single `getRelevant` fetch — relevance scores bump exactly once per inject call (was double-fetch/double-bump).
+
 ## [0.3.0] — 2026-07-25
 
 ### Added — Knowledge + Causality
