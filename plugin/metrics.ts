@@ -21,6 +21,16 @@ export const METRIC_KEYS = [
 	"injections_effective",
 	"injections_ineffective",
 	"patterns_promoted_new",
+	// v0.5.0 (K5-004 / plan §8.3) — order matches migration 006's seed block.
+	"injections_inconclusive",
+	"injections_blocked_seen",
+	"injections_blocked_weak",
+	"injections_blocked_recurrence",
+	"injections_blocked_stale",
+	"injections_blocked_ignored",
+	"feedback_positive_total",
+	"feedback_negative_total",
+	"memories_archived",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];
@@ -117,12 +127,50 @@ export class Metrics {
 	 * v0.4.0 (K4-008): injection precision = effective / total settled
 	 * injections. 0 when the ledger has no entries yet (no division by zero).
 	 * Computed from the cached counters — does NOT flush.
+	 * v0.5.0 (K5-004 / plan §5.1, D5-02) — the denominator is now
+	 * `effective + ineffective` only. `inconclusive` (the new majority
+	 * bucket) must not inflate precision: absence of recurrence is not
+	 * evidence of effect. An idle session therefore no longer drives
+	 * precision toward 1.0 — expect the reported rate to fall sharply on
+	 * real databases; that is the intended result.
 	 */
 	precisionRate(): number {
+		const effective = this.cache.get("injections_effective") ?? 0;
+		const measured =
+			effective + (this.cache.get("injections_ineffective") ?? 0);
+		if (measured <= 0) return 0;
+		return Math.min(1, effective / measured);
+	}
+
+	/**
+	 * v0.5.0 (K5-004 / plan §5.1, D5-02) — the share of injections that
+	 * were actually measured (effective + ineffective) of all injections.
+	 * Reported alongside `precisionRate` so a low measurable fraction is
+	 * visible rather than hidden behind a large `total`. 0 when the ledger
+	 * is empty. Computed from the cached counters — does NOT flush.
+	 */
+	coverageRate(): number {
 		const total = this.cache.get("injections_total") ?? 0;
 		if (total <= 0) return 0;
-		const effective = this.cache.get("injections_effective") ?? 0;
-		return Math.min(1, effective / total);
+		const measured =
+			(this.cache.get("injections_effective") ?? 0) +
+			(this.cache.get("injections_ineffective") ?? 0);
+		return Math.min(1, measured / total);
+	}
+
+	/**
+	 * v0.5.0 (K5-004 / plan §5.2, D5-02) — the five `injections_blocked_*`
+	 * counters keyed by their short names. Consumed by `kevin_audit`.
+	 * Computed from the cached counters — does NOT flush.
+	 */
+	blockedSnapshot(): Record<string, number> {
+		return {
+			seen: this.cache.get("injections_blocked_seen") ?? 0,
+			weak: this.cache.get("injections_blocked_weak") ?? 0,
+			recurrence: this.cache.get("injections_blocked_recurrence") ?? 0,
+			stale: this.cache.get("injections_blocked_stale") ?? 0,
+			ignored: this.cache.get("injections_blocked_ignored") ?? 0,
+		};
 	}
 
 	/** True iff a debounced flush is scheduled. Useful for tests. */

@@ -71,6 +71,7 @@ describe("K4-008 — v0.4.0 metrics + precision_rate", () => {
 		const metrics = new Metrics(store);
 		metrics.incr("injections_total", 4);
 		metrics.incr("injections_effective", 2);
+		metrics.incr("injections_ineffective", 2);
 		expect(metrics.isFlushScheduled()).toBe(true);
 		expect(metrics.precisionRate()).toBeCloseTo(0.5);
 		// No flush → DB rows untouched.

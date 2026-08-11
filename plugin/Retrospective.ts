@@ -54,6 +54,18 @@ const METRIC_KEY_LABELS: Record<string, string> = {
 	patterns_causal: "Patrones causales",
 	causal_links: "Enlaces causales",
 	memories_superseded: "Memorias superadas",
+	// v0.5.0 (K5-004 / plan §8.3) — the K5 metric keys need their own
+	// Spanish labels; the e2e BUG-014 regression test forbids raw-key
+	// fallback for any key in METRIC_KEYS.
+	injections_inconclusive: "Inyecciones sin conclusión",
+	injections_blocked_seen: "Inyecciones bloqueadas (ya vistas)",
+	injections_blocked_weak: "Inyecciones bloqueadas (débiles)",
+	injections_blocked_recurrence: "Inyecciones bloqueadas (recurrentes)",
+	injections_blocked_stale: "Inyecciones bloqueadas (obsoletas)",
+	injections_blocked_ignored: "Inyecciones bloqueadas (ignoradas)",
+	feedback_positive_total: "Feedback positivo total",
+	feedback_negative_total: "Feedback negativo total",
+	memories_archived: "Memorias archivadas",
 };
 
 function originLabel(

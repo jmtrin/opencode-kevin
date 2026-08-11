@@ -4,6 +4,54 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-11
+
+### Added - Glass Box
+
+- **Human feedback** (`plugin/Feedback.ts` + `kevin_feedback` tool, 11th tool): the agent can rate an injected memory `useful` | `wrong` | `outdated` | `ignore` via `kevin_feedback({ memory_id, verdict })`. Verdicts are stored in a new `memory_feedback` table, counters (`feedback_positive_total` / `feedback_negative_total`) are re-derived from it, and `ignore` is a hard action (D5-07): the memory is stamped `ignored = 1` and excluded from retrieval, `kevin_query` and injection.
+- **Confidence feedback terms** (`plugin/confidence.ts`): `computeConfidence` now takes `positiveFeedback` / `negativeFeedback` (`+0.05` / `-0.1` per count), so a human "this was useful" actually moves the number `kevin_why` reports.
+- **Memory lifecycle completion** (migration `006_v05_glassbox.sql`): `memories.status` gains `archived`; new columns `ignored`, `feedback_positive`, `feedback_negative`, `superseded_by`, `archived_at`. `save()` now populates `superseded_by` on supersession. `kevin_audit` reports the whole lifecycle.
+- **Archiver** (`plugin/Archiver.ts`, 9th component in AGENTS.md): at `session.idle`, stale non-pattern memories older than `archive_after_days` (default 30) are retired to `status='archived'` and stop being retrieved. Metric: `memories_archived`.
+- **`kevin_trace` tool** (12th tool): strict dry-run (D5-08) prediction of exactly what `onSystemTransform` would inject for a query - same retrieval, same gate, zero side effects: no counters, no ledger rows, no seen-set writes, no relevance bumps. Reports admitted/blocked items with their `GateReason` and the estimated `total_tokens`.
+- **`kevin_audit` tool** (13th tool): read-only report of the whole system state - memories by status/origin/type, injection outcomes with `precision_rate` / `coverage_rate`, the five `injections_blocked_*` counters, feedback by verdict, tokens injected. No writes, no LLM; pre-006 databases degrade with `"partial": true`.
+- **Deterministic retrieval** (setting `deterministic_retrieval`, default `0`): freezes Kevin's internal clock (recency factor 1.0, no relevance bumps) for hermetic tests and the replay harness.
+- **Configurable pre-prompt budget** (setting `pre_prompt_budget_tokens`, default `900`, clamped to `[100, 4000]`): the pre-prompt injection cap is read at call time; `kevin_trace` reports the effective cap it used.
+- **Replay harness** (artifact, not a gate - D5-12): `tests/replay/` transcripts + `plugin/replay.ts` + `npm run replay` - a hermetic, deterministic driver that runs a recorded session through the plugin's components against an in-memory DB with a frozen clock and prints the outcome distribution.
+- **`kevin_status` v0.5 fields**: `injections_inconclusive`, `coverage_rate`, `blocked` (the five counters), `memories_ignored`, `memories_archived`, `feedback { positive, negative }`.
+- **9 new metric keys** (migration 006 seeds + `METRIC_KEYS`): `injections_inconclusive`, `injections_blocked_seen`, `injections_blocked_weak`, `injections_blocked_recurrence`, `injections_blocked_stale`, `injections_blocked_ignored`, `feedback_positive_total`, `feedback_negative_total`, `memories_archived` - all with Spanish labels in the retrospective (BUG-014 regression guarded).
+
+### Changed
+
+- **`precision_rate` means something different now.** The old definition counted an injection as `effective` when the error simply did not recur afterward - measuring *absence of recurrence*, not *effect*. v0.5.0 settles injections three ways: `effective` (a linked fix was observed), `ineffective` (the same error recurred), `inconclusive` (neither - the new majority bucket, excluded from the precision denominator). **Users will see their precision rate fall.** That is the intended result: the old number was inflated, not the new one. `coverage_rate` (measured / total) is reported alongside so a low measurable fraction stays visible.
+- **Existing `effective` rows are remapped to `inconclusive`** by migration 006 (v0.4's `effective` is exactly the new `inconclusive` definition); the post-apply hook re-derives the counters from the table. No data loss.
+- Every gate rejection now increments one of the five `injections_blocked_*` counters (a rejection you did not count did not happen - D5-04).
+- Pre-prompt budget default drops **1500 → 900** and becomes a setting (D5-11): the confound fix makes it likely that a large share of injections are `inconclusive`, and charging a 1500-token toll per prompt for an unproven benefit was indefensible.
+- Retrieval, `kevin_query` and injection now exclude `ignored = 1` memories everywhere (the flag was previously only honored in one path).
+- Retrospective metrics section labels all 22 metric keys in Spanish (BUG-014).
+
+### Fixed
+
+- `kevin_why`'s evidence query silently dropped the feedback columns on migrated 006 databases (SELECT was built before the columns existed).
+- Session-query resolution for `kevin_trace`: an omitted `query` resolves from the session's own last user message, never from another session's.
+- `kevin_trace` tool description still advertised the v0.4.0 pre-prompt cap (`cap 1500`); it now reports the v0.5.0 behavior (cap from `pre_prompt_budget_tokens`, default `900`).
+- Replay harness (D5-12) did not reset the injection seen-set on `session.created` events, so a multi-session transcript would wrongly block every memory in later sessions with `seen_this_session` while the live plugin admits it. The harness now mirrors the live wiring (K4-017).
+- `settle()` stamped `memories.last_injected_at` unconditionally for every ineffective row of the session — order-dependent, an older injection could regress a newer one's timestamp. The stamp is now monotonic (`CASE WHEN last_injected_at IS NULL OR ? > last_injected_at`), and the row SELECT is deterministically ordered.
+
+### Known limitations
+
+- **1-second timestamp resolution.** `tool_calls.ts` and `kevin_injections.injected_at` use SQLite `datetime('now')` (second granularity), so `settle()` and `postInjectionRecurrencesFor` compare `ts >= injected_at` at second resolution. A failing call recorded in the same wall-clock second as an injection — even if it ran *before* the injection — is charged as a post-injection recurrence. The closed-loop e2e works around it with 1.1s/2.2s sleeps. Fixing it requires millisecond timestamps (`strftime('%Y-%m-%d %H:%M:%f')`), which is a schema and comparison change deferred past v0.5.0.
+- `injections_blocked_ignored` is effectively unreachable in the live path: `ignored = 1` memories are already filtered at retrieval, so the QualityGate's `ignored` reason only fires on direct API calls. The counter exists so a future direct gate caller is measurable.
+
+### Tests
+
+- **K5-015** - `kevin_trace` strict dry-run e2e (`tests/e2e/kevin-trace.test.ts`): no ledger rows, no counters, no seen-set poisoning; ignored memories filtered at planning; `seen_this_session` classified with its reason.
+- **K5-016** - `buildAudit` integration (`tests/integration/kevin-audit-tool.test.ts`): fresh DB all zeros, seeded precision/coverage, feedback verdicts, read-only purity.
+- **K5-017** - budget tests (`tests/unit/context-injector-budget.test.ts`): default 900, `1500` restores v0.4 behaviour, clamps, compacting stays 2000.
+- **K5-018/019/020** - replay harness (`tests/replay/`): transcript validation, byte-identical double replay, report table via `npm run replay`.
+- **K5-021** - `kevin_status` v0.5 fields (`tests/integration/kevin-status-v05.test.ts`), pre-006 degradation.
+- **K5-023** - closed-loop glassbox e2e (`tests/e2e/glassbox-loop.test.ts`): six scenarios driven only through public hooks/tools — inconclusive idle, effective (linked fix observed), ineffective (3 recurrences → stale), feedback demotion (wrong ×2 → stale), archival (cutoff), trace purity (byte-identical double trace, zero writes).
+- 79 test files / 664 tests green; `tsc --noEmit`, Biome, `npm run verify` and `npm run replay` clean.
+
 ## [0.4.0] — 2026-08-09
 
 ### Added — Signal over Noise
@@ -30,8 +78,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Tests
 
 - **K4-025 — closed-loop e2e** (`tests/e2e/closed-loop.test.ts`): fail → inject → recur×3 (stale) → no re-inject → fix → promote → re-inject the pattern, all through public plugin entry points, no `kevin_save`.
-- **K4-026** — backward-compat migration from v0.3 DB (`tests/e2e/migrate-from-v030.test.ts`).
-- **K4-027** — injection purity validation (`tests/e2e/injection-purity.test.ts`): no `unknown`/generic-suggestion/duplicate/non-error rows in injected blocks.
+- **K4-026** — backward-compat migration from v0.2/v0.3 DBs (`tests/e2e/migrate-from-v020.test.ts`).
+- **K4-027** — injection purity validation (`tests/e2e/context-injection.test.ts`): no `unknown`/generic-suggestion/duplicate/non-error rows in injected blocks.
 - **K4-018** — compacting hook regression (`tests/e2e/compacting-hook.test.ts`).
 - 59 test files / 548 tests green; `tsc --noEmit`, Biome, and `npm run verify` clean.
 
@@ -125,6 +173,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - MemoryService.save bug: explicit `fingerprint` from SaveInput was only honored for `type='error'`; K2-021 PatternMiner save path was silently dropping the fingerprint. Now honored for all types.
 - Index.ts metrics wiring: `system.transform` and `compacting` hooks were bypassing ContextInjector.inject(), never calling `metrics.incr`. Inline `estimateTokens` → `metrics.incr` added for both hooks.
+
+## [0.1.5] - 2026-07-15
 
 ### Fixed
 

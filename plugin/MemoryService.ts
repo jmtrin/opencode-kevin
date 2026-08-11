@@ -53,6 +53,16 @@ export interface Memory {
 	/** v0.4.0 (BUG-008/010) — negative evidence: how many times the
 	 * fingerprint recurred after injection (demotes confidence). */
 	recurrenceCount?: number | null;
+	/** v0.5.0 (K5-009 / plan §5.3, D5-07) — human verdict: ignored memories
+	 * are excluded from retrieval and injection. */
+	ignored?: boolean;
+	/** v0.5.0 (K5-009 / plan §5.3) — id of the memory that superseded this
+	 * one (decision/rule replacement, K3-014). Null when active. */
+	supersedes?: string | null;
+	/** v0.5.0 (K5-010 / plan §5.3, D5-02) — human judgement counters,
+	 * folded into confidence by computeConfidence. */
+	feedbackPositive?: number;
+	feedbackNegative?: number;
 }
 
 export interface SaveInput {
@@ -163,6 +173,13 @@ export interface GetRelevantInput {
 	 * by the fetch that actually produces the injected block.
 	 */
 	bump?: boolean;
+	/**
+	 * v0.5.0 (K5-008 / plan §5.6, D5-10) — injectable clock. Defaults to
+	 * `new Date()` at the top of the method and is the ONLY time source
+	 * for recency decay: replay and tests can freeze time. Never call
+	 * `Date.now()` again inside the method.
+	 */
+	now?: Date;
 }
 
 interface MemoryRow {
@@ -189,6 +206,14 @@ interface MemoryRow {
 	recurrence_count?: number;
 	/** v0.4.0 */
 	fix_args?: string | null;
+	/** v0.5.0 (K5-009) */
+	ignored?: number;
+	/** v0.5.0 (K5-009) */
+	superseded_by?: string | null;
+	/** v0.5.0 (K5-010) */
+	feedback_positive?: number;
+	/** v0.5.0 (K5-010) */
+	feedback_negative?: number;
 }
 
 const TYPE_PRIORITY: Record<MemoryType, number> = {
@@ -213,6 +238,11 @@ const ORIGIN_BOOST_PATTERN = 1.5;
 const ORIGIN_BOOST_CASUAL = 2;
 const ORIGIN_BOOST_AGENT = 1;
 const RECENCY_DECAY_PER_DAY = 0.95; // newer = closer to 1 (less penalty)
+
+// v0.5.0 (K5-008 / plan §5.6, D5-10) — DATE_NOW sentinel: deterministic
+// retrieval reads this fixed future instant instead of the wall clock,
+// making ordering a pure function of database content. Export for tests.
+export const DATE_NOW = "2099-01-01T00:00:00.000Z";
 
 function sqliteUtcToMs(createdAt: string): number {
 	// SQLite `datetime('now')` returns 'YYYY-MM-DD HH:MM:SS' in UTC.
@@ -243,6 +273,36 @@ const MEMORY_ROW_SELECT = `id, type, content, scope, relevance_score, source_too
                 project_id, fingerprint, origin,
                 evidence_count, recurrence_count, last_verified_at, status, fix_args`;
 
+/**
+ * v0.5.0 (K5-008/009 / plan §5.6) — cached per-store probe for the 006-only
+ * `ignored` column (pre-006 DBs must not reference it). Shared by the
+ * retrieval filter, the row SELECT, and the save() ignored stamp.
+ */
+const ignoredColumnCache = new WeakMap<Store, boolean>();
+function hasIgnoredColumn(store: Store): boolean {
+	const cached = ignoredColumnCache.get(store);
+	if (cached !== undefined) return cached;
+	try {
+		store.prepare("SELECT ignored FROM memories LIMIT 1").get();
+		ignoredColumnCache.set(store, true);
+		return true;
+	} catch {
+		ignoredColumnCache.set(store, false);
+		return false;
+	}
+}
+
+/**
+ * v0.5.0 (K5-009 / plan §5.3) — the 006-only columns are appended when the
+ * migration has run (same probe as the `ignored = 0` retrieval filter).
+ */
+function rowSelect(store: Store): string {
+	return hasIgnoredColumn(store)
+		? `${MEMORY_ROW_SELECT}, ignored, superseded_by,
+		   feedback_positive, feedback_negative`
+		: MEMORY_ROW_SELECT;
+}
+
 function mapRow(row: MemoryRow, score?: number): Memory {
 	const mem: Memory = {
 		id: row.id,
@@ -263,13 +323,25 @@ function mapRow(row: MemoryRow, score?: number): Memory {
 		origin: (row.origin as MemoryOrigin | null | undefined) ?? null,
 		confidence:
 			typeof row.evidence_count === "number"
-				? computeConfidence(row.evidence_count ?? 0, row.recurrence_count ?? 0)
+				? computeConfidence(
+						row.evidence_count ?? 0,
+						row.recurrence_count ?? 0,
+						row.feedback_positive ?? 0,
+						row.feedback_negative ?? 0,
+					)
 				: null,
 		evidenceCount: row.evidence_count ?? null,
 		lastVerifiedAt: row.last_verified_at ?? null,
 		status: row.status ?? "active",
 		fixArgs: row.fix_args ?? null,
 		recurrenceCount: row.recurrence_count ?? null,
+		// v0.5.0 (K5-009 / plan §5.3, D5-07) — the human-verdict and
+		// supersession fields; absent on pre-006 rows.
+		ignored: row.ignored === undefined ? undefined : Boolean(row.ignored),
+		supersedes: row.superseded_by ?? null,
+		// v0.5.0 (K5-010 / plan §5.3) — human judgement counters.
+		feedbackPositive: row.feedback_positive ?? 0,
+		feedbackNegative: row.feedback_negative ?? 0,
 	};
 	if (score !== undefined) {
 		if (!mem.metadata) mem.metadata = {};
@@ -328,6 +400,13 @@ export class MemoryService {
 	}
 	private _hasRecurrenceColumn: boolean | undefined;
 
+	// v0.5.0 (K5-008 / plan §5.6) — cached column probe for pre-006 DBs
+	// (which lack `ignored`); the retrieval filter must not reference the
+	// column there.
+	private hasIgnoredColumn(): boolean {
+		return hasIgnoredColumn(this.store);
+	}
+
 	save(input: SaveInput): string {
 		const scope = input.scope ?? "project";
 		const relevanceScore = input.relevanceScore ?? 0.5;
@@ -364,18 +443,30 @@ export class MemoryService {
 		// v0.4.0 (K4-011) — `memories_superseded` is only counted here,
 		// where a row is truly replaced; penalization of recurring
 		// reflectors no longer increments it.
+		// v0.5.0 (K5-013 / plan §5.5, D5-06) — the old row also records WHO
+		// superseded it (`superseded_by = <new id>`), giving status-based
+		// supersession a navigable audit trail. Guarded: pre-006 DBs lack
+		// the column (same migration as `ignored`).
 		const supersedableTypes: MemoryType[] = ["decision", "rule"];
 		if (fp !== null && supersedableTypes.includes(input.type)) {
+			const withSupersededBy = this.hasIgnoredColumn();
+			const setClause = withSupersededBy
+				? "SET status = 'superseded', superseded_by = ?, updated_at = datetime('now')"
+				: "SET status = 'superseded', updated_at = datetime('now')";
 			this.store
 				.prepare(
 					`UPDATE memories
-					 SET status = 'superseded', updated_at = datetime('now')
+					 ${setClause}
 					 WHERE fingerprint = ?
 					   AND type = ?
 					   AND status = 'active'
 					   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))`,
 				)
-				.run(fp, input.type, projectId, projectId);
+				.run(
+					...(withSupersededBy
+						? [id, fp, input.type, projectId, projectId]
+						: [fp, input.type, projectId, projectId]),
+				);
 			const after = this.store.prepare("SELECT changes() AS n").get() as {
 				n: number;
 			};
@@ -450,7 +541,7 @@ export class MemoryService {
 	getById(id: string): Memory | null {
 		const row = this.store
 			.prepare(
-				`SELECT ${MEMORY_ROW_SELECT}
+				`SELECT ${rowSelect(this.store)}
          FROM memories WHERE id = ?`,
 			)
 			.get(id) as MemoryRow | undefined;
@@ -465,7 +556,7 @@ export class MemoryService {
 	getByFingerprint(fingerprint: string, type?: MemoryType): Memory | null {
 		const row = this.store
 			.prepare(
-				`SELECT ${MEMORY_ROW_SELECT}
+				`SELECT ${rowSelect(this.store)}
          FROM memories
         WHERE fingerprint = ? AND status = 'active'
           ${type ? "AND type = ?" : ""}
@@ -561,6 +652,11 @@ export class MemoryService {
       JOIN memories m ON m.rowid = memories_fts.rowid
       WHERE memories_fts MATCH ?
         AND (m.expires_at IS NULL OR m.expires_at > datetime('now'))`;
+		// v0.5.0 (K5-011 / plan §5.6, D5-07) — ignored memories are hidden
+		// from kevin_query too (guarded for pre-006 DBs).
+		if (this.hasIgnoredColumn()) {
+			sql += "\n        AND m.ignored = 0";
+		}
 		const params: unknown[] = [match];
 		if (!input.includeSuperseded) {
 			sql += "\n        AND m.status = 'active'";
@@ -634,9 +730,19 @@ export class MemoryService {
       SELECT id, type, content, scope, relevance_score, source_tool, source_session,
              metadata, created_at, updated_at, expires_at,
              project_id, fingerprint, origin,
-             evidence_count, last_verified_at, status
+             evidence_count, last_verified_at, status`;
+		// v0.5.0 (K5-009/010) — 006-only columns, appended when present.
+		if (this.hasIgnoredColumn()) {
+			sql += ", ignored, superseded_by, feedback_positive, feedback_negative";
+		}
+		sql += `
       FROM memories
       WHERE (expires_at IS NULL OR expires_at > datetime('now'))`;
+		// v0.5.0 (K5-008 / plan §5.6) — ignored memories are excluded from
+		// retrieval (human verdict, D5-07). Guarded for pre-006 DBs.
+		if (this.hasIgnoredColumn()) {
+			sql += "\n        AND ignored = 0";
+		}
 		if (!includeSuperseded) {
 			sql += "\n        AND status = 'active'";
 		}
@@ -663,12 +769,23 @@ export class MemoryService {
              m.source_tool, m.source_session, m.metadata,
              m.created_at, m.updated_at, m.expires_at,
              m.project_id, m.fingerprint, m.origin,
-             m.evidence_count, m.last_verified_at, m.status,
+             m.evidence_count, m.last_verified_at, m.status`;
+		// v0.5.0 (K5-009/010) — 006-only columns, appended when present.
+		if (this.hasIgnoredColumn()) {
+			sql +=
+				", m.ignored, m.superseded_by, m.feedback_positive, m.feedback_negative";
+		}
+		sql += `,
              bm25(memories_fts) AS score
       FROM memories_fts
       JOIN memories m ON m.rowid = memories_fts.rowid
       WHERE memories_fts MATCH ?
         AND (m.expires_at IS NULL OR m.expires_at > datetime('now'))`;
+		// v0.5.0 (K5-008 / plan §5.6) — ignored memories are excluded from
+		// retrieval (human verdict, D5-07). Guarded for pre-006 DBs.
+		if (this.hasIgnoredColumn()) {
+			sql += "\n        AND m.ignored = 0";
+		}
 		if (!includeSuperseded) {
 			sql += "\n        AND m.status = 'active'";
 		}
@@ -692,6 +809,21 @@ export class MemoryService {
 		const charBudget = maxTokens * 4;
 		const scope = input.scope ?? "project";
 		const includeSuperseded = input.includeSuperseded === true;
+		// v0.5.0 (K5-008 / plan §5.6, D5-10) — one clock per call and one
+		// read of the opt-in determinism flag. Retrieval then becomes a
+		// pure function of database state: recency decay is frozen at 1.0
+		// and the relevance bump is skipped regardless of the `bump`
+		// argument. The column is TEXT; compare against the string.
+		const now = input.now ?? new Date();
+		const deterministic =
+			this.getSetting("deterministic_retrieval", "0") === "1";
+		// v0.5.0 (K5-008 / plan §5.6, D5-10) — DATE_NOW sentinel: in
+		// deterministic mode the wall clock is never read; every query sees
+		// the same fixed future instant, so ordering is a pure function of
+		// database content.
+		const clockMs = deterministic
+			? new Date(DATE_NOW).getTime()
+			: now.getTime();
 
 		let candidates: Memory[];
 		if (input.query && input.query.trim().length > 0) {
@@ -718,7 +850,7 @@ export class MemoryService {
 		// v0.2.0 (K2-023) origin-aware rank: BM25 × origin-boost × recency-decay.
 		// Tie-breakers preserve the v0.1.x spirit (errors/patterns before
 		// context; newer before older when nothing else decides).
-		candidates.sort((a, b) => rankCompare(a, b));
+		candidates.sort((a, b) => rankCompare(a, b, clockMs, deterministic));
 
 		const result: Memory[] = [];
 		let used = 0;
@@ -729,7 +861,11 @@ export class MemoryService {
 			used += len;
 		}
 
-		if (result.length > 0 && input.bump !== false) {
+		// v0.5.0 (K5-008 / D5-10) — the bump is part of the non-determinism
+		// this release makes optional: in deterministic mode it is skipped
+		// entirely so repeated queries return identical ranks and leave
+		// every relevance_score untouched.
+		if (result.length > 0 && !deterministic && input.bump !== false) {
 			const bump = this.store.prepare(
 				"UPDATE memories SET relevance_score = MIN(?, relevance_score + ?) WHERE id = ?",
 			);
@@ -1099,7 +1235,7 @@ export function countSupersedeCandidates(
 	return row?.c ?? 0;
 }
 
-function rankScore(mem: Memory): number {
+function rankScore(mem: Memory, nowMs: number, deterministic: boolean): number {
 	// FTS5 bm25 returns a negative score (more negative = better match).
 	// For non-FTS rows (loadAll path), fall back to -relevance_score so
 	// higher-relevance memories also come first under the same sign convention.
@@ -1107,15 +1243,23 @@ function rankScore(mem: Memory): number {
 	const base = typeof rawScore === "number" ? rawScore : -mem.relevanceScore;
 	const ageDays = Math.max(
 		0,
-		(Date.now() - sqliteUtcToMs(mem.createdAt)) / 86_400_000,
+		(nowMs - sqliteUtcToMs(mem.createdAt)) / 86_400_000,
 	);
-	const recencyDecay = RECENCY_DECAY_PER_DAY ** ageDays;
+	// v0.5.0 (K5-008 / plan §5.6, D5-10) — deterministic retrieval freezes
+	// the recency factor at 1.0 so ordering depends only on content
+	// relevance and origin boost, never on the wall clock.
+	const recencyDecay = deterministic ? 1 : RECENCY_DECAY_PER_DAY ** ageDays;
 	return base * originBoost(mem) * recencyDecay;
 }
 
-function rankCompare(a: Memory, b: Memory): number {
-	const ra = rankScore(a);
-	const rb = rankScore(b);
+function rankCompare(
+	a: Memory,
+	b: Memory,
+	nowMs: number,
+	deterministic: boolean,
+): number {
+	const ra = rankScore(a, nowMs, deterministic);
+	const rb = rankScore(b, nowMs, deterministic);
 	if (ra !== rb) return ra - rb; // ascending: most negative (best) first
 	if (TYPE_PRIORITY[a.type] !== TYPE_PRIORITY[b.type]) {
 		return TYPE_PRIORITY[a.type] - TYPE_PRIORITY[b.type];

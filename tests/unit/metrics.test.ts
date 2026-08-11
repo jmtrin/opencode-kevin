@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Store } from "../../plugin/Store.js";
-import { Metrics, estimateTokens } from "../../plugin/metrics.js";
+import { METRIC_KEYS, Metrics, estimateTokens } from "../../plugin/metrics.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(
@@ -71,14 +71,23 @@ describe("Metrics", () => {
 		const store = new Store({ path: ":memory:" });
 		const m = new Metrics(store);
 		const snap = m.snapshot();
-		// All six keys still present at zero.
+		// All 22 keys still present at zero.
 		expect(Object.keys(snap).sort()).toEqual(
 			[
 				"causal_links",
 				"duplicate_suppressions",
+				"feedback_negative_total",
+				"feedback_positive_total",
+				"injections_blocked_ignored",
+				"injections_blocked_recurrence",
+				"injections_blocked_seen",
+				"injections_blocked_stale",
+				"injections_blocked_weak",
 				"injections_effective",
+				"injections_inconclusive",
 				"injections_ineffective",
 				"injections_total",
+				"memories_archived",
 				"memories_superseded",
 				"patterns_causal",
 				"patterns_mined",
@@ -278,6 +287,74 @@ describe("Metrics", () => {
 		expect(snap.bogus_key).toBeUndefined();
 		// Tracked keys are still loaded correctly.
 		expect(m.get("patterns_mined")).toBe(0);
+		m.close();
+		store.close();
+	});
+});
+
+describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
+	it("METRIC_KEYS has exactly 22 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(22);
+	});
+
+	it("snapshot() includes all 22 keys", () => {
+		const store = makeMigratedStore();
+		const m = new Metrics(store);
+		const snap = m.snapshot();
+		for (const key of METRIC_KEYS) {
+			expect(Object.prototype.hasOwnProperty.call(snap, key)).toBe(true);
+		}
+		m.close();
+		store.close();
+	});
+
+	it("precisionRate() is 0 when nothing is measured even if total is large", () => {
+		const store = makeMigratedStore();
+		const m = new Metrics(store);
+		m.incr("injections_total", 100);
+		expect(m.precisionRate()).toBe(0);
+		m.close();
+		store.close();
+	});
+
+	it("precisionRate() and coverageRate() use the measured denominator (D5-02)", () => {
+		const store = makeMigratedStore();
+		const m = new Metrics(store);
+		m.incr("injections_total", 100);
+		m.incr("injections_effective", 3);
+		m.incr("injections_ineffective", 1);
+		m.incr("injections_inconclusive", 96);
+		expect(m.precisionRate()).toBeCloseTo(0.75);
+		expect(m.coverageRate()).toBeCloseTo(0.04);
+		m.close();
+		store.close();
+	});
+
+	it("coverageRate() is 0 when the ledger is empty", () => {
+		const store = makeMigratedStore();
+		const m = new Metrics(store);
+		expect(m.coverageRate()).toBe(0);
+		m.close();
+		store.close();
+	});
+
+	it("blockedSnapshot() returns the five counters keyed by short names", () => {
+		const store = makeMigratedStore();
+		const m = new Metrics(store);
+		m.incr("injections_blocked_seen", 3);
+		m.incr("injections_blocked_weak", 2);
+		m.incr("injections_blocked_recurrence", 1);
+		const blocked = m.blockedSnapshot();
+		expect(blocked).toEqual({
+			seen: 3,
+			weak: 2,
+			recurrence: 1,
+			stale: 0,
+			ignored: 0,
+		});
+		for (const v of Object.values(blocked)) {
+			expect(typeof v).toBe("number");
+		}
 		m.close();
 		store.close();
 	});

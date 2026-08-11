@@ -53,6 +53,25 @@ export interface InjectionContext {
 	recurrenceCount: number;
 }
 
+/**
+ * v0.5.0 (K5-006 / plan §5.2, D5-04) — the reason a memory was rejected
+ * (or admitted). Every rejection reason maps 1:1 to an
+ * `injections_blocked_*` counter; a silent boolean is an unmeasurable
+ * policy (principle 16).
+ */
+export type GateReason =
+	| "ok"
+	| "seen_this_session"
+	| "ignored"
+	| "not_active"
+	| "recurrence"
+	| "weak";
+
+export interface GateVerdict {
+	readonly allowed: boolean;
+	readonly reason: GateReason;
+}
+
 export const QualityGate = {
 	/**
 	 * A dispatched code always overrides the coarse errorType for display:
@@ -100,6 +119,10 @@ export const QualityGate = {
 	 * 4. it is actionable AND strong — weak lessons with generic suggestions
 	 *    are never injected (unless `qualityGateEnabled = false` for debug,
 	 *    K4-023).
+	 *
+	 * v0.5.0 (K5-006 / plan §5.2, D5-04) — the boolean form is a thin
+	 * wrapper over `canInjectVerdict`; the reason is never discarded by
+	 * callers that use the verdict form.
 	 */
 	canInject(
 		memory: {
@@ -111,16 +134,56 @@ export const QualityGate = {
 		ctx: InjectionContext,
 		qualityGateEnabled = true,
 	): boolean {
-		if (ctx.seenThisSession.has(memory.id)) return false;
-		if (memory.status !== undefined && memory.status !== "active") {
-			return false;
+		return this.canInjectVerdict(memory, ctx, qualityGateEnabled).allowed;
+	},
+
+	/**
+	 * v0.5.0 (K5-006 / plan §5.2, D5-04) — the verdict form of `canInject`.
+	 * Branch order preserves the v0.4.0 sequence with `ignored` inserted
+	 * second:
+	 *
+	 * 1. seen this session            → `seen_this_session`
+	 * 2. `memory.ignored === true`    → `ignored`
+	 * 3. status !== 'active'          → `not_active`
+	 * 4. recurrence in session        → `recurrence`
+	 * 5. weak / not actionable        → `weak` (skipped entirely when
+	 *    `qualityGateEnabled === false` — the debug flag bypasses the
+	 *    quality check only, never the seen/ignored/status/recurrence bans)
+	 *
+	 * `ignored` is a human verdict (D5-07) and is enforced even in debug
+	 * mode: the flag excludes a memory from retrieval entirely, so the gate
+	 * is only ever asked about it defensively.
+	 */
+	canInjectVerdict(
+		memory: {
+			id: string;
+			status?: string;
+			strength?: "strong" | "weak";
+			isActionable?: boolean;
+			ignored?: boolean;
+		},
+		ctx: InjectionContext,
+		qualityGateEnabled = true,
+	): GateVerdict {
+		if (ctx.seenThisSession.has(memory.id)) {
+			return { allowed: false, reason: "seen_this_session" };
 		}
-		if (ctx.recurrenceCount > 0) return false;
+		if (memory.ignored === true) {
+			return { allowed: false, reason: "ignored" };
+		}
+		if (memory.status !== undefined && memory.status !== "active") {
+			return { allowed: false, reason: "not_active" };
+		}
+		if (ctx.recurrenceCount > 0) {
+			return { allowed: false, reason: "recurrence" };
+		}
 		if (!memory.isActionable || memory.strength === "weak") {
-			if (qualityGateEnabled) return false;
+			if (qualityGateEnabled) {
+				return { allowed: false, reason: "weak" };
+			}
 			// K4-023 debug mode: weak lessons are admitted but must be
 			// flagged by the caller (ContextInjector adds the marker).
 		}
-		return true;
+		return { allowed: true, reason: "ok" };
 	},
 };

@@ -3,6 +3,23 @@ import type { Store } from "./Store.js";
 import { computeConfidence } from "./confidence.js";
 import { toMatchClause, tokenizeQuery } from "./query-tokenizer.js";
 
+// v0.5.0 (K5-010 / plan §5.3) — pre-006 DBs lack the feedback columns;
+// kevin_why must not reference them (it degrades via the try/catch below,
+// which is for missing ROWS, not missing COLUMNS). Probe once per store.
+const feedbackColumnCache = new WeakMap<Store, boolean>();
+function hasFeedbackColumns(store: Store): boolean {
+	const cached = feedbackColumnCache.get(store);
+	if (cached !== undefined) return cached;
+	try {
+		store.prepare("SELECT feedback_positive FROM memories LIMIT 1").get();
+		feedbackColumnCache.set(store, true);
+		return true;
+	} catch {
+		feedbackColumnCache.set(store, false);
+		return false;
+	}
+}
+
 export interface WhyInput {
 	query: string;
 }
@@ -48,12 +65,18 @@ export function kevinWhy(store: Store, query: string): WhyResult | null {
 		fix_args: string | null;
 		last_verified_at: string | null;
 		created_at: string;
+		feedback_positive: number;
+		feedback_negative: number;
 	}[];
 	try {
 		patternRows = store
 			.prepare(
 				`SELECT m.id, m.content, m.fingerprint, m.evidence_count,
-				        m.recurrence_count, m.fix_args, m.last_verified_at, m.created_at
+				        m.recurrence_count, m.fix_args, m.last_verified_at, m.created_at${
+									hasFeedbackColumns(store)
+										? ", m.feedback_positive, m.feedback_negative"
+										: ""
+								}
 				 FROM memories_fts
 				 JOIN memories m ON m.rowid = memories_fts.rowid
 				 WHERE memories_fts MATCH ?
@@ -72,6 +95,8 @@ export function kevinWhy(store: Store, query: string): WhyResult | null {
 			fix_args: string | null;
 			last_verified_at: string | null;
 			created_at: string;
+			feedback_positive: number;
+			feedback_negative: number;
 		}[];
 	} catch {
 		return null;
@@ -82,9 +107,12 @@ export function kevinWhy(store: Store, query: string): WhyResult | null {
 	const pattern = patternRows[0];
 	const fp = pattern.fingerprint;
 	// v0.4.0 (K4-010) — two-sided confidence shared with promoteToPattern.
+	// v0.5.0 (K5-010) — human feedback terms nudge it (D5-02).
 	const confidence = computeConfidence(
 		pattern.evidence_count ?? 0,
 		pattern.recurrence_count ?? 0,
+		pattern.feedback_positive ?? 0,
+		pattern.feedback_negative ?? 0,
 	);
 
 	// BUG-007 — the trace is built from the error-memory sessions below;

@@ -55,6 +55,35 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v0.5.0 (K5-002 / plan §6, D5-13) — Glass Box: re-derive the four
+	// injection counters from the ledger table instead of incrementing them.
+	// The rebuild remapped prior `effective` rows to `inconclusive`, so any
+	// pre-existing counter values would otherwise carry the v0.4 confound
+	// forward. Re-derivation is idempotent by construction and self-healing
+	// on earlier drift. No INSERTs: the rows are seeded by the migration SQL;
+	// a missing row makes the UPDATE a harmless no-op.
+	"006": (store) => {
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM kevin_injections) WHERE key = 'injections_total'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM kevin_injections WHERE outcome = 'effective') WHERE key = 'injections_effective'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM kevin_injections WHERE outcome = 'ineffective') WHERE key = 'injections_ineffective'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM kevin_injections WHERE outcome = 'inconclusive') WHERE key = 'injections_inconclusive'",
+			)
+			.run();
+	},
 };
 
 export class Migrate {

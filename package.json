@@ -1,6 +1,6 @@
 {
 	"name": "@jmtrin/opencode-kevin",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
 	"type": "module",
 	"main": "dist/plugin/index.js",
@@ -21,7 +21,8 @@
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"format": "biome format --write .",
-		"verify": "node --import tsx scripts/verify-install.ts"
+		"verify": "node --import tsx scripts/verify-install.ts",
+		"replay": "node --import tsx scripts/replay.ts"
 	},
 	"dependencies": {
 		"@opencode-ai/plugin": "^1.17.6",

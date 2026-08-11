@@ -1,9 +1,13 @@
 import type { InjectionLedger } from "./InjectionLedger.js";
 import type { Memory, MemoryService } from "./MemoryService.js";
-import { QualityGate } from "./QualityGate.js";
+import {
+	type GateReason,
+	type GateVerdict,
+	QualityGate,
+} from "./QualityGate.js";
 import type { MemoryBlockItem } from "./memory-format.js";
 import { formatMemories, formatMemorySnippets } from "./memory-format.js";
-import { type Metrics, estimateTokens } from "./metrics.js";
+import { type MetricKey, type Metrics, estimateTokens } from "./metrics.js";
 import { STOP_WORDS } from "./query-tokenizer.js";
 
 export const QUALITY_GATE_SETTING = "quality_gate_enabled";
@@ -33,8 +37,53 @@ export interface CompactingOutput {
 	context: string[];
 }
 
-const SYSTEM_TRANSFORM_TOKENS = 1500;
+// v0.5.0 (K5-014 / plan §8.10, D5-08) — the structured result of the
+// read-only `plan()` pipeline: what WOULD be injected, item by item, with
+// the gate verdict for every candidate. `kevin_trace` (K5-015) feeds on it.
+export interface InjectionPlanItem {
+	id: string;
+	type: string;
+	decision: "admitted" | "blocked";
+	/** Gate reason when blocked; null for admitted items. */
+	reason?: GateReason;
+	/** Estimated tokens this memory would contribute to the block. */
+	tokens: number;
+}
+
+export interface InjectionPlan {
+	query: string;
+	tag: "context" | "memory";
+	cap: number;
+	would_inject: boolean;
+	/** Estimated tokens of the block that WOULD be produced (0 when
+	 * nothing would be injected). */
+	total_tokens: number;
+	admitted: InjectionPlanItem[];
+	blocked: InjectionPlanItem[];
+}
+
+// v0.4.0 default pre-prompt budget. v0.5.0 (K5-017 / plan §8.11, D5-11):
+// kept as the compile-time fallback, but the EFFECTIVE cap is read at call
+// time from the `pre_prompt_budget_tokens` setting (default "900"). The
+// confound fix in K5-005 will very likely show that a large share of
+// injections are `inconclusive` — charging a 1500-token toll per prompt for
+// an unproven benefit is indefensible, so the number is now a setting that
+// measurement can drive instead of a constant.
+const SYSTEM_TRANSFORM_TOKENS = 900;
 const COMPACTING_TOKENS = 2000;
+
+// v0.5.0 (K5-007 / plan §8.10, D5-04) — every rejection reason maps 1:1 to
+// an `injections_blocked_*` counter (principle 16: a rejection you did not
+// count did not happen). Single lookup + null-check at the call site; the
+// `ok` reason admits and must never increment anything.
+const BLOCKED_METRIC: Record<GateReason, MetricKey | null> = {
+	ok: null,
+	seen_this_session: "injections_blocked_seen",
+	ignored: "injections_blocked_ignored",
+	not_active: "injections_blocked_stale",
+	recurrence: "injections_blocked_recurrence",
+	weak: "injections_blocked_weak",
+};
 
 function isWordChar(ch: string): boolean {
 	return /[a-z0-9áéíóúüñ]/i.test(ch);
@@ -184,6 +233,11 @@ Consider adding this convention to AGENTS.md:
 	 * `QualityGate.canInject` (session seen-set + recurrence + strength),
 	 * and each admitted memory is recorded in the `InjectionLedger`
 	 * (plan §5.2 — one row per injected memory).
+	 *
+	 * v0.5.0 (K5-014 / plan §8.10) — the pipeline is decomposed into
+	 * `fetchSlice` (ranked retrieval + budget overflow) + `evaluate`
+	 * (pure gate verdicts) + this orchestrator, so the read-only `plan()`
+	 * can mirror it without any side effect (D5-08).
 	 */
 	private inject(
 		query: string,
@@ -191,17 +245,44 @@ Consider adding this convention to AGENTS.md:
 		cap: number,
 		metricKey: "tokens_injected_pre_prompt" | "tokens_injected_compacting",
 		sessionId: string,
+		// v0.5.0 (K5-007 / plan §8.10, D5-08) — dry-run mode (kevin_trace)
+		// must never move a counter, not even the injections_blocked_* ones.
+		dryRun = false,
 	): string {
-		// BUG-016 — probe WITHOUT bumping so the overflow decision and any
-		// retry both see the ORIGINAL ranking. The single relevance bump
-		// (K2-023) is applied exactly once, to the slice that actually
-		// produces the injected block — see below.
+		const memories = this.fetchSlice(query, cap, tag);
+		if (memories.length === 0) return "";
+		const admitted = this.admit(memories, sessionId, dryRun);
+		if (admitted.length === 0) return "";
+		const block = this.format(admitted, tag);
+		this.recordInjections(admitted, sessionId, tag, block);
+		this.metrics?.incr(metricKey, estimateTokens(block));
+		return block;
+	}
+
+	/**
+	 * v0.5.0 (K5-014 / plan §8.10) — the ranked-retrieval stage shared by
+	 * `inject` and `plan`. With `dry = true` it is a strict read:
+	 *
+	 *  - the probe fetch never bumps (BUG-016), like the live path;
+	 *  - the overflow retry ALSO fetches with `bump: false` (the live path
+	 *    lets the retry fetch bump once — that is the only difference);
+	 *  - the no-retry bump is skipped.
+	 *
+	 * This is what lets `plan()` predict the EXACT slice the live path
+	 * would inject without mutating a single relevance score.
+	 */
+	private fetchSlice(
+		query: string,
+		cap: number,
+		tag: "context" | "memory",
+		dry = false,
+	): Memory[] {
 		let memories = this.memoryService.getRelevant({
 			query,
 			maxTokens: cap,
 			bump: false,
 		});
-		if (memories.length === 0) return "";
+		if (memories.length === 0) return [];
 		const firstBlock = this.format(memories, tag);
 		const aggregateTokens = estimateTokens(firstBlock);
 		const firstRowProtect = (memories[0] as unknown as MemoryBlockItem)
@@ -215,25 +296,154 @@ Consider adding this convention to AGENTS.md:
 			memories = this.memoryService.getRelevant({
 				query,
 				maxTokens: lowerCap,
+				bump: dry ? false : undefined,
 			});
-			if (memories.length === 0) return "";
-		} else {
+		} else if (!dry) {
 			// No retry: the probe slice IS the injected slice — bump it
 			// exactly once here.
 			this.memoryService.bumpRelevance(memories.map((m) => m.id));
 		}
-		const admitted = this.admit(memories, sessionId);
-		if (admitted.length === 0) return "";
-		const block = this.format(admitted, tag);
-		this.recordInjections(admitted, sessionId, tag, block);
-		this.metrics?.incr(metricKey, estimateTokens(block));
-		return block;
+		return memories;
+	}
+
+	/**
+	 * v0.5.0 (K5-014 / plan §8.10, D5-08) — PUBLIC read-only prediction of
+	 * what `inject` WOULD do for a query: same retrieval, same gate, zero
+	 * side effects. Never moves a counter, never writes the seen-set, never
+	 * bumps relevance, never records ledger rows. `kevin_trace` (K5-015)
+	 * surfaces this to the agent; tests freeze the clock + settings around
+	 * it.
+	 */
+	plan(
+		query: string,
+		options: {
+			tag?: "context" | "memory";
+			cap?: number;
+			sessionId?: string;
+		} = {},
+	): InjectionPlan {
+		const tag = options.tag ?? "context";
+		const cap =
+			options.cap ??
+			(tag === "memory" ? COMPACTING_TOKENS : this.prePromptCap());
+		const sessionId = options.sessionId ?? "";
+		const memories = this.fetchSlice(query, cap, tag, true);
+		const { verdicts } = this.evaluate(memories, sessionId);
+		const admitted: InjectionPlanItem[] = [];
+		const blocked: InjectionPlanItem[] = [];
+		const admittedMemories: Memory[] = [];
+		for (const v of verdicts) {
+			const base = {
+				id: v.memory.id,
+				type: v.memory.type,
+				tokens: estimateTokens(v.memory.content),
+			};
+			if (v.allowed) {
+				admitted.push({ ...base, decision: "admitted" as const });
+				admittedMemories.push(v.memory);
+			} else {
+				blocked.push({
+					...base,
+					decision: "blocked" as const,
+					reason: v.reason,
+				});
+			}
+		}
+		const wouldInject = admitted.length > 0;
+		const totalTokens = wouldInject
+			? estimateTokens(this.format(admittedMemories, tag))
+			: 0;
+		return {
+			query,
+			tag,
+			cap,
+			would_inject: wouldInject,
+			total_tokens: totalTokens,
+			admitted,
+			blocked,
+		};
+	}
+
+	/**
+	 * v0.5.0 (K5-014 / plan §8.10) — PURE gate evaluation shared by `admit`
+	 * (live path) and `plan` (read-only path): returns the verdict for every
+	 * candidate plus the seen-set as it WOULD look afterwards. Never writes
+	 * state — the caller decides whether to persist.
+	 */
+	private evaluate(
+		memories: Memory[],
+		sessionId: string,
+	): {
+		verdicts: Array<GateVerdict & { memory: Memory }>;
+		seen: Set<string>;
+	} {
+		const qualityGateEnabled =
+			this.memoryService.getSetting(QUALITY_GATE_SETTING, "1") === "1";
+		const seen = new Set(this.seenBySession.get(sessionId) ?? []);
+		const recurrences =
+			this.ledger?.postInjectionRecurrencesFor(sessionId) ??
+			new Map<string, number>();
+		const verdicts: Array<GateVerdict & { memory: Memory }> = [];
+		for (const m of memories) {
+			const q = this.lessonQuality(m);
+			const verdict = QualityGate.canInjectVerdict(
+				{
+					id: m.id,
+					status: m.status ?? undefined,
+					strength: q.strength,
+					isActionable: q.isActionable,
+					// v0.5.0 (K5-009) — the `ignored` flag is now a first-class
+					// Memory field via mapRow (D5-07).
+					ignored: m.ignored === true,
+				},
+				{
+					seenThisSession: seen,
+					// v0.4.0 (K4-025) — plan §5.1 rule 4: a causal pattern
+					// re-admits a lesson that the stale error row cannot.
+					// The recurrence ban (QualityGate rule 3) is scoped to
+					// error lessons — a pattern is the FIXED form of the
+					// fingerprint and is exactly what D4-06 wants back in
+					// the prompt.
+					recurrenceCount:
+						m.type === "pattern"
+							? 0
+							: m.fingerprint
+								? (recurrences.get(m.fingerprint) ?? 0)
+								: 0,
+				},
+				qualityGateEnabled,
+			);
+			verdicts.push({ ...verdict, memory: m });
+		}
+		return { verdicts, seen };
+	}
+
+	/**
+	 * v0.5.0 (K5-017 / plan §8.11, D5-11) — the effective pre-prompt cap,
+	 * read at call time from `pre_prompt_budget_tokens` (seeded "900" by
+	 * migration 006). Clamped to [100, 4000]; a non-numeric value falls
+	 * back to 900. `kevin_trace` reports the value used via `plan().cap`.
+	 */
+	private prePromptCap(): number {
+		const raw = this.memoryService.getSetting(
+			"pre_prompt_budget_tokens",
+			"900",
+		);
+		const n = Number(raw);
+		if (!Number.isFinite(n)) return 900;
+		return Math.min(4000, Math.max(100, Math.round(n)));
 	}
 
 	/**
 	 * v0.4.0 (K4-017) — QualityGate admission: filters the ranked slice to
 	 * memories that may be injected this session, updating the session
 	 * seen-set.
+	 *
+	 * v0.5.0 (K5-007 / plan §5.2, D5-04) — uses `canInjectVerdict` and
+	 * increments the matching `injections_blocked_*` counter for every
+	 * rejection, so gate policy becomes measurable. When `dryRun === true`
+	 * the counters stay untouched (D5-08) — and so does the seen-set
+	 * (a dry run is a strict read, K5-014).
 	 *
 	 * BUG-005 — strength/actionability now go through the REAL
 	 * `QualityGate.evaluate` semantics (plan §5.1 rules 1-2), which this
@@ -249,47 +459,23 @@ Consider adding this convention to AGENTS.md:
 	 *   - causal patterns (type='pattern') → always strong + actionable:
 	 *     they are the FIXED form of a fingerprint (K4-025).
 	 */
-	private admit(memories: Memory[], sessionId: string): Memory[] {
-		const qualityGateEnabled =
-			this.memoryService.getSetting(QUALITY_GATE_SETTING, "1") === "1";
-		const seen = this.seenBySession.get(sessionId) ?? new Set<string>();
-		const recurrences =
-			this.ledger?.postInjectionRecurrencesFor(sessionId) ??
-			new Map<string, number>();
+	private admit(
+		memories: Memory[],
+		sessionId: string,
+		dryRun = false,
+	): Memory[] {
+		const { verdicts, seen } = this.evaluate(memories, sessionId);
 		const admitted: Memory[] = [];
-		for (const m of memories) {
-			const q = this.lessonQuality(m);
-			if (
-				QualityGate.canInject(
-					{
-						id: m.id,
-						status: m.status ?? undefined,
-						strength: q.strength,
-						isActionable: q.isActionable,
-					},
-					{
-						seenThisSession: seen,
-						// v0.4.0 (K4-025) — plan §5.1 rule 4: a causal pattern
-						// re-admits a lesson that the stale error row cannot.
-						// The recurrence ban (QualityGate rule 3) is scoped to
-						// error lessons — a pattern is the FIXED form of the
-						// fingerprint and is exactly what D4-06 wants back in
-						// the prompt.
-						recurrenceCount:
-							m.type === "pattern"
-								? 0
-								: m.fingerprint
-									? (recurrences.get(m.fingerprint) ?? 0)
-									: 0,
-					},
-					qualityGateEnabled,
-				)
-			) {
-				admitted.push(m);
-				seen.add(m.id);
+		for (const v of verdicts) {
+			if (v.allowed) {
+				admitted.push(v.memory);
+				seen.add(v.memory.id);
+			} else if (!dryRun) {
+				const key = BLOCKED_METRIC[v.reason];
+				if (key) this.metrics?.incr(key, 1);
 			}
 		}
-		this.seenBySession.set(sessionId, seen);
+		if (!dryRun) this.seenBySession.set(sessionId, seen);
 		return admitted;
 	}
 
@@ -420,7 +606,7 @@ Consider adding this convention to AGENTS.md:
 		const block = this.inject(
 			query,
 			"context",
-			SYSTEM_TRANSFORM_TOKENS,
+			this.prePromptCap(),
 			"tokens_injected_pre_prompt",
 			input.sessionID ?? "",
 		);

@@ -8,6 +8,7 @@ Kevin is an [OpenCode](https://opencode.ai) plugin that **observes** every agent
 - **Global memory**: a single `~/.opencode-kevin/kevin.db` shared across all your projects (WAL mode → safe for concurrent sessions). No per-project folders.
 - **Knowledge + Causality (v0.3.0)**: causal failure→fix chains, `kevin_why` explanations, OKF export/import, a supersede model, and human-in-the-loop AGENTS.md suggestions.
 - **Signal over Noise (v0.4.0)**: a quality gate that stores weak lessons without injecting them, an injection ledger with honest `precision_rate`, two-sided confidence, and a fixed compacting hook.
+- **Glass Box (v0.5.0)**: honest measurement replaces estimates — three-way injection settlement (`effective` / `ineffective` / `inconclusive`), human feedback that actually moves confidence, a strict dry-run `kevin_trace`, a read-only `kevin_audit`, memory lifecycle completion (`superseded_by`, `ignored`, `archived`), and a hermetic replay harness. See [How Kevin measures itself](#how-kevin-measures-itself).
 - **Audited**: the v0.4.0 bug catalog (`docs/Kevin_v0.4.0_Bugs.md`) is fully closed — 16/16 bugs fixed and regression-tested (evidence in `kevin_query`/`kevin_get`, OKF round-trip fidelity, causal refresh guard, redaction precision, cross-session isolation).
 - **Standalone**: works without any other plugin. With the ecosystem, it learns more richly.
 
@@ -33,7 +34,7 @@ For a **single project**, put the same `plugin` array in `./opencode.json` or `.
 
 ### 2. Restart OpenCode
 
-Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes ten tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`, `kevin_why`, `kevin_export`, `kevin_import`, `kevin_config`.
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes thirteen tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`, `kevin_why`, `kevin_export`, `kevin_import`, `kevin_config`, `kevin_feedback`, `kevin_trace`, `kevin_audit` (v0.5.0 adds the last three).
 
 ### 3. Where data lives
 
@@ -116,7 +117,7 @@ Use `:memory:` for `dbPath` in tests.
   ┌─────────────────┐               │
   │   SHARE          │◄──────────────┘
   │ ContextInjector  │  injects relevant lessons pre-prompt
-  │                  │  (1500 tokens) + on compacting (2000)
+  │                  │  (900 tokens, configurable via pre_prompt_budget_tokens) + on compacting (2000)
   │                  │  + <protect> + id: line (v0.2.0)
   │                  │  + origin-aware rank (v0.2.0)
   │                  │  + <kevin-suggestion> after negative
@@ -137,7 +138,7 @@ Use `:memory:` for `dbPath` in tests.
 
 ## Tools
 
-Kevin exposes 10 tools callable by the agent:
+Kevin exposes 13 tools callable by the agent:
 
 ### `kevin_save`
 
@@ -188,7 +189,7 @@ kevin_recall({ query: "auth", limit: 3 })
 
 ### `kevin_status`
 
-Global counts and metrics. v0.2.0 adds `memories_reflector`, `memories_agent`, `memories_pattern` and a `metrics` object; v0.3.0 adds `memories_causal` and 3 more seeded counters (`patterns_causal`, `causal_links`, `memories_superseded`); v0.4.0 adds the precision block: `injections_total`, `injections_effective`, `injections_ineffective`, `precision_rate`, `patterns_promoted_new`, and per-origin `recurrence_by_origin`.
+Global counts and metrics. v0.2.0 adds `memories_reflector`, `memories_agent`, `memories_pattern` and a `metrics` object; v0.3.0 adds `memories_causal` and 3 more seeded counters (`patterns_causal`, `causal_links`, `memories_superseded`); v0.4.0 adds the precision block: `injections_total`, `injections_effective`, `injections_ineffective`, `precision_rate`, `patterns_promoted_new`, and per-origin `recurrence_by_origin`. v0.5.0 adds `injections_inconclusive`, `coverage_rate`, `blocked`, `memories_ignored`, `memories_archived` and `feedback { positive, negative }`.
 
 ```
 kevin_status({})
@@ -197,10 +198,14 @@ kevin_status({})
 //      "metrics": { "tokens_injected_pre_prompt": 51, "tokens_injected_compacting": 0,
 //                   "reflections_throttled": 3, "duplicate_suppressions": 2,
 //                   "tool_calls_deduped": 0, "patterns_mined": 0,
-//                   "patterns_causal": 1, "causal_links": 2, "memories_superseded": 0 },
-//      "injections_total": 14, "injections_effective": 11, "injections_ineffective": 3,
-//      "precision_rate": 0.79, "patterns_promoted_new": 2,
-//      "recurrence_by_origin": { "reflector": 3, "causal": 1 } }
+//                   "patterns_causal": 1, "causal_links": 2, "memories_superseded": 0,
+//                   "injections_inconclusive": 9, "injections_blocked_seen": 1, ... },
+//      "injections_total": 14, "injections_effective": 2, "injections_ineffective": 3,
+//      "injections_inconclusive": 9, "precision_rate": 0.40, "coverage_rate": 0.36,
+//      "blocked": { "seen": 1, "weak": 0, "recurrence": 2, "stale": 0, "ignored": 1 },
+//      "memories_ignored": 1, "memories_archived": 4,
+//      "feedback": { "positive": 2, "negative": 1 },
+//      "patterns_promoted_new": 2, "recurrence_by_origin": { "reflector": 3, "causal": 1 } }
 ```
 
 ### `kevin_retrospective`
@@ -245,13 +250,71 @@ kevin_config({ action: "set", key: "quality_gate_enabled", value: "0" })
 // → { "ok": true }
 ```
 
-Known keys: `quality_gate_enabled`, `lesson_snippet_injection`, `llm_reflection_enabled`, `cross_project_enabled`, `patternminer_enabled`, `tool_calls_dedup_enabled` (v0.4.0).
+Known keys: `quality_gate_enabled`, `lesson_snippet_injection`, `llm_reflection_enabled`, `cross_project_enabled`, `patternminer_enabled`, `tool_calls_dedup_enabled` (v0.4.0), `deterministic_retrieval`, `pre_prompt_budget_tokens`, `archive_after_days` (v0.5.0).
+
+### `kevin_feedback` (v0.5.0)
+
+Rates an injected memory and makes the rating count. `verdict` is `useful` | `wrong` | `outdated` | `ignore`. The first three are stored in `memory_feedback` and move `kevin_why`'s confidence (`+0.05` / `-0.1` per count); **`ignore` is a hard action** — the memory is stamped `ignored = 1` and excluded from retrieval, queries and injection.
+
+```
+kevin_feedback({ memory_id: "0195a3b2-...", verdict: "wrong", note: "the fix was wrong" })
+// → { "ok": true, "verdict": "wrong" }
+```
+
+### `kevin_trace` (v0.5.0)
+
+Strict dry-run: predicts exactly which memories `onSystemTransform` WOULD inject for a query (optionally `session_id`, `tag` and `cap`), with **zero side effects** — no counters, no ledger rows, no seen-set writes, no relevance bumps. Rejected items carry their `GateReason` (`seen_this_session` | `weak` | `recurrence` | `stale` | `ignored`).
+
+```
+kevin_trace({ query: "tsc error" })
+// → { "query": "tsc error", "tag": "context", "cap": 900, "would_inject": true,
+//      "total_tokens": 82,
+//      "admitted": [ { "id": "...", "type": "error", "decision": "admitted", "tokens": 62 } ],
+//      "blocked": [ { "id": "...", "type": "error", "decision": "blocked", "reason": "seen_this_session", "tokens": 20 } ] }
+```
+
+### `kevin_audit` (v0.5.0)
+
+Read-only report of the whole system state: memories by `status`/`origin`/`type`, injection outcomes with `precision_rate`/`coverage_rate`, the five `blocked` counters, feedback by verdict, tokens injected. `verbose: true` adds the settings block. No writes, no LLM; on a pre-006 database it returns what it can with `"partial": true`.
+
+```
+kevin_audit({})
+// → { "memories": { "total": 42, "by_status": { "active": 37, "stale": 1, "archived": 4 },
+//                   "by_origin": { "reflector": 12, "agent": 30 }, "by_type": { "error": 20, ... },
+//                   "ignored": 1, "archived": 4, "with_feedback": 3, "superseded_with_target": 2 },
+//      "injections": { "total": 14, "effective": 2, "ineffective": 3, "inconclusive": 9,
+//                      "unmeasured": 0, "precision_rate": 0.40, "coverage_rate": 0.36 },
+//      "blocked": { "seen": 1, "weak": 0, "recurrence": 2, "stale": 0, "ignored": 1 },
+//      "feedback": { "positive": 2, "negative": 1, "by_verdict": { "useful": 2, "wrong": 1 } },
+//      "tokens": { "pre_prompt": 51, "compacting": 0 }, "partial": false }
+```
 
 ---
 
 ## Precision (v0.4.0)
 
 Weak lessons — errors the reflector cannot dispatch to a deterministic rule — are **stored but never injected** while `quality_gate_enabled = '1'` (default). Injection now goes through a ledger: every pre-prompt/compacting injection is recorded and settled as effective or ineffective at session idle, so `kevin_status` reports the honest picture (`injections_total`, `injections_effective/ineffective`, `precision_rate`, `patterns_promoted_new`) instead of raw "lessons shared" counts. Recurrences demote lessons (`recurrence_count` → `stale`) and lower confidence. Debug mode: `kevin_config({ action: "set", key: "quality_gate_enabled", value: "0" })` re-injects weak lessons with a `(low confidence)` marker.
+
+## How Kevin measures itself (v0.5.0)
+
+Every injection is settled at `session.idle` into one of **four outcomes**:
+
+| Outcome | Meaning | Counts toward precision? |
+|---|---|---|
+| `effective` | A linked fix was observed after the injection | yes (numerator) |
+| `ineffective` | The same error recurred after the injection | yes (denominator) |
+| `inconclusive` | Neither — the error did not recur, but no fix was seen either | no |
+| `unmeasured` | Session went idle before settlement could run | no |
+
+- **`precision_rate`** = `effective / (effective + ineffective)`. The v0.4.0 definition counted "did not recur" as success — measuring absence of recurrence, not effect. **Your precision rate will look lower on v0.5.0. That is the honest number.** Existing `effective` rows were remapped to `inconclusive` by migration 006.
+- **`coverage_rate`** = `(effective + ineffective) / total` — the share of injections that were actually measured. Reported alongside precision so a low measurable fraction stays visible instead of hiding behind a large total.
+- **`blocked`** counts every gate rejection by reason (`seen_this_session`, `weak`, `recurrence`, `stale`, `ignored`) — a rejection you did not count did not happen.
+
+`kevin_trace` shows you the plan *before* it happens (dry run, zero side effects); `kevin_audit` reads the whole picture after; `kevin_feedback` lets a human correct it — and the correction moves the confidence number `kevin_why` reports.
+
+## Replay harness (v0.5.0)
+
+`npm run replay` runs every transcript in `tests/replay/fixtures/` through the plugin against an in-memory database with a frozen clock and prints one table row per transcript (memories created, injection outcomes, `precision_rate`, `coverage_rate`, tokens). Record your own session as a JSON array of typed events (`session.created`, `chat.message`, `tool.before`, `tool.after`, `system.transform`, `compacting`, `session.idle`) with ISO-8601 `at` timestamps, drop it into `tests/replay/fixtures/`, and re-run. The `at` timestamps are the only source of time during replay.
 
 ---
 
@@ -263,7 +326,7 @@ Kevin subscribes to 6 OpenCode hooks:
 |---|---|
 | `tool.execute.before` | Records tool call start (callID + redacted args) |
 | `tool.execute.after` | Records result (id = callID); on failure → Reflector.invoke async (throttled); on success → CausalChain.onSuccess links the fix (v0.3.0) |
-| `experimental.chat.system.transform` | Injects relevant lessons in `<kevin-context>` (1500 tokens) + optional `<kevin-suggestion>` (v0.3.0) |
+| `experimental.chat.system.transform` | Injects relevant lessons in `<kevin-context>` (900 tokens by default, configurable) + optional `<kevin-suggestion>` (v0.3.0) |
 | `experimental.session.compacting` | Re-injects lessons in `<kevin-memory>` after compacting (2000 tokens) + optional `<kevin-suggestion>` |
 | `event` (`session.created`) | Captures current `sessionID` |
 | `event` (`session.idle`) | Generates retrospective.md; boosts positive lessons (v0.2.0); penalizes recurring failures (v0.3.0); promotes causal patterns + mines patterns (opt-in); flushes metrics |
@@ -292,6 +355,18 @@ KevinPlugin(input, {
 });
 ```
 
+### Settings (v0.5.0)
+
+Read/write via `kevin_config({ action: "list" | "set", ... })`. v0.5.0 adds:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `deterministic_retrieval` | `"0"` | Freezes Kevin's internal clock (recency factor 1.0, no relevance bumps) — for hermetic tests and the replay harness |
+| `pre_prompt_budget_tokens` | `"900"` | Pre-prompt injection cap, clamped to `[100, 4000]` (was a hard-coded 1500) |
+| `archive_after_days` | `"30"` | Age at which stale non-pattern memories are retired to `archived` on `session.idle` |
+
+All settings are stored as TEXT in `kevin_settings`; values are compared against `"1"` for booleans.
+
 ---
 
 ## Development
@@ -302,8 +377,9 @@ cd opencode-kevin
 npm install
 npm run typecheck   # tsc --noEmit (strict)
 npm run lint        # biome check .
-npm test            # vitest run (unit + integration + e2e)
+npm test            # vitest run (unit + integration + e2e + replay)
 npm run verify      # post-install verification
+npm run replay      # replay report over tests/replay/fixtures (v0.5.0)
 ```
 
 ### Publishing (maintainer)

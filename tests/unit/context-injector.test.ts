@@ -30,7 +30,11 @@ function createMock(memories: Memory[], settingValue = "1") {
 			return memories;
 		},
 		bumpRelevance: vi.fn(),
-		getSetting: vi.fn(() => settingValue),
+		// v0.5.0 (K5-017): budget setting resolves to its own default so the
+		// effective pre-prompt cap is 900 unless a test overrides it.
+		getSetting: vi.fn((key: string, fallback?: string) =>
+			key === "pre_prompt_budget_tokens" ? "900" : (fallback ?? settingValue),
+		),
 	} as unknown as MemoryService;
 	return { calls, service };
 }
@@ -121,7 +125,7 @@ describe("ContextInjector.onSystemTransform", () => {
 		);
 		expect(output.system[1]).toContain("[pattern] Run typecheck before commit");
 		expect(output.system[1]).toContain("</kevin-context>");
-		expect(calls[0]?.maxTokens).toBe(1500);
+		expect(calls[0]?.maxTokens).toBe(900);
 		expect(calls[0]?.query).toBe("fix typecheck error");
 	});
 
@@ -299,8 +303,8 @@ describe("ContextInjector — v0.2.0 (K2-013) metrics + conditional budget", () 
 		);
 
 		expect(calls.length).toBe(2);
-		expect(calls[0]?.maxTokens).toBe(1500);
-		expect(calls[1]?.maxTokens).toBe(Math.round(0.8 * 1500));
+		expect(calls[0]?.maxTokens).toBe(900);
+		expect(calls[1]?.maxTokens).toBe(Math.round(0.8 * 900));
 		expect(output.system.length).toBe(1);
 	});
 
@@ -318,7 +322,7 @@ describe("ContextInjector — v0.2.0 (K2-013) metrics + conditional budget", () 
 		);
 
 		expect(calls.length).toBe(1);
-		expect(calls[0]?.maxTokens).toBe(1500);
+		expect(calls[0]?.maxTokens).toBe(900);
 	});
 
 	it("does NOT call metrics.incr when no memories returned", () => {

@@ -24,7 +24,14 @@ import { uuidv7 } from "./uuid.js";
  * (ContextInjector.recordInjections) skips them.
  */
 export type InjectionHook = "pre_prompt" | "compacting";
-export type InjectionOutcome = "unmeasured" | "effective" | "ineffective";
+// v0.5.0 (K5-005 / plan §5.1, D5-01) — a fourth outcome: an injection
+// whose fingerprint neither recurred nor was followed by a linked fix is
+// `inconclusive`. Absence of recurrence is not evidence of effect.
+export type InjectionOutcome =
+	| "unmeasured"
+	| "effective"
+	| "ineffective"
+	| "inconclusive";
 
 export interface InjectionRecordInput {
 	memoryId: string;
@@ -87,14 +94,17 @@ export class InjectionLedger {
 	 *
 	 * An ineffective injection also bumps the target memory's
 	 * `recurrence_count` (negative evidence, plan §5.3) and stamps
-	 * `last_injected_at`.
+	 * `last_injected_at` (monotonically — an older row can never
+	 * regress a newer injection's timestamp; the column means "most
+	 * recent injection").
 	 */
 	settle(sessionId: string): void {
 		const injections = this.store
 			.prepare(
 				`SELECT id, memory_id, fingerprint, injected_at, outcome
 				   FROM kevin_injections
-				  WHERE session_id = ?`,
+				  WHERE session_id = ?
+				  ORDER BY injected_at ASC, id ASC`,
 			)
 			.all(sessionId) as {
 			id: string;
@@ -144,6 +154,11 @@ export class InjectionLedger {
 
 			const n = countRow.n;
 
+			// v0.5.0 (K5-005 / plan §5.1, D5-01) — three-way settlement:
+			//   recurrences >= 1 → ineffective  (existing side effects unchanged)
+			//   else fixes >= 1  → effective    (a linked fix was OBSERVED)
+			//   else             → inconclusive (new majority bucket; excluded
+			//                                    from the precision denominator)
 			if (n >= 1) {
 				if (inj.outcome === "unmeasured") {
 					this.store
@@ -158,10 +173,19 @@ export class InjectionLedger {
 					.prepare(
 						`UPDATE memories
 						    SET recurrence_count = MAX(recurrence_count, ?),
-						        last_injected_at = ?
+						        last_injected_at = CASE
+						          WHEN last_injected_at IS NULL
+						            OR ? > last_injected_at
+						            THEN ? ELSE last_injected_at END
 						  WHERE fingerprint = ? AND id = ?`,
 					)
-					.run(countRow.n, inj.injected_at, inj.fingerprint, inj.memory_id);
+					.run(
+						countRow.n,
+						inj.injected_at,
+						inj.injected_at,
+						inj.fingerprint,
+						inj.memory_id,
+					);
 				// v0.4.0 (K4-025 / plan §5.1 rule 4, D4-06) — recurrence
 				// expels: a fingerprint at `recurrence_count >= 3` is
 				// demoted to `status='stale'` and never injected again
@@ -174,13 +198,42 @@ export class InjectionLedger {
 					)
 					.run(inj.memory_id);
 			} else if (inj.outcome === "unmeasured") {
-				this.store
+				// Mirror of the recurrence predicate with the success flag
+				// inverted and the fingerprint matched on
+				// `fix_for_fingerprint` (populated by CausalChain.onSuccess,
+				// indexed by idx_tool_calls_fix_fp since migration 004). The
+				// `ts >= injected_at` bound and `session_id = ?` filter are
+				// kept; there is no `origin_call_id` exemption for fixes —
+				// a fix is not the creating call.
+				const fixRow = this.store
 					.prepare(
-						`UPDATE kevin_injections SET outcome = 'effective'
-						  WHERE id = ?`,
+						`SELECT COUNT(*) AS m FROM tool_calls
+						  WHERE session_id = ?
+						    AND success = 1
+						    AND fix_for_fingerprint = ?
+						    AND ts >= ?
+						 LIMIT 1`,
 					)
-					.run(inj.id);
-				this.metrics?.incr("injections_effective", 1);
+					.get(sessionId, inj.fingerprint, inj.injected_at) as {
+					m: number;
+				};
+				if (fixRow.m >= 1) {
+					this.store
+						.prepare(
+							`UPDATE kevin_injections SET outcome = 'effective'
+							  WHERE id = ?`,
+						)
+						.run(inj.id);
+					this.metrics?.incr("injections_effective", 1);
+				} else {
+					this.store
+						.prepare(
+							`UPDATE kevin_injections SET outcome = 'inconclusive'
+							  WHERE id = ?`,
+						)
+						.run(inj.id);
+					this.metrics?.incr("injections_inconclusive", 1);
+				}
 			}
 		}
 	}
@@ -258,6 +311,28 @@ export class InjectionLedger {
 				  ORDER BY injected_at ASC, id ASC`,
 			)
 			.all(sessionId) as InjectionRow[];
+	}
+
+	/**
+	 * v0.5.0 (K5-005 / plan §8.4) — one grouped rollup over the whole
+	 * ledger, zero-filled for every outcome. Consumed by `kevin_audit`.
+	 */
+	outcomeCounts(): Record<InjectionOutcome, number> {
+		const rows = this.store
+			.prepare(
+				"SELECT outcome, COUNT(*) AS n FROM kevin_injections GROUP BY outcome",
+			)
+			.all() as { outcome: InjectionOutcome; n: number }[];
+		const out: Record<InjectionOutcome, number> = {
+			unmeasured: 0,
+			effective: 0,
+			ineffective: 0,
+			inconclusive: 0,
+		};
+		for (const r of rows) {
+			out[r.outcome] = r.n;
+		}
+		return out;
 	}
 }
 

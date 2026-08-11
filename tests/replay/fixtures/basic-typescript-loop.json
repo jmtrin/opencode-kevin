@@ -1,0 +1,137 @@
+{
+	"version": 1,
+	"name": "basic-typescript-loop",
+	"events": [
+		{
+			"kind": "session.created",
+			"at": "2026-08-11T10:00:00.000Z",
+			"sessionId": "sess-1"
+		},
+		{
+			"kind": "chat.message",
+			"at": "2026-08-11T10:00:05.000Z",
+			"sessionId": "sess-1",
+			"text": "the build fails again"
+		},
+		{
+			"kind": "tool.before",
+			"at": "2026-08-11T10:00:06.000Z",
+			"sessionId": "sess-1",
+			"callId": "call-1",
+			"tool": "bash",
+			"args": { "command": "npx tsc --noEmit" }
+		},
+		{
+			"kind": "tool.after",
+			"at": "2026-08-11T10:00:10.000Z",
+			"sessionId": "sess-1",
+			"callId": "call-1",
+			"success": false,
+			"exitCode": 1,
+			"stderr": "error TS2304: Cannot find name 'foo'. src/main.ts(3,5)"
+		},
+		{
+			"kind": "chat.message",
+			"at": "2026-08-11T10:00:12.000Z",
+			"sessionId": "sess-1",
+			"text": "foo is used before it is declared"
+		},
+		{
+			"kind": "tool.before",
+			"at": "2026-08-11T10:00:14.000Z",
+			"sessionId": "sess-1",
+			"callId": "call-2",
+			"tool": "edit",
+			"args": { "path": "src/main.ts", "content": "const foo = 1;" }
+		},
+		{
+			"kind": "tool.after",
+			"at": "2026-08-11T10:00:16.000Z",
+			"sessionId": "sess-1",
+			"callId": "call-2",
+			"success": true,
+			"stdout": "patched"
+		},
+		{
+			"kind": "tool.before",
+			"at": "2026-08-11T10:00:18.000Z",
+			"sessionId": "sess-1",
+			"callId": "call-3",
+			"tool": "bash",
+			"args": { "command": "npx tsc --noEmit" }
+		},
+		{
+			"kind": "tool.after",
+			"at": "2026-08-11T10:00:22.000Z",
+			"sessionId": "sess-1",
+			"callId": "call-3",
+			"success": true,
+			"stdout": "no errors"
+		},
+		{
+			"kind": "system.transform",
+			"at": "2026-08-11T10:00:25.000Z",
+			"sessionId": "sess-1"
+		},
+		{
+			"kind": "session.idle",
+			"at": "2026-08-11T10:00:30.000Z",
+			"sessionId": "sess-1"
+		},
+		{
+			"kind": "session.created",
+			"at": "2026-08-11T11:00:00.000Z",
+			"sessionId": "sess-2"
+		},
+		{
+			"kind": "chat.message",
+			"at": "2026-08-11T11:00:05.000Z",
+			"sessionId": "sess-2",
+			"text": "the build fails again"
+		},
+		{
+			"kind": "tool.before",
+			"at": "2026-08-11T11:00:06.000Z",
+			"sessionId": "sess-2",
+			"callId": "call-4",
+			"tool": "bash",
+			"args": { "command": "npx tsc --noEmit" }
+		},
+		{
+			"kind": "tool.after",
+			"at": "2026-08-11T11:00:10.000Z",
+			"sessionId": "sess-2",
+			"callId": "call-4",
+			"success": false,
+			"exitCode": 1,
+			"stderr": "error TS2304: Cannot find name 'foo'. src/main.ts(3,5)"
+		},
+		{
+			"kind": "system.transform",
+			"at": "2026-08-11T11:00:15.000Z",
+			"sessionId": "sess-2"
+		},
+		{
+			"kind": "tool.before",
+			"at": "2026-08-11T11:00:16.000Z",
+			"sessionId": "sess-2",
+			"callId": "call-5",
+			"tool": "bash",
+			"args": { "command": "npx tsc --noEmit" }
+		},
+		{
+			"kind": "tool.after",
+			"at": "2026-08-11T11:00:20.000Z",
+			"sessionId": "sess-2",
+			"callId": "call-5",
+			"success": false,
+			"exitCode": 1,
+			"stderr": "error TS2304: Cannot find name 'foo'. src/main.ts(3,5)"
+		},
+		{
+			"kind": "session.idle",
+			"at": "2026-08-11T11:00:25.000Z",
+			"sessionId": "sess-2"
+		}
+	]
+}

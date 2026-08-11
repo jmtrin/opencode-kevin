@@ -114,7 +114,11 @@ describe("e2e — InjectionLedger.settle (failure → injection → recurrence)"
 		expect(mem.last_injected_at).toBeTruthy();
 	});
 
-	it("marks an injection effective when the fingerprint does not recur", () => {
+	it("marks an injection inconclusive when the fingerprint does not recur and no fix was linked", () => {
+		// v0.5.0 (K5-005 / D5-01) — the old "effective when the error did
+		// not recur" branch is now `inconclusive`: absence of recurrence is
+		// not evidence of effect. `effective` now requires an OBSERVED
+		// linked fix (fix_for_fingerprint on a successful call).
 		const metrics = new Metrics(store);
 		const ledger = new InjectionLedger(store, metrics);
 		const fp = fingerprint("error: something failed");
@@ -138,7 +142,9 @@ describe("e2e — InjectionLedger.settle (failure → injection → recurrence)"
 			hook: "pre_prompt",
 			tokens: 10,
 		});
-		// Only a SUCCESS afterwards → nothing to charge.
+		// Only a SUCCESS afterwards → nothing to charge, but no linked fix
+		// either (the success carries error_fingerprint, not
+		// fix_for_fingerprint).
 		addToolCall({
 			sessionId: "s-1",
 			success: 1,
@@ -149,8 +155,9 @@ describe("e2e — InjectionLedger.settle (failure → injection → recurrence)"
 		ledger.settle("s-1");
 
 		const rows = ledger.rowsForSession("s-1");
-		expect(rows[0].outcome).toBe("effective");
-		expect(metrics.get("injections_effective")).toBe(1);
+		expect(rows[0].outcome).toBe("inconclusive");
+		expect(metrics.get("injections_inconclusive")).toBe(1);
+		expect(metrics.get("injections_effective")).toBe(0);
 		expect(metrics.get("injections_ineffective")).toBe(0);
 	});
 
@@ -181,8 +188,10 @@ describe("e2e — InjectionLedger.settle (failure → injection → recurrence)"
 
 		ledger.settle("s-1");
 
+		// v0.5.0 (D5-01) — no recurrence in the charged window and no linked
+		// fix: `inconclusive`, not the old `effective`.
 		const rows = ledger.rowsForSession("s-1");
-		expect(rows[0].outcome).toBe("effective");
+		expect(rows[0].outcome).toBe("inconclusive");
 	});
 
 	it("is idempotent: settling twice does not double-charge", () => {

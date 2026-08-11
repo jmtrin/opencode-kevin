@@ -4,6 +4,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -63,12 +64,17 @@ async function main(): Promise<void> {
 	const sql003Src = join(process.cwd(), "migrations", "003_v02_signal.sql");
 	const sql004Src = join(process.cwd(), "migrations", "004_v03_knowledge.sql");
 	const sql005Src = join(process.cwd(), "migrations", "005_v04_signal.sql");
+	const sql006Src = join(process.cwd(), "migrations", "006_v05_glassbox.sql");
 	if (!existsSync(sqlSrc)) {
 		console.log("\u2717 No existe migrations/001_initial.sql");
 		failed++;
 		process.exit(1);
 	}
 	copyFileSync(sqlSrc, join(migrationsDir, "001_initial.sql"));
+	const sql002Src = join(process.cwd(), "migrations", "002_indexes.sql");
+	if (existsSync(sql002Src)) {
+		copyFileSync(sql002Src, join(migrationsDir, "002_indexes.sql"));
+	}
 	if (existsSync(sql003Src)) {
 		copyFileSync(sql003Src, join(migrationsDir, "003_v02_signal.sql"));
 	}
@@ -78,11 +84,25 @@ async function main(): Promise<void> {
 	if (existsSync(sql005Src)) {
 		copyFileSync(sql005Src, join(migrationsDir, "005_v04_signal.sql"));
 	}
+	if (existsSync(sql006Src)) {
+		copyFileSync(sql006Src, join(migrationsDir, "006_v05_glassbox.sql"));
+	}
 
 	const store = new Store({ path: ":memory:" });
 	try {
 		check("SQLite (better-sqlite3) abre DB", () => {
 			store.prepare("SELECT 1").get();
+		});
+
+		check("6 migraciones copiadas", () => {
+			const files = readdirSync(migrationsDir).filter((f) =>
+				f.endsWith(".sql"),
+			);
+			if (files.length !== 6) {
+				throw new Error(
+					`esperadas 6 migraciones, encontradas ${files.length}: ${files.join(", ")}`,
+				);
+			}
 		});
 
 		await checkAsync("Migracion 001 aplica", async () => {

@@ -4,8 +4,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
+import { Archiver } from "./Archiver.js";
 import { CausalChain } from "./CausalChain.js";
 import { type ChatMessage, ContextInjector } from "./ContextInjector.js";
+import { Feedback } from "./Feedback.js";
 import { InjectionLedger } from "./InjectionLedger.js";
 import {
 	type Memory,
@@ -20,6 +22,7 @@ import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
 import { fingerprint } from "./fingerprint.js";
+import { buildAudit } from "./kevin_audit.js";
 import { kevinWhy } from "./kevin_why.js";
 import type { WhyResult } from "./kevin_why.js";
 import { Metrics } from "./metrics.js";
@@ -44,6 +47,12 @@ export const KEVIN_CONFIG_KEYS = [
 	"cross_project_enabled",
 	"llm_reflection_enabled",
 	"tool_calls_dedup_enabled",
+	// v0.5.0 (K5-003 / plan §8.13) — omitting these makes `kevin_config set`
+	// return { error: "unknown_key" } while `kevin_config list` still shows
+	// the keys seeded by migration 006.
+	"deterministic_retrieval",
+	"pre_prompt_budget_tokens",
+	"archive_after_days",
 ] as const;
 
 function resolveMigrationsDir(): string {
@@ -96,6 +105,11 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// so ledger and injector share the same store.
 	const ledger = new InjectionLedger(store, metrics);
 	const injector = new ContextInjector(memoryService, metrics, ledger);
+	// v0.5.0 (K5-009/011 / plan §5.3) — human feedback component behind the
+	// `kevin_feedback` tool; 'ignore' verdicts also stamp memories.ignored.
+	const feedback = new Feedback(store, metrics);
+	// v0.5.0 (K5-012 / plan §5.4) — retires stale memories at session.idle.
+	const archiver = new Archiver(store, memoryService, metrics);
 	const retrospective = new Retrospective(
 		store,
 		memoryService,
@@ -409,6 +423,30 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					} catch {
 						recurrenceByOrigin = {};
 					}
+					// v0.5.0 (K5-021 / plan §5.7) — lifecycle counts; best-effort
+					// on pre-006 DBs (columns may be missing).
+					let memoriesIgnored = 0;
+					let memoriesArchived = 0;
+					try {
+						memoriesIgnored = (
+							store
+								.prepare("SELECT COUNT(*) as c FROM memories WHERE ignored = 1")
+								.get() as { c: number }
+						).c;
+					} catch {
+						memoriesIgnored = 0;
+					}
+					try {
+						memoriesArchived = (
+							store
+								.prepare(
+									"SELECT COUNT(*) as c FROM memories WHERE status = 'archived'",
+								)
+								.get() as { c: number }
+						).c;
+					} catch {
+						memoriesArchived = 0;
+					}
 					return {
 						title: "Estado de Kevin",
 						output: JSON.stringify({
@@ -432,7 +470,34 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							patterns_promoted_new: metrics.get("patterns_promoted_new"),
 							// v0.4.0 (K4-024): per-origin recurrence totals.
 							recurrence_by_origin: recurrenceByOrigin,
+							// v0.5.0 (K5-021 / plan §5.7) — glassbox fields.
+							injections_inconclusive: metrics.get("injections_inconclusive"),
+							coverage_rate: metrics.coverageRate(),
+							blocked: metrics.blockedSnapshot(),
+							memories_ignored: memoriesIgnored,
+							memories_archived: memoriesArchived,
+							feedback: {
+								positive: metrics.get("feedback_positive_total"),
+								negative: metrics.get("feedback_negative_total"),
+							},
 						}),
+					};
+				},
+			}),
+			kevin_audit: tool({
+				description:
+					'Auditoria de solo lectura de la DB (v0.5.0, glassbox): memorias por status/origin/type, salud de inyecciones (precision/coverage), contadores bloqueados, feedback por verdicto, tokens inyectados. Sin writes, sin LLM. En DBs pre-006 devuelve los bloques computables con "partial": true. verbose añade el bloque settings.',
+				args: {
+					verbose: tool.schema.boolean().default(false),
+				},
+				async execute(args) {
+					const report = buildAudit(store, metrics);
+					const payload = args.verbose
+						? report
+						: { ...report, settings: undefined };
+					return {
+						title: "Auditoria de Kevin",
+						output: JSON.stringify(payload),
 					};
 				},
 			}),
@@ -487,6 +552,98 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					return {
 						title: "Explicacion causal",
 						output: JSON.stringify(result),
+					};
+				},
+			}),
+			kevin_feedback: tool({
+				description:
+					"Reporta juicio humano sobre una memoria (v0.5.0). verdict: useful | wrong | outdated | ignore. 'ignore' excluye la memoria de retrieval e inyeccion (D5-07); los demas ajustan confidence via computeConfidence (D5-02).",
+				args: {
+					memory_id: tool.schema.string().min(1),
+					verdict: tool.schema
+						.enum(["useful", "wrong", "outdated", "ignore"])
+						.describe(
+							"useful: la memoria ayudo. wrong: era incorrecta. outdated: ya no aplica. ignore: no volver a mostrarla.",
+						),
+					note: tool.schema.string().optional(),
+					session_id: tool.schema.string().optional(),
+				},
+				async execute(args) {
+					const memory = memoryService.getById(args.memory_id);
+					if (!memory) {
+						return {
+							title: "Feedback no registrado",
+							output: JSON.stringify({
+								message: `No memory found for id "${args.memory_id}".`,
+							}),
+						};
+					}
+					try {
+						const feedbackId = feedback.record({
+							memoryId: args.memory_id,
+							verdict: args.verdict,
+							sessionId: args.session_id ?? currentSessionId ?? null,
+							note: args.note,
+						});
+						const counts = feedback.countsFor(args.memory_id);
+						return {
+							title: "Feedback registrado",
+							output: JSON.stringify({
+								feedback_id: feedbackId,
+								memory_id: args.memory_id,
+								verdict: args.verdict,
+								counters: counts,
+								ignored:
+									args.verdict === "ignore" ? true : memory.ignored === true,
+							}),
+						};
+					} catch (err) {
+						return {
+							title: "Feedback no registrado",
+							output: JSON.stringify({
+								message: err instanceof Error ? err.message : String(err),
+							}),
+						};
+					}
+				},
+			}),
+			kevin_trace: tool({
+				description:
+					"Predice que memorias se inyectarian en el prompt para una query (v0.5.0, dry-run estricto). Retorna el plan: items admitidos/bloqueados con su razon, tokens totales estimados. NO inyecta, NO mueve contadores, NO muta el seen-set, NO hace bump de relevancia (D5-08). Si omites query, usa la ultima query derivada de la sesion.",
+				args: {
+					query: tool.schema.string().optional(),
+					session_id: tool.schema.string().optional(),
+					tag: tool.schema
+						.enum(["context", "memory"])
+						.default("context")
+						.describe(
+							"context = pre-prompt (cap por setting pre_prompt_budget_tokens, default 900), memory = compacting (cap 2000)",
+						),
+					cap: tool.schema.number().int().positive().optional(),
+				},
+				async execute(args) {
+					const sid = args.session_id ?? currentSessionId ?? "";
+					const query =
+						args.query ??
+						(sid ? (lastUserQueryBySession.get(sid) ?? null) : null) ??
+						lastUserQuery;
+					if (!query) {
+						return {
+							title: "Trace sin query",
+							output: JSON.stringify({
+								message:
+									"No query derivada disponible. Pasa query explicitamente.",
+							}),
+						};
+					}
+					const plan = injector.plan(query, {
+						tag: args.tag,
+						cap: args.cap,
+						sessionId: sid,
+					});
+					return {
+						title: "Plan de inyeccion (dry-run)",
+						output: JSON.stringify(plan),
 					};
 				},
 			}),
@@ -760,6 +917,13 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					} catch {
 						// best-effort: a legacy DB without the ledger
 						// table must not break the idle path
+					}
+					// v0.5.0 (K5-012 / plan §5.4) — retire stale lessons at
+					// idle; pre-006 DBs degrade to a no-op.
+					try {
+						archiver.run();
+					} catch {
+						// best-effort, same pattern as ledger.settle
 					}
 					fireAndForget(retrospective.generate(sid));
 					memoryService.boostPositiveReflectors(sid);
