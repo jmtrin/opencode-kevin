@@ -32,6 +32,13 @@ beforeEach(async () => {
 		migrationsDir,
 		retrospectivesDir: join(tmpRoot, "retrospectives"),
 	});
+	// v0.6.0 (K6-022): the release default floor (0.6) blocks every
+	// single-observation memory (base confidence 0.5). This harness tests
+	// v0.5-era push semantics, so it opts out explicitly.
+	await hooks.tool?.kevin_config.execute(
+		{ action: "set", key: "injection_confidence_floor", value: "0" },
+		makeCtx("s-0"),
+	);
 });
 
 afterEach(async () => {

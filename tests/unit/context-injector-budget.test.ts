@@ -18,7 +18,10 @@ function mem(): Memory {
 	} as Memory;
 }
 
-function makeInjector(budgetValue: string | null): {
+function makeInjector(
+	budgetValue: string | null,
+	metrics?: Metrics,
+): {
 	injector: ContextInjector;
 	service: MemoryService;
 } {
@@ -28,11 +31,14 @@ function makeInjector(budgetValue: string | null): {
 		// null = the key is absent from kevin_settings → fallback path.
 		getSetting: vi.fn((key: string, fallback?: string) =>
 			key === "pre_prompt_budget_tokens"
-				? (budgetValue ?? fallback ?? "900")
+				? (budgetValue ?? fallback ?? "400")
 				: (fallback ?? "1"),
 		),
 	} as unknown as MemoryService;
-	return { injector: new ContextInjector(service), service };
+	return {
+		injector: new ContextInjector(service, metrics ?? null),
+		service,
+	};
 }
 
 function transformCap(injector: ContextInjector): number {
@@ -53,6 +59,20 @@ function transformCap(injector: ContextInjector): number {
 	return calls[0] as number;
 }
 
+function transformOnce(injector: ContextInjector): {
+	service: MemoryService;
+	output: { system: string[] };
+} {
+	const service = (injector as unknown as { memoryService: MemoryService })
+		.memoryService;
+	const output = { system: [] as string[] };
+	injector.onSystemTransform(
+		{ messages: [{ role: "user", content: "fix typecheck error" }] },
+		output,
+	);
+	return { service, output };
+}
+
 let store: Store;
 let metrics: Metrics;
 
@@ -61,11 +81,11 @@ beforeEach(() => {
 	metrics = new Metrics(store);
 });
 
-describe("K5-017 — configurable pre-prompt budget (D5-11)", () => {
-	it("with no setting present the effective cap is 900", () => {
+describe("K6-021 — push budget 900 → 400; clamp [0, 4000]; 0 means off (D5-11)", () => {
+	it("with no setting present the effective cap is 400", () => {
 		const { injector, service } = makeInjector(null);
-		expect(service.getSetting("pre_prompt_budget_tokens", "900")).toBe("900");
-		expect(transformCap(injector)).toBe(900);
+		expect(service.getSetting("pre_prompt_budget_tokens", "400")).toBe("400");
+		expect(transformCap(injector)).toBe(400);
 	});
 
 	it("setting '1500' restores exactly the v0.4.0 behaviour", () => {
@@ -73,14 +93,30 @@ describe("K5-017 — configurable pre-prompt budget (D5-11)", () => {
 		expect(transformCap(injector)).toBe(1500);
 	});
 
-	it("'50' clamps to 100; '99999' clamps to 4000; 'abc' falls back to 900", () => {
-		expect(transformCap(makeInjector("50").injector)).toBe(100);
+	it("'99999' clamps to 4000; 'abc' falls back to 400", () => {
 		expect(transformCap(makeInjector("99999").injector)).toBe(4000);
-		expect(transformCap(makeInjector("abc").injector)).toBe(900);
+		expect(transformCap(makeInjector("abc").injector)).toBe(400);
 	});
 
-	it("the compacting cap remains 2000 regardless of the setting", () => {
-		const { injector } = makeInjector("50");
+	it("cap 0 is off: retrieval never runs and no injections_* metric moves", () => {
+		const { injector, service } = makeInjector("0", metrics);
+		const { output } = transformOnce(injector);
+		expect(output.system).toEqual([]);
+		expect(service.getRelevant).not.toHaveBeenCalled();
+		const snapshot = metrics.snapshot();
+		expect(snapshot.tokens_injected_pre_prompt).toBe(0);
+		expect(snapshot.injections_total).toBe(0);
+		expect(snapshot.injections_blocked_seen).toBe(0);
+		expect(snapshot.injections_blocked_confidence).toBe(0);
+	});
+
+	it("a user override of '1200' still reads 1200", () => {
+		const { injector } = makeInjector("1200");
+		expect(transformCap(injector)).toBe(1200);
+	});
+
+	it("the compacting cap remains 2000 and still injects even with budget '0'", () => {
+		const { injector } = makeInjector("0");
 		const output = { context: [] as string[] };
 		injector.onCompacting(
 			{
@@ -94,6 +130,7 @@ describe("K5-017 — configurable pre-prompt budget (D5-11)", () => {
 		const calls = (service.getRelevant as ReturnType<typeof vi.fn>).mock
 			.calls as [{ maxTokens: number }][];
 		expect(calls[0][0].maxTokens).toBe(2000);
+		expect(output.context.length).toBeGreaterThan(0);
 	});
 
 	it("plan() without cap reports the effective cap (kevin_trace contract)", () => {
@@ -103,6 +140,6 @@ describe("K5-017 — configurable pre-prompt budget (D5-11)", () => {
 		const planDefault = makeInjector(null).injector.plan("x", {
 			sessionId: "s-1",
 		});
-		expect(planDefault.cap).toBe(900);
+		expect(planDefault.cap).toBe(400);
 	});
 });

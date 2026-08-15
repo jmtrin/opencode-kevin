@@ -17,7 +17,9 @@ function createMock(memories: Memory[], settingValue = "1") {
 		bumpRelevance(ids: string[]): void {
 			bumps.push(ids);
 		},
-		getSetting: vi.fn(() => settingValue),
+		getSetting: vi.fn((key: string, fallback?: string) =>
+			key === "lesson_snippet_injection" ? settingValue : (fallback ?? "400"),
+		),
 	} as unknown as MemoryService;
 	return { calls, bumps, service };
 }

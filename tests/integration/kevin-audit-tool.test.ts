@@ -47,7 +47,12 @@ describe("K5-016 — buildAudit (kevin_audit)", () => {
 		const store = makeMigratedStore();
 		const metrics = new Metrics(store);
 		const report = buildAudit(store, metrics);
-		expect(report.partial).toBe(false);
+		// v0.6.0 (K6-023): this fixture is a pre-007 database, so the
+		// channels/curation blocks are OMITTED and the report is flagged
+		// partial — a scoreboard that cannot be computed must say so.
+		expect(report.partial).toBe(true);
+		expect(report.channels).toBeUndefined();
+		expect(report.curation).toBeUndefined();
 		expect(report.memories.total).toBe(0);
 		expect(report.memories.by_status).toEqual({});
 		expect(report.memories.ignored).toBe(0);
@@ -60,6 +65,7 @@ describe("K5-016 — buildAudit (kevin_audit)", () => {
 			recurrence: 0,
 			stale: 0,
 			ignored: 0,
+			confidence: 0,
 		});
 		expect(report.feedback.positive).toBe(0);
 		expect(report.feedback.by_verdict).toEqual({});
@@ -146,7 +152,7 @@ describe("K5-016 — buildAudit (kevin_audit)", () => {
 		expect(report.memories.superseded_with_target).toBe(1);
 	});
 
-	it("blocked reflects the five counters", () => {
+	it("blocked reflects the six counters", () => {
 		const store = makeMigratedStore();
 		const metrics = new Metrics(store);
 		metrics.incr("injections_blocked_seen", 3);
@@ -154,6 +160,7 @@ describe("K5-016 — buildAudit (kevin_audit)", () => {
 		metrics.incr("injections_blocked_recurrence", 1);
 		metrics.incr("injections_blocked_stale", 4);
 		metrics.incr("injections_blocked_ignored", 5);
+		metrics.incr("injections_blocked_confidence", 6);
 		metrics.flush();
 		const report = buildAudit(store, metrics);
 		expect(report.blocked).toEqual({
@@ -162,6 +169,7 @@ describe("K5-016 — buildAudit (kevin_audit)", () => {
 			recurrence: 1,
 			stale: 4,
 			ignored: 5,
+			confidence: 6,
 		});
 	});
 

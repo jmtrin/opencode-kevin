@@ -65,6 +65,7 @@ async function main(): Promise<void> {
 	const sql004Src = join(process.cwd(), "migrations", "004_v03_knowledge.sql");
 	const sql005Src = join(process.cwd(), "migrations", "005_v04_signal.sql");
 	const sql006Src = join(process.cwd(), "migrations", "006_v05_glassbox.sql");
+	const sql007Src = join(process.cwd(), "migrations", "007_v06_pull.sql");
 	if (!existsSync(sqlSrc)) {
 		console.log("\u2717 No existe migrations/001_initial.sql");
 		failed++;
@@ -87,6 +88,11 @@ async function main(): Promise<void> {
 	if (existsSync(sql006Src)) {
 		copyFileSync(sql006Src, join(migrationsDir, "006_v05_glassbox.sql"));
 	}
+	// v0.6.0 (K6-003 / plan §8.15) — without this entry `npm run verify`
+	// silently never exercises migration 007.
+	if (existsSync(sql007Src)) {
+		copyFileSync(sql007Src, join(migrationsDir, "007_v06_pull.sql"));
+	}
 
 	const store = new Store({ path: ":memory:" });
 	try {
@@ -94,13 +100,13 @@ async function main(): Promise<void> {
 			store.prepare("SELECT 1").get();
 		});
 
-		check("6 migraciones copiadas", () => {
+		check("7 migraciones copiadas", () => {
 			const files = readdirSync(migrationsDir).filter((f) =>
 				f.endsWith(".sql"),
 			);
-			if (files.length !== 6) {
+			if (files.length !== 7) {
 				throw new Error(
-					`esperadas 6 migraciones, encontradas ${files.length}: ${files.join(", ")}`,
+					`esperadas 7 migraciones, encontradas ${files.length}: ${files.join(", ")}`,
 				);
 			}
 		});
@@ -116,6 +122,15 @@ async function main(): Promise<void> {
 		});
 
 		const memoryService = new MemoryService(store);
+		// v0.6.0 (K6-022) — the release floor (0.6) blocks this single
+		// observation, so the verify harness opts out to keep proving the
+		// injection pipeline end to end (same contract as the legacy
+		// plugin harnesses).
+		store
+			.prepare(
+				"INSERT OR REPLACE INTO kevin_settings (key, value) VALUES ('injection_confidence_floor', '0')",
+			)
+			.run();
 
 		check("MemoryService.save + query", () => {
 			const id = memoryService.save({

@@ -111,6 +111,7 @@ describe("K5-021 — kevin_status v0.5 fields", () => {
 			recurrence: 0,
 			stale: 0,
 			ignored: 0,
+			confidence: 0,
 		});
 		expect(p.memories_ignored).toBe(0);
 		expect(p.memories_archived).toBe(0);
@@ -130,6 +131,7 @@ describe("K5-021 — kevin_status v0.5 fields", () => {
 			recurrence: 0,
 			stale: 0,
 			ignored: 0,
+			confidence: 0,
 		});
 		expect(p.feedback).toEqual({ positive: 0, negative: 0 });
 	});

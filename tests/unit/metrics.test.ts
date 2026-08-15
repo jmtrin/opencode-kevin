@@ -71,13 +71,16 @@ describe("Metrics", () => {
 		const store = new Store({ path: ":memory:" });
 		const m = new Metrics(store);
 		const snap = m.snapshot();
-		// All 22 keys still present at zero.
+		// All 28 keys still present at zero.
 		expect(Object.keys(snap).sort()).toEqual(
 			[
+				"artifact_writes_noop",
+				"artifact_writes_total",
 				"causal_links",
 				"duplicate_suppressions",
 				"feedback_negative_total",
 				"feedback_positive_total",
+				"injections_blocked_confidence",
 				"injections_blocked_ignored",
 				"injections_blocked_recurrence",
 				"injections_blocked_seen",
@@ -92,6 +95,9 @@ describe("Metrics", () => {
 				"patterns_causal",
 				"patterns_mined",
 				"patterns_promoted_new",
+				"proposals_approved",
+				"proposals_created",
+				"proposals_rejected",
 				"reflections_throttled",
 				"tokens_injected_compacting",
 				"tokens_injected_pre_prompt",
@@ -293,11 +299,11 @@ describe("Metrics", () => {
 });
 
 describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
-	it("METRIC_KEYS has exactly 22 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(22);
+	it("METRIC_KEYS has exactly 28 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(28);
 	});
 
-	it("snapshot() includes all 22 keys", () => {
+	it("snapshot() includes all 28 keys", () => {
 		const store = makeMigratedStore();
 		const m = new Metrics(store);
 		const snap = m.snapshot();
@@ -338,7 +344,7 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 		store.close();
 	});
 
-	it("blockedSnapshot() returns the five counters keyed by short names", () => {
+	it("blockedSnapshot() returns the six counters keyed by short names", () => {
 		const store = makeMigratedStore();
 		const m = new Metrics(store);
 		m.incr("injections_blocked_seen", 3);
@@ -351,10 +357,84 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 			recurrence: 1,
 			stale: 0,
 			ignored: 0,
+			confidence: 0,
 		});
 		for (const v of Object.values(blocked)) {
 			expect(typeof v).toBe("number");
 		}
+		m.close();
+		store.close();
+	});
+});
+
+describe("K6-004 — v0.6.0 metrics (Pull)", () => {
+	const SQL_005 = readFileSync(
+		join(__dirname, "..", "..", "migrations", "005_v04_signal.sql"),
+		"utf8",
+	);
+	const SQL_006 = readFileSync(
+		join(__dirname, "..", "..", "migrations", "006_v05_glassbox.sql"),
+		"utf8",
+	);
+	const SQL_007 = readFileSync(
+		join(__dirname, "..", "..", "migrations", "007_v06_pull.sql"),
+		"utf8",
+	);
+
+	function makeMigratedStore007(): Store {
+		const store = new Store({ path: ":memory:" });
+		store.exec(SQL_001);
+		store.exec(SQL_003);
+		store.exec(SQL_004);
+		store.exec(SQL_005);
+		store.exec(SQL_006);
+		store.exec(SQL_007);
+		return store;
+	}
+
+	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {
+		const { METRIC_KEY_LABELS } = await import("../../plugin/Retrospective.js");
+		for (const key of METRIC_KEYS) {
+			expect(typeof METRIC_KEY_LABELS[key]).toBe("string");
+			expect(METRIC_KEY_LABELS[key].length).toBeGreaterThan(0);
+		}
+	});
+
+	it("DB metric rows and METRIC_KEYS are the same set after migration", () => {
+		const store = makeMigratedStore007();
+		const rows = store.prepare("SELECT key FROM kevin_metrics").all() as {
+			key: string;
+		}[];
+		const dbKeys = rows.map((r) => r.key).sort();
+		expect(dbKeys).toEqual([...METRIC_KEYS].sort());
+		store.close();
+	});
+
+	it("blockedSnapshot() includes the confidence key", () => {
+		const store = makeMigratedStore007();
+		const m = new Metrics(store);
+		const blocked = m.blockedSnapshot();
+		expect(Object.keys(blocked).sort()).toEqual([
+			"confidence",
+			"ignored",
+			"recurrence",
+			"seen",
+			"stale",
+			"weak",
+		]);
+		m.close();
+		store.close();
+	});
+
+	it("precisionRate() and coverageRate() are unchanged from v0.5.0", () => {
+		const store = makeMigratedStore007();
+		const m = new Metrics(store);
+		m.incr("injections_total", 100);
+		m.incr("injections_effective", 3);
+		m.incr("injections_ineffective", 1);
+		m.incr("injections_inconclusive", 96);
+		expect(m.precisionRate()).toBeCloseTo(0.75);
+		expect(m.coverageRate()).toBeCloseTo(0.04);
 		m.close();
 		store.close();
 	});

@@ -2,6 +2,7 @@ import { deterministicFixLine } from "./LessonFixer.js";
 import type { Store } from "./Store.js";
 import { computeConfidence } from "./confidence.js";
 import { fingerprint as computeFingerprint } from "./fingerprint.js";
+import { classify } from "./inferability.js";
 import type { Metrics } from "./metrics.js";
 import { toMatchClause, tokenizeQuery } from "./query-tokenizer.js";
 import { uuidv7 } from "./uuid.js";
@@ -62,6 +63,16 @@ export interface Memory {
 	/** v0.5.0 (K5-010 / plan §5.3, D5-02) — human judgement counters,
 	 * folded into confidence by computeConfidence. */
 	feedbackPositive?: number;
+	/** v0.6.0 (K6-011 / plan §5.4) — curation state: curated memories have
+	 * been written to AGENTS.md and are excluded from new candidates. */
+	curated?: boolean;
+	/** v0.6.0 (K6-011 / plan §5.4) — when the memory was curated (ISO time). */
+	curatedAt?: string | null;
+	/** v0.6.0 (K6-011 / plan §5.3) — deterministic inferability verdict from
+	 * `inferability.classify()`; `null` = unknown, never collapsed. */
+	inferable?: "inferable" | "non_inferable" | null;
+	/** v0.5.0 (K5-010 / plan §5.3, D5-02) — human judgement counters,
+	 * folded into confidence by computeConfidence. */
 	feedbackNegative?: number;
 }
 
@@ -214,6 +225,13 @@ interface MemoryRow {
 	feedback_positive?: number;
 	/** v0.5.0 (K5-010) */
 	feedback_negative?: number;
+	/** v0.6.0 (K6-011 / migration 007) */
+	curated?: number;
+	/** v0.6.0 (K6-011 / migration 007) */
+	curated_at?: string | null;
+	/** v0.6.0 (K6-011 / migration 007) — 1 = inferable, 0 = non_inferable,
+	 * NULL = unknown. */
+	inferable?: number | null;
 }
 
 const TYPE_PRIORITY: Record<MemoryType, number> = {
@@ -277,17 +295,37 @@ const MEMORY_ROW_SELECT = `id, type, content, scope, relevance_score, source_too
  * v0.5.0 (K5-008/009 / plan §5.6) — cached per-store probe for the 006-only
  * `ignored` column (pre-006 DBs must not reference it). Shared by the
  * retrieval filter, the row SELECT, and the save() ignored stamp.
+ * v0.6.0 (K6-001a) — positive-only caching: a successful probe is cached,
+ * a failed probe is NOT. A Store migrated in place heals on the next call.
  */
 const ignoredColumnCache = new WeakMap<Store, boolean>();
 function hasIgnoredColumn(store: Store): boolean {
 	const cached = ignoredColumnCache.get(store);
-	if (cached !== undefined) return cached;
+	if (cached === true) return true;
 	try {
 		store.prepare("SELECT ignored FROM memories LIMIT 1").get();
 		ignoredColumnCache.set(store, true);
 		return true;
 	} catch {
-		ignoredColumnCache.set(store, false);
+		return false;
+	}
+}
+
+/**
+ * v0.6.0 (K6-011 / plan §5.4) — cached per-store probe for the 007-only
+ * `curated` column (pre-007 DBs must not reference it). Same positive-only
+ * caching discipline as `ignored` (K6-001a): a successful probe is cached,
+ * a failed probe is NOT.
+ */
+const curatedColumnCache = new WeakMap<Store, boolean>();
+function hasCuratedColumn(store: Store): boolean {
+	const cached = curatedColumnCache.get(store);
+	if (cached === true) return true;
+	try {
+		store.prepare("SELECT curated FROM memories LIMIT 1").get();
+		curatedColumnCache.set(store, true);
+		return true;
+	} catch {
 		return false;
 	}
 }
@@ -295,12 +333,16 @@ function hasIgnoredColumn(store: Store): boolean {
 /**
  * v0.5.0 (K5-009 / plan §5.3) — the 006-only columns are appended when the
  * migration has run (same probe as the `ignored = 0` retrieval filter).
+ * v0.6.0 (K6-011) — the 007-only curation columns are appended likewise.
  */
 function rowSelect(store: Store): string {
-	return hasIgnoredColumn(store)
+	const base = hasIgnoredColumn(store)
 		? `${MEMORY_ROW_SELECT}, ignored, superseded_by,
 		   feedback_positive, feedback_negative`
 		: MEMORY_ROW_SELECT;
+	return hasCuratedColumn(store)
+		? `${base}, curated, curated_at, inferable`
+		: base;
 }
 
 function mapRow(row: MemoryRow, score?: number): Memory {
@@ -342,6 +384,19 @@ function mapRow(row: MemoryRow, score?: number): Memory {
 		// v0.5.0 (K5-010 / plan §5.3) — human judgement counters.
 		feedbackPositive: row.feedback_positive ?? 0,
 		feedbackNegative: row.feedback_negative ?? 0,
+		// v0.6.0 (K6-011 / plan §5.4) — curation state and the deterministic
+		// inferability verdict (absent on pre-007 rows). `NULL` stays `null`
+		// — never collapsed, the Curator predicate is `inferable != 1`.
+		curated: row.curated === undefined ? undefined : row.curated === 1,
+		curatedAt: row.curated_at ?? null,
+		inferable:
+			row.inferable === undefined
+				? undefined
+				: row.inferable === 1
+					? "inferable"
+					: row.inferable === 0
+						? "non_inferable"
+						: null,
 	};
 	if (score !== undefined) {
 		if (!mem.metadata) mem.metadata = {};
@@ -368,6 +423,23 @@ function isNotSearchable(mem: Memory): boolean {
 	return (
 		(mem.metadata as Record<string, unknown> | null)?.not_searchable === true
 	);
+}
+
+/**
+ * v0.6.0 (K6-011 / plan §5.3) — the SQL-side inferable verdict: `1`
+ * (inferable), `0` (non_inferable), `NULL` (unknown). `NULL` stays NULL —
+ * collapsing it would silently exclude every unclassified memory from
+ * curation (the Curator predicate is `inferable != 1`).
+ */
+function persistInferable(
+	type: string,
+	content: string,
+	metadata: unknown,
+): number | null {
+	const verdict = classify({ type, content, metadata });
+	if (verdict === "inferable") return 1;
+	if (verdict === "non_inferable") return 0;
+	return null;
 }
 
 export class MemoryService {
@@ -405,6 +477,13 @@ export class MemoryService {
 	// column there.
 	private hasIgnoredColumn(): boolean {
 		return hasIgnoredColumn(this.store);
+	}
+
+	// v0.6.0 (K6-011 / plan §5.4) — cached column probe for pre-007 DBs
+	// (which lack `curated`); save() and the retrieval SELECTs must not
+	// reference the column there.
+	private hasCuratedColumn(): boolean {
+		return hasCuratedColumn(this.store);
 	}
 
 	save(input: SaveInput): string {
@@ -478,38 +557,59 @@ export class MemoryService {
 		try {
 			// v0.4.0 (BUG-008) — recurrence_count is only persisted when the
 			// column exists (migration 005); pre-005 DBs get the legacy shape.
+			// v0.6.0 (K6-011 / plan §5.3) — the inferable verdict is persisted
+			// on insert when the column exists (migration 007). The column
+			// list is assembled so every migration level gets exactly its own
+			// shape: 005+ gains recurrence_count, 007+ gains inferable.
 			const withRecurrence = this.hasRecurrenceColumn();
-			const insert = withRecurrence
-				? `INSERT INTO memories
-             (id, type, content, scope, relevance_score, source_tool, source_session,
-              metadata, expires_at, project_id, fingerprint, origin,
-              evidence_count, last_verified_at, status, recurrence_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-				: `INSERT INTO memories
-             (id, type, content, scope, relevance_score, source_tool, source_session,
-              metadata, expires_at, project_id, fingerprint, origin,
-              evidence_count, last_verified_at, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-			this.store
-				.prepare(insert)
-				.run(
-					id,
-					input.type,
-					input.content,
-					scope,
-					relevanceScore,
-					input.sourceTool ?? null,
-					input.sourceSession ?? null,
-					metadata,
-					expiresAt,
-					projectId,
-					fp,
-					origin,
-					input.evidenceCount ?? 0,
-					input.lastVerifiedAt ?? null,
-					status,
-					...(withRecurrence ? [input.recurrenceCount ?? 0] : []),
+			const withCurated = this.hasCuratedColumn();
+			const columns = [
+				"id",
+				"type",
+				"content",
+				"scope",
+				"relevance_score",
+				"source_tool",
+				"source_session",
+				"metadata",
+				"expires_at",
+				"project_id",
+				"fingerprint",
+				"origin",
+				"evidence_count",
+				"last_verified_at",
+				"status",
+			];
+			const params: unknown[] = [
+				id,
+				input.type,
+				input.content,
+				scope,
+				relevanceScore,
+				input.sourceTool ?? null,
+				input.sourceSession ?? null,
+				metadata,
+				expiresAt,
+				projectId,
+				fp,
+				origin,
+				input.evidenceCount ?? 0,
+				input.lastVerifiedAt ?? null,
+				status,
+			];
+			if (withRecurrence) {
+				columns.push("recurrence_count");
+				params.push(input.recurrenceCount ?? 0);
+			}
+			if (withCurated) {
+				columns.push("inferable");
+				params.push(
+					persistInferable(input.type, input.content, input.metadata),
 				);
+			}
+			const insert = `INSERT INTO memories (${columns.join(", ")})
+           VALUES (${params.map(() => "?").join(", ")})`;
+			this.store.prepare(insert).run(...params);
 			return id;
 		} catch (err) {
 			const msg = (err as { message?: string } | undefined)?.message ?? "";
@@ -530,12 +630,51 @@ export class MemoryService {
 				)
 				.get(projectId, fp) as { id: string } | undefined;
 			this.metrics?.incr("duplicate_suppressions", 1);
-			if (existing) return existing.id;
+			if (existing) {
+				// v0.6.0 (K6-011 / plan §5.3) — dedup path: the stored
+				// classification is left alone unless it is NULL; a NULL
+				// (unclassified error, e.g. a pre-007 insert) gets the fresh
+				// lazy verdict. Guarded so a re-run cannot overwrite a
+				// classification produced later by inferability.classify().
+				if (this.hasCuratedColumn()) {
+					this.store
+						.prepare(
+							"UPDATE memories SET inferable = ? WHERE id = ? AND inferable IS NULL",
+						)
+						.run(
+							persistInferable(input.type, input.content, input.metadata),
+							existing.id,
+						);
+				}
+				return existing.id;
+			}
 			// Defensive: if the unique fired but the lookup returns nothing
 			// (concurrent delete race), fall through and rethrow rather than
 			// fabricate an id.
 			throw err;
 		}
+	}
+
+	/**
+	 * v0.6.0 (K6-011 / plan §5.4) — mark memories as curated. Batch in a
+	 * single statement with an `IN` clause; do not loop. Returns the number
+	 * of rows matched by the statement (not only rows whose value changed):
+	 * a second call with the same ids re-matches them, so the caller must
+	 * re-filter the id list (e.g. by `curated = 0`) to observe 0.
+	 */
+	markCurated(ids: readonly string[], at: string): number {
+		if (ids.length === 0) return 0;
+		const placeholders = ids.map(() => "?").join(", ");
+		this.store
+			.prepare(
+				`UPDATE memories SET curated = 1, curated_at = ?
+				 WHERE id IN (${placeholders})`,
+			)
+			.run(at, ...ids);
+		const row = this.store.prepare("SELECT changes() AS n").get() as {
+			n: number;
+		};
+		return Number(row.n);
 	}
 
 	getById(id: string): Memory | null {
@@ -735,6 +874,10 @@ export class MemoryService {
 		if (this.hasIgnoredColumn()) {
 			sql += ", ignored, superseded_by, feedback_positive, feedback_negative";
 		}
+		// v0.6.0 (K6-011) — 007-only curation columns, appended when present.
+		if (this.hasCuratedColumn()) {
+			sql += ", curated, curated_at, inferable";
+		}
 		sql += `
       FROM memories
       WHERE (expires_at IS NULL OR expires_at > datetime('now'))`;
@@ -774,6 +917,10 @@ export class MemoryService {
 		if (this.hasIgnoredColumn()) {
 			sql +=
 				", m.ignored, m.superseded_by, m.feedback_positive, m.feedback_negative";
+		}
+		// v0.6.0 (K6-011) — 007-only curation columns, appended when present.
+		if (this.hasCuratedColumn()) {
+			sql += ", m.curated, m.curated_at, m.inferable";
 		}
 		sql += `,
              bm25(memories_fts) AS score

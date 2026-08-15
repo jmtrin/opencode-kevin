@@ -173,6 +173,7 @@ describe("K5-007 — injections_blocked_* counters (D5-04/D5-08)", () => {
 			recurrence: 0,
 			stale: 0,
 			ignored: 0,
+			confidence: 0,
 		});
 	});
 
@@ -188,6 +189,7 @@ describe("K5-007 — injections_blocked_* counters (D5-04/D5-08)", () => {
 			recurrence: 0,
 			stale: 0,
 			ignored: 0,
+			confidence: 0,
 		});
 		// The real (non-dry) path still counts the same rejection.
 		injectOne(injector);

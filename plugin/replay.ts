@@ -68,6 +68,20 @@ export async function replay(
 			"UPDATE kevin_settings SET value = '1' WHERE key = 'deterministic_retrieval'",
 		)
 		.run();
+	// v0.6.0 (K6-022) — the release floor (0.6) blocks every
+	// single-observation memory the v0.5-era fixture exercises; the replay
+	// harness preserves the v0.5 push semantics it was recorded under, the
+	// same opt-out the legacy plugin harnesses apply.
+	store
+		.prepare(
+			"INSERT OR IGNORE INTO kevin_settings (key, value) VALUES ('injection_confidence_floor', '0')",
+		)
+		.run();
+	store
+		.prepare(
+			"UPDATE kevin_settings SET value = '0' WHERE key = 'injection_confidence_floor'",
+		)
+		.run();
 
 	const metrics = new Metrics(store);
 	const memoryService = new MemoryService(store, metrics);

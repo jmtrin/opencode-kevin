@@ -85,16 +85,17 @@ export class Archiver {
 	}
 }
 
+// v0.6.0 (K6-001a) — positive-only caching: a successful probe is cached,
+// a failed probe is NOT. A Store migrated in place heals on the next call.
 const archivedColumnCache = new WeakMap<Store, boolean>();
 function hasArchivedColumnCached(store: Store): boolean {
 	const cached = archivedColumnCache.get(store);
-	if (cached !== undefined) return cached;
+	if (cached === true) return true;
 	try {
 		store.prepare("SELECT archived_at FROM memories LIMIT 1").get();
 		archivedColumnCache.set(store, true);
 		return true;
 	} catch {
-		archivedColumnCache.set(store, false);
 		return false;
 	}
 }

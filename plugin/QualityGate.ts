@@ -51,6 +51,12 @@ export interface InjectionContext {
 	/** Failing tool_calls count for this fingerprint in the current session
 	 * (0 = never recurred after injection). */
 	recurrenceCount: number;
+	/** v0.6.0 (K6-022 / plan §5.8) — the `injection_confidence_floor`
+	 * setting, read once per plan/inject call by the ContextInjector.
+	 * When present, a memory whose `confidence` is below it is rejected by
+	 * the zero branch (before the seen-set). Undefined disables the branch:
+	 * memories without a computed confidence are never dropped by it. */
+	confidenceFloor?: number;
 }
 
 /**
@@ -61,6 +67,10 @@ export interface InjectionContext {
  */
 export type GateReason =
 	| "ok"
+	// v0.6.0 (K6-022 / plan §5.8) — sixth rejection reason; maps 1:1 to
+	// `injections_blocked_confidence` (Principle 16 applies to it exactly
+	// as to the first five).
+	| "low_confidence"
 	| "seen_this_session"
 	| "ignored"
 	| "not_active"
@@ -142,6 +152,9 @@ export const QualityGate = {
 	 * Branch order preserves the v0.4.0 sequence with `ignored` inserted
 	 * second:
 	 *
+	 * 0. `confidence < ctx.confidenceFloor` → `low_confidence` (v0.6.0,
+	 *    K6-022 — runs FIRST: it is the cheapest check, and a memory below
+	 *    the floor should not consume a seen-set slot it will never use)
 	 * 1. seen this session            → `seen_this_session`
 	 * 2. `memory.ignored === true`    → `ignored`
 	 * 3. status !== 'active'          → `not_active`
@@ -153,6 +166,10 @@ export const QualityGate = {
 	 * `ignored` is a human verdict (D5-07) and is enforced even in debug
 	 * mode: the flag excludes a memory from retrieval entirely, so the gate
 	 * is only ever asked about it defensively.
+	 *
+	 * The floor comparison is `>=`-admissive: a memory exactly AT the floor
+	 * passes the branch (asserted in K6-022). A floor of '0' admits
+	 * everything the other five branches allow.
 	 */
 	canInjectVerdict(
 		memory: {
@@ -161,10 +178,19 @@ export const QualityGate = {
 			strength?: "strong" | "weak";
 			isActionable?: boolean;
 			ignored?: boolean;
+			// v0.6.0 (K6-022) — the memory's computed confidence (0..1).
+			confidence?: number;
 		},
 		ctx: InjectionContext,
 		qualityGateEnabled = true,
 	): GateVerdict {
+		if (
+			memory.confidence !== undefined &&
+			ctx.confidenceFloor !== undefined &&
+			memory.confidence < ctx.confidenceFloor
+		) {
+			return { allowed: false, reason: "low_confidence" };
+		}
 		if (ctx.seenThisSession.has(memory.id)) {
 			return { allowed: false, reason: "seen_this_session" };
 		}

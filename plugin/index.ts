@@ -5,10 +5,13 @@ import { fileURLToPath } from "node:url";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
 import { Archiver } from "./Archiver.js";
+import { ArtifactWriter } from "./ArtifactWriter.js";
 import { CausalChain } from "./CausalChain.js";
 import { type ChatMessage, ContextInjector } from "./ContextInjector.js";
+import { Curator } from "./Curator.js";
 import { Feedback } from "./Feedback.js";
 import { InjectionLedger } from "./InjectionLedger.js";
+import { Materializer, SKILL_TOPIC } from "./Materializer.js";
 import {
 	type Memory,
 	MemoryService,
@@ -21,8 +24,12 @@ import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "./Reflector.js";
 import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
+import { probe } from "./capabilities.js";
 import { fingerprint } from "./fingerprint.js";
+import { kevinApprove } from "./kevin_approve.js";
 import { buildAudit } from "./kevin_audit.js";
+import { kevinPropose } from "./kevin_propose.js";
+import { kevinPublish } from "./kevin_publish.js";
 import { kevinWhy } from "./kevin_why.js";
 import type { WhyResult } from "./kevin_why.js";
 import { Metrics } from "./metrics.js";
@@ -34,7 +41,15 @@ export interface KevinPluginOptions {
 	migrationsDir?: string;
 	retrospectivesDir?: string;
 	throttleMs?: number;
+	/** v0.6.0 (K6-018) — test-only override for the pull-bundle root. */
+	materializerRoot?: string;
 }
+
+// v0.6.0 (K6-019) — process-global set of reference topics already
+// registered with the host this process. Keeps re-registration idempotent
+// across sessions within one process: a topic registered once is never
+// added twice, so `references_registered` never doubles.
+const registeredReferences = new Set<string>();
 
 /**
  * v0.4.0 (K4-021) — settings surfaced by `kevin_config` (plan §8.8).
@@ -53,6 +68,14 @@ export const KEVIN_CONFIG_KEYS = [
 	"deterministic_retrieval",
 	"pre_prompt_budget_tokens",
 	"archive_after_days",
+	// v0.6.0 (K6-003 / plan §8.14) — the five keys seeded by migration 007
+	// section 5. Omitting these makes `kevin_config set` return
+	// { error: "unknown_key" } while `kevin_config list` still shows them.
+	"curation_enabled",
+	"agents_md_path",
+	"skill_emission_enabled",
+	"reference_emission_enabled",
+	"injection_confidence_floor",
 ] as const;
 
 function resolveMigrationsDir(): string {
@@ -120,6 +143,91 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	);
 	const patternMiner = new PatternMiner(store, memoryService, metrics);
 	const causalChain = new CausalChain(store, memoryService, metrics);
+	// v0.6.0 (K6-014 / plan §5.4-5.5, D6-01) — the single write path: the
+	// ArtifactWriter is constructed here and only `kevin_approve` may call
+	// `apply()`. `kevin_propose` reaches the file only through `plan()`.
+	const writer = new ArtifactWriter(store, projectId, metrics);
+	const curator = new Curator(store, memoryService, projectId, metrics);
+	// v0.6.0 (K6-017/018 / plan §5.6-5.7, D6-13) — pull-channel bundles and
+	// the v2 domain probe. `probe()` runs ONCE at init and the result is
+	// held; probing per-event is a hot-path cost for a value that cannot
+	// change within a process (K6-016). The Materializer writes next to its
+	// targets, so the bundle directories are created here at init.
+	const materializerRoot =
+		opts.materializerRoot ?? join(homedir(), ".opencode-kevin");
+	mkdirSync(join(materializerRoot, "skills"), { recursive: true });
+	mkdirSync(join(materializerRoot, "refs"), { recursive: true });
+	const capabilities = probe(input);
+	const materializer = new Materializer(store, { root: materializerRoot });
+	// v0.6.0 (K6-018 / plan §8.14, D6-13) — skill emission at session
+	// start, behind the capability probe AND `skill_emission_enabled`
+	// (default '0'). Both no-op paths are silent: "unavailable" (v1 host)
+	// vs "off" (setting) are distinguished in kevin_audit (K6-023).
+	if (
+		capabilities.skills &&
+		memoryService.getSetting("skill_emission_enabled", "0") === "1"
+	) {
+		try {
+			const body = materializer.skillBody();
+			if (body !== "") {
+				materializer.materialize(writer);
+				const skill = (input as Record<string, unknown>).skill as
+					| { source?: unknown }
+					| undefined;
+				const registration = (skill?.source as (body: string) => unknown)(body);
+				if (
+					registration &&
+					typeof (registration as { dispose?: unknown }).dispose === "function"
+				) {
+					metrics.incrRegistered("skills_registered", 1);
+				}
+			}
+		} catch {
+			// best-effort: a throwing host registration is caught, the
+			// session continues, and no metric is incremented
+		}
+	}
+	// v0.6.0 (K6-019 / plan §5.7-5.8, D6-13) — reference emission at
+	// session start, same degradation contract as the skill block: silent
+	// no-op when the capability is absent or the setting is '0'. One
+	// `@kevin/<topic>` mention per materialized ref topic, registered with
+	// a `{ local }` source — the only source kind this release can
+	// truthfully claim (K6-019).
+	if (
+		capabilities.references &&
+		memoryService.getSetting("reference_emission_enabled", "0") === "1"
+	) {
+		try {
+			materializer.materialize(writer);
+			const reference = (input as Record<string, unknown>).reference as
+				| { add?: unknown }
+				| undefined;
+			if (typeof reference?.add === "function") {
+				for (const target of materializer
+					.bundleTargets()
+					.filter((t) => t.topic !== SKILL_TOPIC)) {
+					if (registeredReferences.has(target.topic)) continue;
+					const registration = (
+						reference.add as (
+							name: string,
+							source: { local: string },
+						) => unknown
+					)(`@kevin/${target.topic}`, { local: target.path });
+					if (
+						registration &&
+						typeof (registration as { dispose?: unknown }).dispose ===
+							"function"
+					) {
+						registeredReferences.add(target.topic);
+						metrics.incrRegistered("references_registered", 1);
+					}
+				}
+			}
+		} catch {
+			// best-effort: a throwing host registration is caught, the
+			// session continues, and no metric is incremented
+		}
+	}
 	let currentSessionId: string | null = null;
 	// BUG-011 — process-global last derived query. Cleared on
 	// `session.idle`; the per-session map below is the preferred source.
@@ -447,10 +555,74 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					} catch {
 						memoriesArchived = 0;
 					}
+					// v0.6.0 (K6-024) — v0.6 fields: schema version, curation
+					// switch, the two emission states (three-state, same
+					// contract as kevin_audit K6-023) and the pending
+					// proposal count. Omitted on pre-007 databases (best-
+					// effort, same omission contract as kevin_audit's
+					// channels/curation blocks): a status that cannot answer
+					// "what is the curation pipeline doing?" must not fake it.
+					let v06:
+						| {
+								schema_version: string;
+								curation_enabled: string;
+								skill_emission: "on" | "off" | "unavailable";
+								reference_emission: "on" | "off" | "unavailable";
+								proposals_pending: number;
+						  }
+						| undefined;
+					try {
+						store.prepare("SELECT 1 FROM curation_proposals LIMIT 1").get();
+						const versionRow = store
+							.prepare(
+								"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
+							)
+							.get() as { version: string } | undefined;
+						const settingsRows = store
+							.prepare("SELECT key, value FROM kevin_settings")
+							.all() as { key: string; value: string }[];
+						const statusSettings: Record<string, string> = {};
+						for (const r of settingsRows) {
+							statusSettings[r.key] = r.value;
+						}
+						const emission = (
+							capable: boolean,
+							value: string | undefined,
+						): "on" | "off" | "unavailable" => {
+							if (!capable) return "unavailable";
+							return value === "1" ? "on" : "off";
+						};
+						const pendingRow = store
+							.prepare(
+								"SELECT COUNT(*) as c FROM curation_proposals WHERE status = 'pending'",
+							)
+							.get() as { c: number };
+						v06 = {
+							schema_version: versionRow?.version ?? "000",
+							curation_enabled: statusSettings.curation_enabled ?? "0",
+							skill_emission: emission(
+								capabilities.skills,
+								statusSettings.skill_emission_enabled,
+							),
+							reference_emission: emission(
+								capabilities.references,
+								statusSettings.reference_emission_enabled,
+							),
+							proposals_pending: pendingRow.c,
+						};
+					} catch {
+						v06 = undefined;
+					}
 					return {
 						title: "Estado de Kevin",
 						output: JSON.stringify({
 							memories: memoryCount.c,
+							// v0.6.0 (K6-020) — tool ladder 13 → 16
+							// (13 v0.5 + kevin_propose + kevin_approve +
+							// kevin_publish). The frozen ladder is verified
+							// monotone across releases; K6-024 extends this
+							// block with the remaining v0.6 fields.
+							tool_count: 16,
 							memories_reflector: memoriesReflector,
 							memories_agent: memoriesAgent,
 							memories_pattern: memoriesPattern,
@@ -480,18 +652,23 @@ export const KevinPlugin: Plugin = async (input, options) => {
 								positive: metrics.get("feedback_positive_total"),
 								negative: metrics.get("feedback_negative_total"),
 							},
+							// v0.6.0 (K6-024) — omitted on pre-007 DBs.
+							v06,
 						}),
 					};
 				},
 			}),
 			kevin_audit: tool({
 				description:
-					'Auditoria de solo lectura de la DB (v0.5.0, glassbox): memorias por status/origin/type, salud de inyecciones (precision/coverage), contadores bloqueados, feedback por verdicto, tokens inyectados. Sin writes, sin LLM. En DBs pre-006 devuelve los bloques computables con "partial": true. verbose añade el bloque settings.',
+					'Auditoria de solo lectura de la DB (v0.5.0, glassbox; v0.6.0 añade channels y curation): memorias por status/origin/type, salud de inyecciones (precision/coverage), contadores bloqueados, feedback por verdicto, tokens inyectados, comparativa push vs pull (channels) y scoreboard de curacion (curation). Sin writes, sin LLM. En DBs pre-006 devuelve los bloques computables con "partial": true; en pre-007 omite channels y curation. verbose añade el bloque settings.',
 				args: {
 					verbose: tool.schema.boolean().default(false),
 				},
 				async execute(args) {
-					const report = buildAudit(store, metrics);
+					// v0.6.0 (K6-023 / plan §5.8) — capabilities come from the
+					// probe() run ONCE at init, so kevin_audit can report the
+					// three emission states ("unavailable" vs "off" vs "on").
+					const report = buildAudit(store, metrics, capabilities);
 					const payload = args.verbose
 						? report
 						: { ...report, settings: undefined };
@@ -749,6 +926,75 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					};
 				},
 			}),
+			kevin_propose: tool({
+				description:
+					"Genera propuestas de curacion (dry-run estricto, v0.6.0): crea filas pending y retorna sus diffs unificados. NO escribe en disco, NO marca memorias curadas (D5-08/D6-01).",
+				args: {
+					kind: tool.schema
+						.enum(["agents_md", "skill", "reference"])
+						.default("agents_md")
+						.describe(
+							"agents_md: bloque en AGENTS.md. skill/reference: canales pull (v0.6.0).",
+						),
+				},
+				async execute(args) {
+					const result = kevinPropose(curator, writer, args.kind);
+					return {
+						title: "Propuestas de curacion (dry-run)",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
+			kevin_publish: tool({
+				description:
+					"Regenera los bundles pull bajo ~/.opencode-kevin/ (v0.6.0): skills/project-knowledge.md y refs/<topic>.md. Reporta por bundle el outcome (written/noop/refused) y el estado de emision (on/off/unavailable). Solo escribe via ArtifactWriter y solo a paths del Materializer (D6-07); agents_md_path es inalcanzable.",
+				args: {},
+				async execute() {
+					const result = kevinPublish({
+						materializer,
+						writer,
+						memoryService,
+						capabilities,
+					});
+					return {
+						title: "Bundles publicados",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
+			kevin_approve: tool({
+				description:
+					"Aprueba o rechaza una propuesta de curacion (v0.6.0). reject: marca rejected, nada toca disco. approve: aplica el diff (unico call site de ArtifactWriter.apply, D6-01), marca applied y cura las memorias contribuyentes. Solo acepta propuestas pending.",
+				args: {
+					proposal_id: tool.schema.string().min(1),
+					decision: tool.schema
+						.enum(["approve", "reject"])
+						.default("approve")
+						.describe("approve | reject"),
+				},
+				async execute(args) {
+					const result = kevinApprove(
+						store,
+						memoryService,
+						curator,
+						writer,
+						metrics,
+						{
+							proposalId: args.proposal_id,
+							decision: args.decision,
+						},
+					);
+					return {
+						title:
+							"status" in result && result.status === "rejected"
+								? "Propuesta rechazada"
+								: "status" in result && result.status === "applied"
+									? "Propuesta aplicada"
+									: "Propuesta no procesada",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
 		},
 
 		"tool.execute.before": async (hookInput, output) => {
@@ -938,6 +1184,32 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							// column)
 							.catch(() => {}),
 					);
+					// v0.6.0 (K6-015 / plan §8.14) — session-idle curation
+					// generation. Dry-run only: `propose()` calls `plan()`
+					// and never `apply()`, so nothing here can touch disk
+					// (D6-01). Guarded by curation_enabled (TEXT compare)
+					// and a 1-hour throttle persisted in kevin_settings.
+					try {
+						if (memoryService.getSetting("curation_enabled", "1") === "1") {
+							const CURATION_THROTTLE_MS = 3_600_000;
+							const last = memoryService.getSetting("last_curation_at", "");
+							if (
+								last === "" ||
+								Date.now() - Date.parse(last) > CURATION_THROTTLE_MS
+							) {
+								curator.propose("agents_md", writer);
+								store
+									.prepare(
+										`INSERT INTO kevin_settings (key, value) VALUES (?, ?)
+										 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+									)
+									.run("last_curation_at", new Date().toISOString());
+							}
+						}
+					} catch {
+						// best-effort, same pattern as ledger.settle — a
+						// curation failure must not break the idle path
+					}
 				}
 				metrics.flush();
 			} else if (type === "session.next.tool.failed") {

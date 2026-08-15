@@ -4,6 +4,42 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-14
+
+### Added - Pull
+
+- **Curated artifact distribution** (`plugin/Curator.ts` + `plugin/ArtifactWriter.ts`): Kevin's knowledge can now be written, once and only once per human approval, into artifacts the model actually reads — `AGENTS.md` and the pull channels below. The whole pipeline is a proposal, not an action (Principle 22): `kevin_propose` creates `pending` rows with unified diffs and writes nothing; `kevin_approve` is the **only** code path that touches a file (single write path, D6-01), and refuses rather than repairs when the marker block is malformed.
+- **Marker contract**: edits live between `<!-- kevin:begin — curated by opencode-kevin, safe to edit -->` and `<!-- kevin:end -->`. The strings are frozen for the v0.x line; bytes outside the markers are never modified (CRLF, BOM and a trailing newline are preserved).
+- **`kevin_propose` tool** (14th tool): strict dry-run over the eligible (non-inferable) memories — creates `pending` rows in the new `curation_proposals` table, returns their minimal unified diffs (`plugin/diff.ts`), zero disk writes, zero side effects.
+- **`kevin_approve` tool** (15th tool): `approve` applies the diff atomically (temp file + rename, audit row in `artifact_writes`), marks the proposal `applied` and the contributing memories `curated`; `reject` records the decision and touches nothing. `noop` writes (content unchanged) are counted, not performed (K6-008).
+- **`kevin_publish` tool** (16th tool): regenerates the pull-channel bundles under `~/.opencode-kevin/` — `skills/project-knowledge.md` and `refs/<topic>.md` — and reports per-bundle outcome plus the emission state (`on` / `off` / `unavailable`).
+- **Skill emission** (setting `skill_emission_enabled`, default `'0'`): on a v2-capable host, registers the curated project-knowledge skill at session start via the plugin's `skill.source` domain. Hosts without the domain silently no-op — the audit tells you which (`"unavailable"` vs `"off"` vs `"on"`).
+- **Reference registration** (setting `reference_emission_enabled`, default `'0'`): registers one `@kevin/<topic>` mention per materialized ref bundle via the `reference.add` domain, with a `{ local }` source.
+- **Deterministic inferability** (`plugin/inferability.ts`): a pure function classifies every memory `inferable = 1 | 0 | NULL(unknown)` (D6-08). Only non-inferable memories are curation candidates — an LLM-recoverable diagnostic is not something a human should review into a file.
+- **Migration `007_v06_pull.sql`**: two new tables (`curation_proposals`, `artifact_writes`), three new `memories` columns (`curated`, `curated_at`, `inferable`), six new metric keys (`proposals_created`, `proposals_approved`, `proposals_rejected`, `artifact_writes_total`, `artifact_writes_noop`, `injections_blocked_confidence`), five new settings (`curation_enabled`, `agents_md_path`, `skill_emission_enabled`, `reference_emission_enabled`, `injection_confidence_floor`).
+- **`kevin_audit` v0.6 blocks**: `channels` (push vs pull on the same axes, with `budget_tokens` and the emission states) and `curation` (eligible/curated/inferable counts + proposals by status). Omitted with `"partial": true` on pre-007 databases.
+- **`kevin_status` v0.6 fields**: `schema_version`, `curation_enabled`, `skill_emission`, `reference_emission`, `proposals_pending` (a `v06` block, omitted on pre-007 databases).
+- **`low_confidence` gate** (sixth `GateReason`, counted as `injections_blocked_confidence` like the first five — Principle 16): a memory whose computed confidence is below `injection_confidence_floor` (default `'0.6'`) is rejected before every other gate branch, in both the live and dry-run paths.
+
+### Behaviour changes
+
+- **The pre-prompt budget default drops 900 → 400.** Migration 007 lowers `pre_prompt_budget_tokens` only where it still holds the v0.5 default; a deliberate override (e.g. `1200`) is preserved untouched. The clamp also widens from `[100, 4000]` to `[0, 4000]` — `0` is now a supported "push off" value, the roadmap's kill-criterion response. Expect push token spend to fall by more than half on unmodified installations.
+- **Single-observation memories stop being injected.** The default confidence floor `'0.6'` blocks every memory with no confirmed evidence (base confidence 0.5) — the release's intended demotion of push. Set `injection_confidence_floor` to `'0'` to restore v0.5 behaviour exactly.
+- **`kevin_audit` on a pre-007 database now reports `"partial": true`** (the new blocks are omitted rather than faked).
+- **Idempotent artifact writes**: re-applying an unchanged plan is a counted `noop`, never a write — no temp file, no mtime churn.
+
+### Tests
+
+- **K6-013** - proposal lifecycle (`tests/integration/proposal_lifecycle.test.ts`): propose creates `pending` rows and never writes, supersession keeps the append-only audit trail, persisted diffs reproduce byte-identically, the state machine's legal and illegal transitions.
+- **K6-014** - curation tools (`tests/integration/curation_tools.test.ts`): `kevin_propose` dry-run purity, `kevin_approve` written/rejected outcomes, double-approve errors on the second call.
+- **K6-015** - session-idle generation (`tests/integration/session_idle_curation.test.ts`): dry-run only, gated by `curation_enabled`, 1-hour throttle persisted in `kevin_settings`.
+- **K6-022** - confidence gate (`tests/unit/quality_gate_confidence.test.ts`): `low_confidence` rejects before every other branch, `injections_blocked_confidence` counted, dry-run parity; ten legacy harnesses plus the replay driver and `npm run verify` opt out with `injection_confidence_floor='0'`.
+- **K6-023** - `kevin_audit` v0.6 blocks (`tests/integration/kevin_audit_v06.test.ts`): channels push/pull with the effective budget cap, curation scoreboard, emission states, pre-007 omission with `"partial": true`.
+- **K6-024** - `kevin_status` v0.6 fields (`tests/unit/kevin_status_v06.test.ts`), pre-007 omission.
+- **K6-025** - closed-loop e2e (`tests/e2e/v06_closed_loop.test.ts`): the full pull cycle through the host hooks with no mocks — propose → reject → approve → curated write → noop regeneration → marker-corruption refusal with the audit row.
+- **Pre-tag regression tests** (found by the pre-v0.6.0 audit): `tests/unit/curator_selection.test.ts` — the CRLF merge dedup (a line already in the block was proposed doubled on CRLF files because `split("\n")` kept `\r` on all but the last line; fixed with `split(/\r?\n/)`); `tests/integration/curation_tools.test.ts` — a failed approve (filesystem error) leaves the proposal `pending` and retryable (the disk write now happens before the state transitions; previously the row was stuck in `approved`, a dead end).
+- 103 test files / 837 tests green; `tsc --noEmit`, Biome, `npm run verify` clean.
+
 ## [0.5.0] - 2026-08-11
 
 ### Added - Glass Box

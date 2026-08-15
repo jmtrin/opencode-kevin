@@ -84,6 +84,32 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v0.6.0 (K6-002 / plan §6, D6-08) — Pull: three re-derivations, all
+	// idempotent by re-derivation (same discipline as "006", D5-13).
+	// 1. Back-fill `inferable = 0` for the four non-`error` types still NULL:
+	//    they are `non_inferable` by rules 1 and 2 of plan §5.3
+	//    unconditionally. Guarded by `inferable IS NULL` so a re-run cannot
+	//    overwrite a classification produced later by inferability.classify().
+	//    `error` rows are left NULL and classified lazily.
+	// 2-3. proposals_created / artifact_writes_total are re-derived from
+	//    their tables; a missing row makes the UPDATE a harmless no-op.
+	"007": (store) => {
+		store
+			.prepare(
+				"UPDATE memories SET inferable = 0 WHERE inferable IS NULL AND type IN ('decision','rule','solution','pattern')",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM curation_proposals) WHERE key = 'proposals_created'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM artifact_writes WHERE outcome = 'written') WHERE key = 'artifact_writes_total'",
+			)
+			.run();
+	},
 };
 
 export class Migrate {

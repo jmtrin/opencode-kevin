@@ -31,6 +31,15 @@ export const METRIC_KEYS = [
 	"feedback_positive_total",
 	"feedback_negative_total",
 	"memories_archived",
+	// v0.6.0 (K6-004 / plan §8.3) — order matches migration 007's seed block.
+	// injections_blocked_confidence is the sixth member of the blocked
+	// family and MUST be counted like the other five (Principle 16).
+	"proposals_created",
+	"proposals_approved",
+	"proposals_rejected",
+	"artifact_writes_total",
+	"artifact_writes_noop",
+	"injections_blocked_confidence",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];
@@ -107,6 +116,40 @@ export class Metrics {
 	}
 
 	/**
+	 * v0.6.0 (K6-018/019 / plan §5.8) — the pull-channel registration
+	 * counters. These live OUTSIDE `METRIC_KEYS`, which is frozen at 28
+	 * (K6-004 acceptance, the verified cumulative ladder), but persist to
+	 * the same `kevin_metrics` table so `kevin_audit`'s channels block can
+	 * read them by SQL (K6-023). They are written immediately (no debounce):
+	 * they change at most twice per process, on session start.
+	 */
+	incrRegistered(
+		key: "skills_registered" | "references_registered",
+		by = 1,
+	): void {
+		if (this.closed) return;
+		const store = this.store;
+		store.transaction(() => {
+			store.exec(
+				`CREATE TABLE IF NOT EXISTS kevin_metrics (
+			            key        TEXT PRIMARY KEY,
+			            value      INTEGER NOT NULL DEFAULT 0,
+			            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+			          )`,
+			);
+			store
+				.prepare(
+					`INSERT INTO kevin_metrics (key, value, updated_at)
+			         VALUES (?, ?, datetime('now'))
+			         ON CONFLICT(key) DO UPDATE SET
+			           value = value + excluded.value,
+			           updated_at = datetime('now')`,
+				)
+				.run(key, by);
+		});
+	}
+
+	/**
 	 * Returns a snapshot of the cache. The returned object always contains all
 	 * METRIC_KEYS, even if the DB has no rows yet. Does NOT flush.
 	 */
@@ -161,6 +204,8 @@ export class Metrics {
 	/**
 	 * v0.5.0 (K5-004 / plan §5.2, D5-02) — the five `injections_blocked_*`
 	 * counters keyed by their short names. Consumed by `kevin_audit`.
+	 * v0.6.0 (K6-004 / plan §8.3) — sixth member keyed `confidence`
+	 * (the low_confidence gate branch, K6-022).
 	 * Computed from the cached counters — does NOT flush.
 	 */
 	blockedSnapshot(): Record<string, number> {
@@ -170,6 +215,7 @@ export class Metrics {
 			recurrence: this.cache.get("injections_blocked_recurrence") ?? 0,
 			stale: this.cache.get("injections_blocked_stale") ?? 0,
 			ignored: this.cache.get("injections_blocked_ignored") ?? 0,
+			confidence: this.cache.get("injections_blocked_confidence") ?? 0,
 		};
 	}
 

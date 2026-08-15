@@ -14,6 +14,19 @@ export const QUALITY_GATE_SETTING = "quality_gate_enabled";
 
 export const SNIPPET_INJECTION_SETTING = "lesson_snippet_injection";
 
+/**
+ * v0.6.0 (K6-023 / plan §5.8) — the effective pre-prompt budget shared by
+ * `ContextInjector.prePromptCap()` and `kevin_audit`'s channels block
+ * (budget_tokens). Single source of truth for the K6-021 clamp:
+ * default 400 when the raw value is missing/non-numeric, clamped to
+ * [0, 4000]; 0 means "push off".
+ */
+export function effectivePrePromptCap(raw: string | undefined): number {
+	const n = Number(raw);
+	if (!Number.isFinite(n)) return 400;
+	return Math.min(4000, Math.max(0, Math.round(n)));
+}
+
 export interface ChatMessage {
 	role: string;
 	content: string;
@@ -64,11 +77,11 @@ export interface InjectionPlan {
 
 // v0.4.0 default pre-prompt budget. v0.5.0 (K5-017 / plan §8.11, D5-11):
 // kept as the compile-time fallback, but the EFFECTIVE cap is read at call
-// time from the `pre_prompt_budget_tokens` setting (default "900"). The
-// confound fix in K5-005 will very likely show that a large share of
-// injections are `inconclusive` — charging a 1500-token toll per prompt for
-// an unproven benefit is indefensible, so the number is now a setting that
-// measurement can drive instead of a constant.
+// time from the `pre_prompt_budget_tokens` setting. v0.6.0 (K6-021 / plan
+// §5.8): the setting's default becomes "400" and the lower clamp bound
+// drops to 0 (off) — the confound fix in K5-005 showed a large share of
+// injections are `inconclusive`, and the roadmap's kill criterion K1
+// requires "off" to be a reachable, supported configuration.
 const SYSTEM_TRANSFORM_TOKENS = 900;
 const COMPACTING_TOKENS = 2000;
 
@@ -78,6 +91,8 @@ const COMPACTING_TOKENS = 2000;
 // `ok` reason admits and must never increment anything.
 const BLOCKED_METRIC: Record<GateReason, MetricKey | null> = {
 	ok: null,
+	// v0.6.0 (K6-022 / plan §5.8) — sixth reason, sixth counter.
+	low_confidence: "injections_blocked_confidence",
 	seen_this_session: "injections_blocked_seen",
 	ignored: "injections_blocked_ignored",
 	not_active: "injections_blocked_stale",
@@ -379,6 +394,16 @@ Consider adding this convention to AGENTS.md:
 	} {
 		const qualityGateEnabled =
 			this.memoryService.getSetting(QUALITY_GATE_SETTING, "1") === "1";
+		// v0.6.0 (K6-022 / plan §5.8) — the floor is read ONCE per
+		// plan/inject call (this method is the shared gate evaluation),
+		// never per memory. A non-numeric setting degrades to undefined,
+		// which disables the branch for every memory this call.
+		const rawFloor = this.memoryService.getSetting(
+			"injection_confidence_floor",
+			"0.6",
+		);
+		const floor = Number(rawFloor);
+		const confidenceFloor = Number.isFinite(floor) ? floor : undefined;
 		const seen = new Set(this.seenBySession.get(sessionId) ?? []);
 		const recurrences =
 			this.ledger?.postInjectionRecurrencesFor(sessionId) ??
@@ -395,6 +420,9 @@ Consider adding this convention to AGENTS.md:
 					// v0.5.0 (K5-009) — the `ignored` flag is now a first-class
 					// Memory field via mapRow (D5-07).
 					ignored: m.ignored === true,
+					// v0.6.0 (K6-022) — the memory's computed confidence
+					// (may be null for rows without evidence).
+					confidence: m.confidence ?? undefined,
 				},
 				{
 					seenThisSession: seen,
@@ -410,6 +438,7 @@ Consider adding this convention to AGENTS.md:
 							: m.fingerprint
 								? (recurrences.get(m.fingerprint) ?? 0)
 								: 0,
+					confidenceFloor,
 				},
 				qualityGateEnabled,
 			);
@@ -423,15 +452,18 @@ Consider adding this convention to AGENTS.md:
 	 * read at call time from `pre_prompt_budget_tokens` (seeded "900" by
 	 * migration 006). Clamped to [100, 4000]; a non-numeric value falls
 	 * back to 900. `kevin_trace` reports the value used via `plan().cap`.
+	 *
+	 * v0.6.0 (K6-021 / plan §5.8) — default becomes "400" and the lower
+	 * clamp bound drops to **0**: the roadmap's kill criterion K1 prescribes
+	 * cutting the push budget to zero when coverage is poor, and v0.5's
+	 * [100, 4000] clamp made that response unimplementable. A non-numeric
+	 * value falls back to 400. `onSystemTransform` treats 0 as off and
+	 * returns before any retrieval (see K6-021 acceptance).
 	 */
 	private prePromptCap(): number {
-		const raw = this.memoryService.getSetting(
-			"pre_prompt_budget_tokens",
-			"900",
+		return effectivePrePromptCap(
+			this.memoryService.getSetting("pre_prompt_budget_tokens", "400"),
 		);
-		const n = Number(raw);
-		if (!Number.isFinite(n)) return 900;
-		return Math.min(4000, Math.max(100, Math.round(n)));
 	}
 
 	/**
@@ -601,12 +633,17 @@ Consider adding this convention to AGENTS.md:
 		input: SystemTransformInput,
 		output: SystemTransformOutput,
 	): void {
+		// v0.6.0 (K6-021 / plan §5.8) — a cap of 0 means off: return before
+		// any retrieval, gate evaluation or metric write. "Off" must not
+		// run a hidden query and throw away the result.
+		const cap = this.prePromptCap();
+		if (cap === 0) return;
 		const query = this.deriveQuery(input.messages);
 		if (!query) return;
 		const block = this.inject(
 			query,
 			"context",
-			this.prePromptCap(),
+			cap,
 			"tokens_injected_pre_prompt",
 			input.sessionID ?? "",
 		);

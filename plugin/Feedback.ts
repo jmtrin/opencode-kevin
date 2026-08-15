@@ -54,16 +54,17 @@ const NEGATIVE_VERDICTS: readonly FeedbackVerdict[] = [
 // v0.5.0 — pre-006 DBs lack `memory_feedback`; record() fails loudly with a
 // descriptive error instead of a bare "no such table" (the tool layer turns
 // it into a graceful message).
+// v0.6.0 (K6-001a) — positive-only caching: a successful probe is cached,
+// a failed probe is NOT. A Store migrated in place heals on the next call.
 const feedbackTableCache = new WeakMap<Store, boolean>();
 function hasFeedbackTable(store: Store): boolean {
 	const cached = feedbackTableCache.get(store);
-	if (cached !== undefined) return cached;
+	if (cached === true) return true;
 	try {
 		store.prepare("SELECT COUNT(*) FROM memory_feedback").get();
 		feedbackTableCache.set(store, true);
 		return true;
 	} catch {
-		feedbackTableCache.set(store, false);
 		return false;
 	}
 }

@@ -64,6 +64,14 @@ beforeEach(async () => {
 		retrospectivesDir: join(tmpRoot, "retrospectives"),
 	});
 	store = new Store({ path: dbPath });
+	// v0.6.0 (K6-022): the release default floor (0.6) blocks every
+	// single-observation memory (base confidence 0.5). This harness tests
+	// v0.5-era push semantics, so it opts out explicitly.
+	store
+		.prepare(
+			"INSERT OR REPLACE INTO kevin_settings (key, value) VALUES ('injection_confidence_floor', '0')",
+		)
+		.run();
 });
 
 afterEach(async () => {

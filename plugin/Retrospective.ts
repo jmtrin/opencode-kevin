@@ -38,7 +38,9 @@ interface FalsePositiveRow {
 	recurrence_count: number;
 }
 
-const METRIC_KEY_LABELS: Record<string, string> = {
+// v0.6.0 (K6-004 / plan §8.16) — exported so tests can assert that every
+// METRIC_KEYS entry has a label by iterating the keys (not by counting).
+export const METRIC_KEY_LABELS: Record<string, string> = {
 	tokens_injected_pre_prompt: "Tokens inyectados (pre-prompt)",
 	tokens_injected_compacting: "Tokens inyectados (compacting)",
 	reflections_throttled: "Reflexiones throttled",
@@ -66,6 +68,15 @@ const METRIC_KEY_LABELS: Record<string, string> = {
 	feedback_positive_total: "Feedback positivo total",
 	feedback_negative_total: "Feedback negativo total",
 	memories_archived: "Memorias archivadas",
+	// v0.6.0 (K6-004 / plan §8.16) — the K6 metric keys need their own
+	// Spanish labels; the audit regression forbids raw-key fallback for any
+	// key in METRIC_KEYS.
+	proposals_created: "Propuestas de curación creadas",
+	proposals_approved: "Propuestas aprobadas",
+	proposals_rejected: "Propuestas rechazadas",
+	artifact_writes_total: "Escrituras de artefacto (escritas)",
+	artifact_writes_noop: "Escrituras de artefacto (sin cambios)",
+	injections_blocked_confidence: "Inyecciones bloqueadas (confianza baja)",
 };
 
 function originLabel(
