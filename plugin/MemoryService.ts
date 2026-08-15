@@ -74,6 +74,13 @@ export interface Memory {
 	/** v0.5.0 (K5-010 / plan §5.3, D5-02) — human judgement counters,
 	 * folded into confidence by computeConfidence. */
 	feedbackNegative?: number;
+	/** v0.7.0 (K7-008 / plan §5.3, D7-03) — de-ranking penalty in
+	 * [0, 0.5], clamped by applyTruthPenalty. Multiplies rankScore as
+	 * `(1 - truthPenalty)`. Defaults to 0. */
+	truthPenalty?: number;
+	/** v0.7.0 (K7-008 / plan §5.3) — when the memory was first contradicted
+	 * (ISO/sqlite time). Null when never contradicted. */
+	contradictedAt?: string | null;
 }
 
 export interface SaveInput {
@@ -232,6 +239,10 @@ interface MemoryRow {
 	/** v0.6.0 (K6-011 / migration 007) — 1 = inferable, 0 = non_inferable,
 	 * NULL = unknown. */
 	inferable?: number | null;
+	/** v0.7.0 (K7-008 / migration 008) — de-ranking penalty in [0, 0.5]. */
+	truth_penalty?: number | null;
+	/** v0.7.0 (K7-008 / migration 008) — first contradiction timestamp. */
+	contradicted_at?: string | null;
 }
 
 const TYPE_PRIORITY: Record<MemoryType, number> = {
@@ -331,6 +342,24 @@ function hasCuratedColumn(store: Store): boolean {
 }
 
 /**
+ * v0.7.0 (K7-008 / migration 008) — cached per-store probe for the 008-only
+ * `truth_penalty` column (pre-008 DBs must not reference it). Same
+ * positive-only caching discipline as `curated` (K6-001a).
+ */
+const truthColumnsCache = new WeakMap<Store, boolean>();
+function hasTruthColumns(store: Store): boolean {
+	const cached = truthColumnsCache.get(store);
+	if (cached === true) return true;
+	try {
+		store.prepare("SELECT truth_penalty FROM memories LIMIT 1").get();
+		truthColumnsCache.set(store, true);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * v0.5.0 (K5-009 / plan §5.3) — the 006-only columns are appended when the
  * migration has run (same probe as the `ignored = 0` retrieval filter).
  * v0.6.0 (K6-011) — the 007-only curation columns are appended likewise.
@@ -340,9 +369,12 @@ function rowSelect(store: Store): string {
 		? `${MEMORY_ROW_SELECT}, ignored, superseded_by,
 		   feedback_positive, feedback_negative`
 		: MEMORY_ROW_SELECT;
-	return hasCuratedColumn(store)
+	const withCurated = hasCuratedColumn(store)
 		? `${base}, curated, curated_at, inferable`
 		: base;
+	return hasTruthColumns(store)
+		? `${withCurated}, truth_penalty, contradicted_at`
+		: withCurated;
 }
 
 function mapRow(row: MemoryRow, score?: number): Memory {
@@ -397,6 +429,11 @@ function mapRow(row: MemoryRow, score?: number): Memory {
 					: row.inferable === 0
 						? "non_inferable"
 						: null,
+		// v0.7.0 (K7-008 / plan §5.3, D7-03) — de-ranking state. `truth_penalty`
+		// defaults to 0 (a pre-008 row without the column reads 0), and
+		// `contradicted_at` is null until the first contradiction.
+		truthPenalty: row.truth_penalty ?? 0,
+		contradictedAt: row.contradicted_at ?? null,
 	};
 	if (score !== undefined) {
 		if (!mem.metadata) mem.metadata = {};
@@ -484,6 +521,13 @@ export class MemoryService {
 	// reference the column there.
 	private hasCuratedColumn(): boolean {
 		return hasCuratedColumn(this.store);
+	}
+
+	// v0.7.0 (K7-008 / plan §5.3) — cached column probe for pre-008 DBs
+	// (which lack `truth_penalty`); the retrieval SELECTs must not reference
+	// the column there, or rankScore cannot see the de-ranking factor.
+	private hasTruthColumns(): boolean {
+		return hasTruthColumns(this.store);
 	}
 
 	save(input: SaveInput): string {
@@ -761,6 +805,50 @@ export class MemoryService {
 			.run(...vals);
 	}
 
+	/**
+	 * v0.7.0 (K7-008 / plan §5.3, D7-03) — apply a bounded truth penalty.
+	 * Clamps `penalty` to [0, 0.5], writes `truth_penalty` and `contradicted_at`,
+	 * and increments `memories_contradicted` ONLY when the value moves from 0
+	 * to non-zero (a second penalty on the same memory does not re-count).
+	 * It NEVER writes `status` — contradiction de-ranks; it never deletes
+	 * (Principle 24). `reason` is the human-readable explanation surfaced by
+	 * `kevin_facts`; the caller persists it in the `memory_conflicts` row.
+	 */
+	applyTruthPenalty(memoryId: string, penalty: number, reason: string): void {
+		const clamped = Math.max(0, Math.min(0.5, penalty));
+		const row = this.store
+			.prepare("SELECT truth_penalty FROM memories WHERE id = ?")
+			.get(memoryId) as { truth_penalty?: number | null } | undefined;
+		if (!row) return;
+		const current = Number(row.truth_penalty ?? 0);
+		const hadPenalty = current > 0;
+		const nowHasPenalty = clamped > 0;
+		// `reason` is accepted for interface parity with plan §5.3; the caller
+		// records it in the conflict row, not here.
+		void reason;
+		const stamp = nowHasPenalty ? new Date().toISOString() : null;
+		this.store
+			.prepare(
+				`UPDATE memories
+				 SET truth_penalty = ?,
+				     contradicted_at = CASE
+				         WHEN ? IS NULL THEN NULL
+				         ELSE COALESCE(contradicted_at, ?)
+				     END
+				 WHERE id = ?`,
+			)
+			.run(clamped, stamp, stamp, memoryId);
+		if (nowHasPenalty && !hadPenalty) {
+			this.metrics?.incr("memories_contradicted", 1);
+		}
+		// v0.7.0 (K7-008 / D7-03) — recovery: a penalty lifted back to 0
+		// (the repo no longer contradicts the memory) mirrors the counter,
+		// which the 008 post-apply hook re-derives as COUNT(truth_penalty > 0).
+		if (!nowHasPenalty && hadPenalty) {
+			this.metrics?.incr("memories_contradicted", -1);
+		}
+	}
+
 	delete(id: string): void {
 		this.store.prepare("DELETE FROM memories WHERE id = ?").run(id);
 	}
@@ -878,6 +966,10 @@ export class MemoryService {
 		if (this.hasCuratedColumn()) {
 			sql += ", curated, curated_at, inferable";
 		}
+		// v0.7.0 (K7-008) — 008-only truth columns, appended when present.
+		if (this.hasTruthColumns()) {
+			sql += ", truth_penalty, contradicted_at";
+		}
 		sql += `
       FROM memories
       WHERE (expires_at IS NULL OR expires_at > datetime('now'))`;
@@ -921,6 +1013,11 @@ export class MemoryService {
 		// v0.6.0 (K6-011) — 007-only curation columns, appended when present.
 		if (this.hasCuratedColumn()) {
 			sql += ", m.curated, m.curated_at, m.inferable";
+		}
+		// v0.7.0 (K7-008) — 008-only truth columns, appended when present so
+		// rankScore can apply the de-ranking factor in retrieval.
+		if (this.hasTruthColumns()) {
+			sql += ", m.truth_penalty, m.contradicted_at";
 		}
 		sql += `,
              bm25(memories_fts) AS score
@@ -1396,7 +1493,13 @@ function rankScore(mem: Memory, nowMs: number, deterministic: boolean): number {
 	// the recency factor at 1.0 so ordering depends only on content
 	// relevance and origin boost, never on the wall clock.
 	const recencyDecay = deterministic ? 1 : RECENCY_DECAY_PER_DAY ** ageDays;
-	return base * originBoost(mem) * recencyDecay;
+	// v0.7.0 (K7-008 / plan §5.3, D7-04) — trailing multiplicative factor,
+	// applied AFTER the existing chain. At the default (truthPenalty = 0) the
+	// expression reduces to the v0.6.0 one exactly. rankScore returns a
+	// NEGATIVE score for BM25 rows (more negative = better), so scaling by a
+	// factor in (0.5, 1] moves a row toward zero — i.e. toward worse — which
+	// is the intended de-ranking direction.
+	return base * originBoost(mem) * recencyDecay * (1 - (mem.truthPenalty ?? 0));
 }
 
 function rankCompare(

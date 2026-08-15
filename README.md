@@ -50,7 +50,9 @@ For a **single project**, put the same `plugin` array in `./opencode.json` or `.
 
 ### 2. Restart OpenCode
 
-Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, OpenCode resolves the npm spec, caches the plugin in `~/.cache/opencode/packages/@jmtrin/opencode-kevin/`, and exposes sixteen tools: `kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_retrospective`, `kevin_why`, `kevin_export`, `kevin_import`, `kevin_config`, `kevin_feedback`, `kevin_trace`, `kevin_audit`, `kevin_propose`, `kevin_approve`, `kevin_publish`.
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, Kevin exposes 18 tools, including `kevin_facts` and `kevin_conflicts`.
+
+Contradictions de-rank memories and surface conflicts. They never delete, stale, archive, or auto-resolve a memory.
 
 ### 3. Where data lives
 

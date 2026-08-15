@@ -183,6 +183,6 @@ describe("K6-020 — kevin_publish regenerates the pull bundles (D6-01/D6-07)", 
 	it("kevin_status reports 16 tools", async () => {
 		await bootPlugin();
 		const status = await callTool("kevin_status");
-		expect(status.tool_count).toBe(16);
+		expect(status.tool_count).toBe(18);
 	});
 });

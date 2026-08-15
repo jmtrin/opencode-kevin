@@ -71,13 +71,16 @@ describe("Metrics", () => {
 		const store = new Store({ path: ":memory:" });
 		const m = new Metrics(store);
 		const snap = m.snapshot();
-		// All 28 keys still present at zero.
+		// All 33 keys still present at zero.
 		expect(Object.keys(snap).sort()).toEqual(
 			[
 				"artifact_writes_noop",
 				"artifact_writes_total",
 				"causal_links",
+				"conflicts_detected",
+				"conventions_mined",
 				"duplicate_suppressions",
+				"error_lessons_suppressed",
 				"feedback_negative_total",
 				"feedback_positive_total",
 				"injections_blocked_confidence",
@@ -91,6 +94,7 @@ describe("Metrics", () => {
 				"injections_ineffective",
 				"injections_total",
 				"memories_archived",
+				"memories_contradicted",
 				"memories_superseded",
 				"patterns_causal",
 				"patterns_mined",
@@ -99,6 +103,7 @@ describe("Metrics", () => {
 				"proposals_created",
 				"proposals_rejected",
 				"reflections_throttled",
+				"repo_facts_scanned",
 				"tokens_injected_compacting",
 				"tokens_injected_pre_prompt",
 				"tool_calls_deduped",
@@ -299,11 +304,14 @@ describe("Metrics", () => {
 });
 
 describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
-	it("METRIC_KEYS has exactly 28 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(28);
+	// The cumulative ladder was pinned at 28 through v0.6.0; v0.7.0 (K7-004)
+	// appends five Project Truth keys for a total of 33. This length is the
+	// verifiable cumulative ladder the later release gates depend on.
+	it("METRIC_KEYS has exactly 33 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(33);
 	});
 
-	it("snapshot() includes all 28 keys", () => {
+	it("snapshot() includes all keys", () => {
 		const store = makeMigratedStore();
 		const m = new Metrics(store);
 		const snap = m.snapshot();
@@ -380,6 +388,10 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 		join(__dirname, "..", "..", "migrations", "007_v06_pull.sql"),
 		"utf8",
 	);
+	const SQL_008 = readFileSync(
+		join(__dirname, "..", "..", "migrations", "008_v07_truth.sql"),
+		"utf8",
+	);
 
 	function makeMigratedStore007(): Store {
 		const store = new Store({ path: ":memory:" });
@@ -389,6 +401,7 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 		store.exec(SQL_005);
 		store.exec(SQL_006);
 		store.exec(SQL_007);
+		store.exec(SQL_008);
 		return store;
 	}
 
@@ -437,5 +450,67 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 		expect(m.coverageRate()).toBeCloseTo(0.04);
 		m.close();
 		store.close();
+	});
+});
+
+describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
+	it("METRIC_KEYS has exactly 33 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(33);
+	});
+
+	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {
+		const { METRIC_KEY_LABELS } = await import("../../plugin/Retrospective.js");
+		for (const key of METRIC_KEYS) {
+			expect(typeof METRIC_KEY_LABELS[key]).toBe("string");
+			expect(METRIC_KEY_LABELS[key].length).toBeGreaterThan(0);
+		}
+	});
+
+	it("DB metric rows and METRIC_KEYS are the same set after migration 008", () => {
+		// The K6-004 counterpart store helper now also applies 008, so the
+		// seeded kevin_metrics set equals the 33-key METRIC_KEYS ladder.
+		const store = new Store({ path: ":memory:" });
+		const migrationFiles = [
+			"001_initial.sql",
+			"003_v02_signal.sql",
+			"004_v03_knowledge.sql",
+			"005_v04_signal.sql",
+			"006_v05_glassbox.sql",
+			"007_v06_pull.sql",
+			"008_v07_truth.sql",
+		];
+		for (const f of migrationFiles) {
+			store.exec(
+				readFileSync(join(__dirname, "..", "..", "migrations", f), "utf8"),
+			);
+		}
+		const rows = store.prepare("SELECT key FROM kevin_metrics").all() as {
+			key: string;
+		}[];
+		const dbKeys = rows.map((r) => r.key).sort();
+		expect(dbKeys).toEqual([...METRIC_KEYS].sort());
+		store.close();
+	});
+
+	it("precisionRate() and coverageRate() are identical to v0.6.0 for the same fixture", () => {
+		const store = makeMigratedStore();
+		const m = new Metrics(store);
+		m.incr("injections_total", 100);
+		m.incr("injections_effective", 3);
+		m.incr("injections_ineffective", 1);
+		m.incr("injections_inconclusive", 96);
+		// Same values as every prior release asserted — untouched by v0.7.0.
+		expect(m.precisionRate()).toBeCloseTo(0.75);
+		expect(m.coverageRate()).toBeCloseTo(0.04);
+		m.close();
+		store.close();
+	});
+
+	it("metrics.ts exports no per-type precision helper", async () => {
+		const { Metrics } = await import("../../plugin/metrics.js");
+		const proto = Object.getOwnPropertyNames(Metrics.prototype);
+		expect(proto).not.toContain("precisionRateByType");
+		expect(proto).not.toContain("precisionError");
+		expect(proto).not.toContain("precisionNonError");
 	});
 });

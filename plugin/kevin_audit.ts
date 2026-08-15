@@ -20,6 +20,14 @@ import type { Metrics } from "./metrics.js";
  * release's own scoreboard. On a pre-007 database they are **omitted** (not
  * zero-valued) and `"partial": true` is set: a report that cannot answer
  * "do the pull channels beat push?" must say so rather than suggest it can.
+ *
+ * v0.7.0 (K7-019 / plan §5.3, K7-006) — the `truth` block is project-scoped:
+ * facts scanned, penalized memory count and the truncation flag for the
+ * current project. It is omitted (and `"partial": true` set) on a pre-008
+ * database, exactly like the conflicts block. `facts_scanned` counts every
+ * `repo_facts` row for the project — the same COUNT(*) semantics as the
+ * `repo_facts_scanned` metric — while `truncated` reports the scan cap
+ * separately, mirroring `kevin_facts`.
  */
 
 export interface AuditReport {
@@ -53,6 +61,21 @@ export interface AuditReport {
 		compacting: number;
 	};
 	settings: Record<string, string>;
+	conflicts?: {
+		by_kind: Record<string, number>;
+		by_status: Record<string, number>;
+	};
+	truth?: TruthReport;
+	mix?: {
+		injected_by_type: Record<string, number>;
+		injected_total: number;
+		non_error_injected: number;
+		non_error_share: number;
+		precision_error: number;
+		precision_non_error: number;
+		meets_exit_criterion: boolean;
+		reason?: "immature_db";
+	};
 	channels?: ChannelReport;
 	curation?: CurationReport;
 	partial: boolean;
@@ -99,6 +122,19 @@ export interface CurationReport {
 	proposals_by_status: Record<string, number>;
 }
 
+/**
+ * v0.7.0 (K7-019 / plan §5.3) — the Project Truth block. The same shape
+ * `kevin_facts` exposes: `facts_scanned` counts every repo_facts row for the
+ * project (COUNT(*) semantics, matching the `repo_facts_scanned` metric),
+ * `penalized_memories` counts memories with `truth_penalty > 0`, and
+ * `truncated` reports the 500-fact scan cap from the `_truncated` marker row.
+ */
+export interface TruthReport {
+	facts_scanned: number;
+	penalized_memories: number;
+	truncated: { is_truncated: true; count: number } | { is_truncated: false };
+}
+
 const ALL_FALSE_CAPABILITIES: Capabilities = {
 	skills: false,
 	references: false,
@@ -118,8 +154,8 @@ function groupCounts(store: Store, column: string): Record<string, number> {
 	return out;
 }
 
-function scalar(store: Store, sql: string): number {
-	const row = store.prepare(sql).get() as { n: number };
+function scalar(store: Store, sql: string, ...params: unknown[]): number {
+	const row = store.prepare(sql).get(...params) as { n: number };
 	return row.n ?? 0;
 }
 
@@ -127,6 +163,7 @@ export function buildAudit(
 	store: Store,
 	metrics: Metrics,
 	capabilities: Capabilities = ALL_FALSE_CAPABILITIES,
+	projectId?: string,
 ): AuditReport {
 	let partial = false;
 
@@ -267,6 +304,8 @@ export function buildAudit(
 	// scoreboard is never presented as computed when it cannot be.
 	let channels: ChannelReport | undefined;
 	let curation: CurationReport | undefined;
+	let conflicts: AuditReport["conflicts"];
+	let mix: AuditReport["mix"];
 	let hasSchema007 = false;
 	try {
 		store.prepare("SELECT 1 FROM curation_proposals LIMIT 1").get();
@@ -365,6 +404,112 @@ export function buildAudit(
 	} else {
 		partial = true;
 	}
+	try {
+		const rows = store
+			.prepare(
+				"SELECT kind, status, COUNT(*) AS n FROM memory_conflicts GROUP BY kind, status",
+			)
+			.all() as { kind: string; status: string; n: number }[];
+		const byKind: Record<string, number> = {};
+		const byStatus: Record<string, number> = {};
+		for (const row of rows) {
+			byKind[row.kind] = (byKind[row.kind] ?? 0) + row.n;
+			byStatus[row.status] = (byStatus[row.status] ?? 0) + row.n;
+		}
+		conflicts = { by_kind: byKind, by_status: byStatus };
+	} catch {
+		partial = true;
+	}
+	// v0.7.0 (K7-019 / plan §5.3, K7-006) — the `truth` block is
+	// project-scoped. On a pre-008 database the repo_facts query throws, so
+	// the block is omitted and `partial` set — a report that cannot answer
+	// "how many facts does this project have?" must say so.
+	let truth: AuditReport["truth"];
+	if (projectId) {
+		try {
+			const truncatedRow = store
+				.prepare(
+					"SELECT value FROM repo_facts WHERE project_id = ? AND key_path = '_truncated'",
+				)
+				.get(projectId) as { value: string } | undefined;
+			truth = {
+				facts_scanned: scalar(
+					store,
+					"SELECT COUNT(*) AS n FROM repo_facts WHERE project_id = ?",
+					projectId,
+				),
+				penalized_memories: scalar(
+					store,
+					"SELECT COUNT(*) AS n FROM memories WHERE project_id = ? AND truth_penalty > 0",
+					projectId,
+				),
+				truncated: truncatedRow
+					? { is_truncated: true, count: Number(truncatedRow.value) || 0 }
+					: { is_truncated: false },
+			};
+		} catch {
+			partial = true;
+			truth = undefined;
+		}
+	}
+	try {
+		const typeRows = store
+			.prepare(
+				`SELECT m.type, COUNT(*) AS n
+				 FROM kevin_injections i JOIN memories m ON m.id = i.memory_id
+				 GROUP BY m.type`,
+			)
+			.all() as { type: string; n: number }[];
+		const injectedByType: Record<string, number> = {
+			error: 0,
+			rule: 0,
+			decision: 0,
+			pattern: 0,
+			solution: 0,
+			context: 0,
+		};
+		for (const row of typeRows) injectedByType[row.type] = row.n;
+		const total = typeRows.reduce((sum, row) => sum + row.n, 0);
+		const nonError = total - (injectedByType.error ?? 0);
+		const precisionFor = (isError: boolean): number => {
+			const row = store
+				.prepare(
+					`SELECT
+					 SUM(CASE WHEN i.outcome = 'effective' THEN 1 ELSE 0 END) AS effective,
+					 SUM(CASE WHEN i.outcome = 'ineffective' THEN 1 ELSE 0 END) AS ineffective
+					 FROM kevin_injections i JOIN memories m ON m.id = i.memory_id
+					 WHERE ${isError ? "m.type = 'error'" : "m.type <> 'error'"}`,
+				)
+				.get() as { effective: number | null; ineffective: number | null };
+			const effective = row.effective ?? 0;
+			const measured = effective + (row.ineffective ?? 0);
+			return measured > 0 ? effective / measured : 0;
+		};
+		const precisionError = precisionFor(true);
+		const precisionNonError = precisionFor(false);
+		const memoryCount = scalar(store, "SELECT COUNT(*) AS n FROM memories");
+		const settled = scalar(
+			store,
+			"SELECT COUNT(*) AS n FROM kevin_injections WHERE outcome IN ('effective','ineffective')",
+		);
+		const mature = memoryCount >= 100 && settled >= 50;
+		const meets =
+			mature &&
+			nonError / Math.max(total, 1) >= 0.5 &&
+			precisionNonError > precisionError;
+		mix = {
+			injected_by_type: injectedByType,
+			injected_total: total,
+			non_error_injected: nonError,
+			non_error_share: total > 0 ? nonError / total : 0,
+			precision_error: precisionError,
+			precision_non_error: precisionNonError,
+			meets_exit_criterion: meets,
+			...(mature ? {} : { reason: "immature_db" as const }),
+		};
+	} catch {
+		partial = true;
+	}
 
 	return {
 		memories,
@@ -373,6 +518,9 @@ export function buildAudit(
 		feedback,
 		tokens,
 		settings,
+		conflicts,
+		truth,
+		mix,
 		channels,
 		curation,
 		partial,

@@ -1,5 +1,6 @@
 import type { MemoryService } from "./MemoryService.js";
 import { fingerprint as computeFingerprint } from "./fingerprint.js";
+import { classify } from "./inferability.js";
 import type { Metrics } from "./metrics.js";
 import { redactPaths as redactPathsText } from "./redact.js";
 
@@ -219,6 +220,21 @@ export class Reflector {
 			return null;
 		}
 		this.lastReflectionByFp.set(fp, now);
+		const configurableMemoryService = this.memoryService as MemoryService & {
+			getSetting?: (key: string, fallback?: string) => string;
+		};
+		const lessonMode =
+			configurableMemoryService.getSetting?.("error_lesson_mode", "all") ??
+			"all";
+		const verdict = classify({
+			type: "error",
+			content: lesson,
+			metadata: { dispatch: { code: dispatched.code, hint: dispatched.hint } },
+		});
+		if (lessonMode === "triage_only" && verdict === "inferable") {
+			this.metrics?.incr("error_lessons_suppressed", 1);
+			return null;
+		}
 
 		// v0.3.0 (K3-018): optional LLM enrichment opt-in. Runs only when
 		// the throttle check passed (bug #5).

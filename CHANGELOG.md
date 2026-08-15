@@ -4,6 +4,18 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-08-15
+
+### Added
+
+- Migration `008_v07_truth.sql` with project-scoped `repo_facts`, `memory_conflicts`, `truth_penalty`, and five metrics.
+- `kevin_facts` and `kevin_conflicts`, repository truth scanning, conflict surfacing, and deterministic convention mining.
+
+### Behaviour changes
+
+- Defaults preserve v0.6.0 behaviour exactly: `truth_penalty` starts at `0.0` (ranking factor `1.0`), `error_lesson_mode` starts at `'all'`, and repository truth, convention mining, and conflict detection flags start at `'0'`.
+- Contradictions de-rank and surface conflicts; they never delete or archive memories.
+
 ## [0.6.0] - 2026-08-14
 
 ### Added - Pull

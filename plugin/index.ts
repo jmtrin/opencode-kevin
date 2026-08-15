@@ -7,7 +7,9 @@ import { tool } from "@opencode-ai/plugin";
 import { Archiver } from "./Archiver.js";
 import { ArtifactWriter } from "./ArtifactWriter.js";
 import { CausalChain } from "./CausalChain.js";
+import { ConflictDetector } from "./ConflictDetector.js";
 import { type ChatMessage, ContextInjector } from "./ContextInjector.js";
+import { ConventionMiner } from "./ConventionMiner.js";
 import { Curator } from "./Curator.js";
 import { Feedback } from "./Feedback.js";
 import { InjectionLedger } from "./InjectionLedger.js";
@@ -21,6 +23,7 @@ import {
 import { Migrate } from "./Migrate.js";
 import { PatternMiner } from "./PatternMiner.js";
 import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "./Reflector.js";
+import { RepoTruth } from "./RepoTruth.js";
 import { Retrospective } from "./Retrospective.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
@@ -28,6 +31,8 @@ import { probe } from "./capabilities.js";
 import { fingerprint } from "./fingerprint.js";
 import { kevinApprove } from "./kevin_approve.js";
 import { buildAudit } from "./kevin_audit.js";
+import { executeKevinConflicts } from "./kevin_conflicts.js";
+import { buildKevinFacts } from "./kevin_facts.js";
 import { kevinPropose } from "./kevin_propose.js";
 import { kevinPublish } from "./kevin_publish.js";
 import { kevinWhy } from "./kevin_why.js";
@@ -41,8 +46,12 @@ export interface KevinPluginOptions {
 	migrationsDir?: string;
 	retrospectivesDir?: string;
 	throttleMs?: number;
-	/** v0.6.0 (K6-018) — test-only override for the pull-bundle root. */
+	/** v0.6.0 (K6-018) - test-only override for the pull-bundle root. */
 	materializerRoot?: string;
+	/** v0.7.0 (K7-009) - repository root RepoTruth scans. Defaults to
+	 * `process.cwd()`. Test-only override so a fixture project can stand in
+	 * for the working directory. */
+	projectRoot?: string;
 }
 
 // v0.6.0 (K6-019) — process-global set of reference topics already
@@ -76,7 +85,23 @@ export const KEVIN_CONFIG_KEYS = [
 	"skill_emission_enabled",
 	"reference_emission_enabled",
 	"injection_confidence_floor",
+	// v0.7.0 (K7-003 / plan §8.10) — the four keys seeded by migration 008
+	// section 5. Three feature flags plus the error lesson mode enum.
+	// Omitting these makes `kevin_config set` return { error: "unknown_key" }
+	// while `kevin_config list` still shows them.
+	"repo_truth_enabled",
+	"convention_mining_enabled",
+	"conflict_detection_enabled",
+	"error_lesson_mode",
 ] as const;
+
+// v0.7.0 (K7-003 / plan §5.6, D7-12) — the explicit VALUE domain for
+// `error_lesson_mode`. The setting is TEXT and must be compared with
+// `=== "triage_only"`, never by truthiness; the domain here is enforced by
+// `kevin_config set` so a typo (`"triage"`, `"0"`, `"false"`) is rejected
+// at the surface rather than silently changing every installation's
+// behaviour on the next reflection.
+export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
 
 function resolveMigrationsDir(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
@@ -99,6 +124,17 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// (plan §5.7 fallback; D2-11 project scoping wired into the live path).
 	const projectId = fingerprint(process.cwd());
 	const memoryService = new MemoryService(store, metrics);
+	// v0.7.0 (K7-009 / plan §5.1, D7-13) — the repository truth scanner reads
+	// the JSON project files. Runs once at init, gated by repo_truth_enabled.
+	const projectRoot = opts.projectRoot ?? process.cwd();
+	const repoTruth = new RepoTruth(store, projectId, projectRoot, metrics);
+	if (memoryService.getSetting("repo_truth_enabled", "0") === "1") {
+		try {
+			repoTruth.scan();
+		} catch {
+			// A scan failure at init must not prevent the plugin from loading.
+		}
+	}
 	const observer = new ToolCallObserver(store, metrics);
 	// v0.3.0 fix — Prepared UPDATE used by Reflector.onLinkError to stamp
 	// tool_calls.error_fingerprint with the stderr-based fingerprint the
@@ -142,6 +178,19 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		metrics,
 	);
 	const patternMiner = new PatternMiner(store, memoryService, metrics);
+	const conventionMiner = new ConventionMiner(
+		store,
+		memoryService,
+		projectId,
+		metrics,
+	);
+	const conflictDetector = new ConflictDetector(
+		store,
+		projectId,
+		metrics,
+		repoTruth,
+		memoryService,
+	);
 	const causalChain = new CausalChain(store, memoryService, metrics);
 	// v0.6.0 (K6-014 / plan §5.4-5.5, D6-01) — the single write path: the
 	// ArtifactWriter is constructed here and only `kevin_approve` may call
@@ -613,6 +662,42 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					} catch {
 						v06 = undefined;
 					}
+					let v07:
+						| {
+								schema_version: string;
+								facts_scanned: number;
+								open_conflicts: number;
+								penalized_memories: number;
+								error_lesson_mode: string;
+						  }
+						| undefined;
+					try {
+						v07 = {
+							schema_version:
+								(
+									store
+										.prepare(
+											"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
+										)
+										.get() as { version: string } | undefined
+								)?.version ?? "000",
+							facts_scanned: metrics.get("repo_facts_scanned"),
+							open_conflicts: (
+								store
+									.prepare(
+										"SELECT COUNT(*) AS c FROM memory_conflicts WHERE status = 'open'",
+									)
+									.get() as { c: number }
+							).c,
+							penalized_memories: metrics.get("memories_contradicted"),
+							error_lesson_mode: memoryService.getSetting(
+								"error_lesson_mode",
+								"all",
+							),
+						};
+					} catch {
+						v07 = undefined;
+					}
 					return {
 						title: "Estado de Kevin",
 						output: JSON.stringify({
@@ -622,7 +707,8 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							// kevin_publish). The frozen ladder is verified
 							// monotone across releases; K6-024 extends this
 							// block with the remaining v0.6 fields.
-							tool_count: 16,
+							tool_count: 18,
+							v07,
 							memories_reflector: memoriesReflector,
 							memories_agent: memoriesAgent,
 							memories_pattern: memoriesPattern,
@@ -668,7 +754,9 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					// v0.6.0 (K6-023 / plan §5.8) — capabilities come from the
 					// probe() run ONCE at init, so kevin_audit can report the
 					// three emission states ("unavailable" vs "off" vs "on").
-					const report = buildAudit(store, metrics, capabilities);
+					// v0.7.0 (K7-019 / K7-006) — projectId scopes the `truth`
+					// block; on a pre-008 DB the block is omitted, partial:true.
+					const report = buildAudit(store, metrics, capabilities, projectId);
 					const payload = args.verbose
 						? report
 						: { ...report, settings: undefined };
@@ -914,6 +1002,25 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						};
 					}
 					const value = args.value ?? "1";
+					// v0.7.0 (K7-003 / plan §5.6, D7-12) — `error_lesson_mode`
+					// is a TEXT enum with a tiny explicit domain. Reject a
+					// value outside `all` / `triage_only` with a structured
+					// error so a typo cannot silently change every
+					// installation's reflection behaviour.
+					if (args.key === "error_lesson_mode") {
+						const allowed = ERROR_LESSON_MODE_VALUES as readonly string[];
+						if (!allowed.includes(value)) {
+							return {
+								title: "kevin_config",
+								output: JSON.stringify({
+									error: "invalid_value",
+									key: args.key,
+									value,
+									allowed_values: allowed,
+								}),
+							};
+						}
+					}
 					store
 						.prepare(
 							`INSERT INTO kevin_settings (key, value) VALUES (?, ?)
@@ -923,6 +1030,54 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					return {
 						title: "kevin_config",
 						output: JSON.stringify({ ok: true, key: args.key, value }),
+					};
+				},
+			}),
+			kevin_facts: tool({
+				description:
+					"Reporta la verdad del repositorio (v0.7.0): los hechos escaneados del proyecto actual y las memorias de-rankadas por contradiccion, con penalti y razones. refresh:true fuerza un re-scan (salta el skip de mtime); por defecto lee los hechos almacenados. Solo lectura salvo el re-scan opcional. Sin LLM ni red.",
+				args: {
+					refresh: tool.schema
+						.boolean()
+						.default(false)
+						.optional()
+						.describe(
+							"true: fuerza el re-scan de package.json/tsconfig.json. false (default): lee hechos almacenados.",
+						),
+				},
+				async execute(args) {
+					const result = buildKevinFacts(
+						{ store, memoryService, repoTruth, projectId },
+						args.refresh ?? false,
+					);
+					return {
+						title: "Hechos del repositorio (v0.7.0)",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
+			kevin_conflicts: tool({
+				description:
+					"Lista, reconoce o resuelve conflictos detectados de Kevin.",
+				args: {
+					action: tool.schema.enum(["list", "acknowledge", "resolve"]),
+					id: tool.schema.string().optional(),
+					keep: tool.schema.string().optional(),
+					status: tool.schema
+						.enum(["open", "acknowledged", "resolved"])
+						.optional(),
+				},
+				async execute(args) {
+					const result = executeKevinConflicts(
+						{ store, detector: conflictDetector, projectId },
+						args.action,
+						args.id,
+						args.keep,
+						args.status,
+					);
+					return {
+						title: "Conflictos de Kevin",
+						output: JSON.stringify(result),
 					};
 				},
 			}),
@@ -1176,6 +1331,33 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					const recurred = memoryService.penalizeRecurringReflectors(sid);
 					injector.setRecurrences(recurred, sid);
 					patternMiner.mine(projectId);
+					// v0.7.0 (K7-012 / plan §5.4, D7-10) — convention mining is
+					// session.idle-only, default-off, and isolated from the rest of
+					// the idle chain. Mined rules still enter the ordinary Curator
+					// approval path; this step never writes to the repository.
+					try {
+						if (
+							memoryService.getSetting("convention_mining_enabled", "0") === "1"
+						) {
+							const conventions = conventionMiner.mine();
+							conventionMiner.emit(conventions);
+						}
+					} catch {
+						// A throwing miner must not reject or truncate the idle chain.
+					}
+					// v0.7.0 (K7-016 / plan §5.5, D7-06) — conflict detection is
+					// surfacing-only on idle. It may create/open conflict rows, but
+					// no idle path can acknowledge or resolve one.
+					try {
+						if (
+							memoryService.getSetting("conflict_detection_enabled", "0") ===
+							"1"
+						) {
+							conflictDetector.detect();
+						}
+					} catch {
+						// Conflict surfacing is best-effort and must not reject idle.
+					}
 					fireAndForget(
 						Promise.resolve()
 							.then(() => causalChain.onSessionIdle(sid))

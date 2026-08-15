@@ -12,8 +12,8 @@ export type PostApplyHook = (store: Store) => void;
 
 // Built-in post-apply hooks, keyed by migration version. Each hook runs inside
 // the same transaction as the migration's DDL, so a hook failure rolls back the
-// whole migration. Hooks are only invoked when their version is being applied
-// (i.e., not already present in schema_version).
+// whole migration. Hooks run when their version is applied. Migration 008's
+// reconciliation hook is also safe to run on later no-op starts (K7-002).
 const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 	// v0.2.0 Signal Quality: defensive backfill of memories.origin for legacy
 	// rows. The column is NOT NULL DEFAULT 'agent', so SQLite already populates
@@ -110,6 +110,36 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v0.7.0 (K7-002 / plan §6, D7-02) — Truth: four re-derivations, all
+	// idempotent by re-derivation (same discipline as "006"/"007", D5-13).
+	// 1. Normalize any NULL truth_penalty to 0.0 (belt-and-braces; the column
+	//    is NOT NULL DEFAULT 0.0, so SQLite already back-fills on ALTER TABLE).
+	// 2-4. repo_facts_scanned / conflicts_detected / memories_contradicted
+	//    are re-derived from their tables, NOT trusted from the counters, so
+	//    the metrics survive a database restored from backup or edited by
+	//    hand. A missing row makes the UPDATE a harmless no-op.
+	"008": (store) => {
+		store
+			.prepare(
+				"UPDATE memories SET truth_penalty = 0.0 WHERE truth_penalty IS NULL",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM repo_facts) WHERE key = 'repo_facts_scanned'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM memory_conflicts) WHERE key = 'conflicts_detected'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM memories WHERE truth_penalty > 0.0) WHERE key = 'memories_contradicted'",
+			)
+			.run();
+	},
 };
 
 export class Migrate {
@@ -150,6 +180,12 @@ export class Migrate {
 		const pending = this.listPending(from);
 
 		if (pending.length === 0) {
+			// v0.7.0 (K7-002) — heal drift in the 008 counters on a no-op
+			// startup while preserving `applied: []` idempotency.
+			if (from === "008") {
+				const repairHook = this.postApplyHooks.get("008");
+				if (repairHook) this.store.transaction(() => repairHook(this.store));
+			}
 			return { from, to: from, applied: [] };
 		}
 

@@ -77,6 +77,14 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	artifact_writes_total: "Escrituras de artefacto (escritas)",
 	artifact_writes_noop: "Escrituras de artefacto (sin cambios)",
 	injections_blocked_confidence: "Inyecciones bloqueadas (confianza baja)",
+	// v0.7.0 (K7-004 / plan §8.3) — the K7 metric keys need their own
+	// Spanish labels; the audit regression forbids raw-key fallback for any
+	// key in METRIC_KEYS.
+	repo_facts_scanned: "Hechos del repositorio escaneados",
+	memories_contradicted: "Memorias contradichas",
+	conventions_mined: "Convenciones minadas",
+	conflicts_detected: "Conflictos detectados",
+	error_lessons_suppressed: "Lecciones de error suprimidas",
 };
 
 function originLabel(

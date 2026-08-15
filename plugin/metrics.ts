@@ -40,6 +40,16 @@ export const METRIC_KEYS = [
 	"artifact_writes_total",
 	"artifact_writes_noop",
 	"injections_blocked_confidence",
+	// v0.7.0 (K7-004 / plan §8.3) — order matches migration 008's seed block.
+	// These are the Project Truth counters. No per-type precision helper is
+	// exported here: the per-type split of plan §5.6 lives in `kevin_audit`
+	// as pure SQL, not as a `Metrics` method, so there is never a second
+	// definition of precision to drift from the first (D7-14).
+	"repo_facts_scanned",
+	"memories_contradicted",
+	"conventions_mined",
+	"conflicts_detected",
+	"error_lessons_suppressed",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];
@@ -117,8 +127,8 @@ export class Metrics {
 
 	/**
 	 * v0.6.0 (K6-018/019 / plan §5.8) — the pull-channel registration
-	 * counters. These live OUTSIDE `METRIC_KEYS`, which is frozen at 28
-	 * (K6-004 acceptance, the verified cumulative ladder), but persist to
+	 * counters. These live OUTSIDE `METRIC_KEYS`, which is frozen at 33
+	 * (K7-004 acceptance, the verified cumulative ladder), but persist to
 	 * the same `kevin_metrics` table so `kevin_audit`'s channels block can
 	 * read them by SQL (K6-023). They are written immediately (no debounce):
 	 * they change at most twice per process, on session start.

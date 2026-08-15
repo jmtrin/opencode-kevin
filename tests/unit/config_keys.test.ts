@@ -19,6 +19,7 @@ beforeEach(async () => {
 		"005_v04_signal.sql",
 		"006_v05_glassbox.sql",
 		"007_v06_pull.sql",
+		"008_v07_truth.sql",
 	]) {
 		copyFileSync(
 			join(process.cwd(), "migrations", file),
@@ -105,6 +106,84 @@ describe("K6-003 — v0.6.0 config keys", () => {
 		// still shows it. Every seeded key must be settable.
 		const listed = await runConfig({ action: "list" });
 		for (const key of NEW_KEYS) {
+			expect(listed[key]).toBeDefined();
+		}
+	});
+});
+
+const NEW_KEYS_V07 = [
+	"repo_truth_enabled",
+	"convention_mining_enabled",
+	"conflict_detection_enabled",
+	"error_lesson_mode",
+] as const;
+
+describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
+	it("kevin_config set succeeds for all four new keys and list reads each back", async () => {
+		// The three feature flags take '1'; error_lesson_mode takes 'all'.
+		const values: Record<(typeof NEW_KEYS_V07)[number], string> = {
+			repo_truth_enabled: "1",
+			convention_mining_enabled: "1",
+			conflict_detection_enabled: "1",
+			error_lesson_mode: "all",
+		};
+		for (const key of NEW_KEYS_V07) {
+			const out = await runConfig({ action: "set", key, value: values[key] });
+			expect(out.ok).toBe(true);
+			expect(out.key).toBe(key);
+			expect(out.value).toBe(values[key]);
+		}
+		const listed = await runConfig({ action: "list" });
+		for (const key of NEW_KEYS_V07) {
+			expect(listed[key]).toBe(values[key]);
+		}
+	});
+
+	it("error_lesson_mode is settable to all or triage_only and rejects anything else", async () => {
+		const out = await runConfig({
+			action: "set",
+			key: "error_lesson_mode",
+			value: "triage_only",
+		});
+		expect(out.ok).toBe(true);
+		expect(out.value).toBe("triage_only");
+		for (const bad of ["triage", "0", "false", ""]) {
+			const badOut = await runConfig({
+				action: "set",
+				key: "error_lesson_mode",
+				value: bad,
+			});
+			expect(badOut.ok).not.toBe(true);
+			expect((badOut as { error: string }).error).toBe("invalid_value");
+		}
+		// The last valid value must be preserved.
+		const listed = await runConfig({ action: "list" });
+		expect(listed.error_lesson_mode).toBe("triage_only");
+	});
+
+	it("the derived key-set test still passes; KEVIN_CONFIG_KEYS covers 18 keys", async () => {
+		// Inherited from the v0.6.0 release: the key set is derived from the
+		// database, not hand-written, so a future migration cannot silently
+		// reintroduce a key that is settable-but-not-listed.
+		const listed = await runConfig({ action: "list" });
+		const seeded = Object.keys(listed).filter((k) =>
+			[...NEW_KEYS, ...NEW_KEYS_V07].includes(
+				k as (typeof NEW_KEYS)[number] | (typeof NEW_KEYS_V07)[number],
+			),
+		);
+		expect(seeded.length).toBe(NEW_KEYS.length + NEW_KEYS_V07.length);
+		// Every key seeded by migration 008 must be present in the config
+		// surface (the K7-003 trap: settable-but-missing makes set return
+		// unknown_key while list still shows it).
+		for (const key of NEW_KEYS_V07) {
+			expect(KEVIN_CONFIG_KEYS).toContain(key);
+		}
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(18);
+	});
+
+	it("a new key rejected by kevin_config set is a config surface defect", async () => {
+		const listed = await runConfig({ action: "list" });
+		for (const key of NEW_KEYS_V07) {
 			expect(listed[key]).toBeDefined();
 		}
 	});

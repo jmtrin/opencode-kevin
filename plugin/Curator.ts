@@ -8,6 +8,7 @@ import {
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
 import { computeConfidence } from "./confidence.js";
+import { normalize } from "./fingerprint.js";
 import type { Metrics } from "./metrics.js";
 import { uuidv7 } from "./uuid.js";
 
@@ -203,21 +204,29 @@ export class Curator {
 		const candidates = this.candidates();
 		if (candidates.length === 0) return [];
 
-		const newBlock = this.renderBlock(candidates);
-		const currentBlock = extractBlock(writer.plan(targetPath, newBlock).before);
-		// Merge: keep the current block verbatim and append only lines that
-		// are not already in it. Without the dedup, a block the user (or an
-		// approval) already pasted would be proposed doubled.
-		const currentLines = currentBlock === "" ? [] : currentBlock.split(/\r?\n/);
-		const newLines = newBlock
-			.split("\n")
-			.filter((l) => l !== "" && !currentLines.includes(l));
+		const readPlan = writer.plan(targetPath, this.renderBlock(candidates));
+		const currentBlock = extractBlock(readPlan.before);
+		// v0.7.0 (K7-013 / plan §4, D6-09) — de-duplicate against the WHOLE
+		// file, not just the region between Kevin's markers. A convention the
+		// user already wrote in their own words in their own section must not
+		// be proposed back to them. The comparison is over the same normalized
+		// tokens the fingerprint uses — no new similarity metric (D7-11).
+		const entireFile = wholeFileLines(readPlan.before);
+		const freshCandidates = candidates.filter(
+			(candidate) => !entireFile.has(normalizeBullet(candidate.line)),
+		);
+		if (freshCandidates.length === 0 && currentBlock === "") return [];
+		const newBlock = this.renderBlock(freshCandidates);
+		const newLines = newBlock.split("\n").filter((l) => l !== "");
 		const mergedBlock =
-			currentBlock === ""
-				? newBlock
-				: newLines.length === 0
-					? currentBlock
+			newLines.length === 0
+				? currentBlock
+				: currentBlock === ""
+					? `${newLines.join("\n")}\n`
 					: `${currentBlock}${currentBlock.endsWith("\n") ? "" : "\n"}${newLines.join("\n")}\n`;
+		// v0.7.0 (K7-013) — nothing new to propose: every candidate is already
+		// in the file (inside or outside the markers). A vacuous proposal would
+		// be noise; return none.
 		const plan = writer.plan(targetPath, mergedBlock);
 
 		const prior = this.store
@@ -231,7 +240,7 @@ export class Curator {
 			this.transition(row.id, "supersede");
 		}
 
-		const memoryIds = candidates.map((c) => c.memoryId);
+		const memoryIds = freshCandidates.map((c) => c.memoryId);
 		const id = uuidv7();
 		this.store
 			.prepare(
@@ -355,4 +364,29 @@ function extractBlock(before: string): string {
 		.slice(begin + MARKER_BEGIN.length, end)
 		.replace(/^\r?\n/, "")
 		.replace(/\r?\n$/, "");
+}
+
+/**
+ * v0.7.0 (K7-013 / plan §4) — the normalized set of bullet statements across
+ * the WHOLE file, including any the user wrote outside Kevin's markers. Only
+ * markdown bullets (`- ...`) are considered: prose and the marker lines are
+ * never a candidate to propose back.
+ */
+function wholeFileLines(before: string): Set<string> {
+	const set = new Set<string>();
+	for (const line of before.split(/\r?\n/)) {
+		if (line.trim().startsWith("-")) {
+			set.add(normalizeBullet(line));
+		}
+	}
+	return set;
+}
+
+/** Normalize a rendered bullet for de-duplication — strip the marker prefix. */
+function normalizeBullet(line: string): string {
+	const statement = line
+		.replace(/^\s*-\s+/, "")
+		.trim()
+		.replace(/\s+\((?:verified|feedback)[^)]*\)\s*$/i, "");
+	return normalize(statement);
 }

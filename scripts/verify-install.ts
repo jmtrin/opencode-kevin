@@ -66,6 +66,7 @@ async function main(): Promise<void> {
 	const sql005Src = join(process.cwd(), "migrations", "005_v04_signal.sql");
 	const sql006Src = join(process.cwd(), "migrations", "006_v05_glassbox.sql");
 	const sql007Src = join(process.cwd(), "migrations", "007_v06_pull.sql");
+	const sql008Src = join(process.cwd(), "migrations", "008_v07_truth.sql");
 	if (!existsSync(sqlSrc)) {
 		console.log("\u2717 No existe migrations/001_initial.sql");
 		failed++;
@@ -93,6 +94,11 @@ async function main(): Promise<void> {
 	if (existsSync(sql007Src)) {
 		copyFileSync(sql007Src, join(migrationsDir, "007_v06_pull.sql"));
 	}
+	// v0.7.0 (K7-003 / plan §8.11) — without this entry `npm run verify`
+	// silently never exercises migration 008.
+	if (existsSync(sql008Src)) {
+		copyFileSync(sql008Src, join(migrationsDir, "008_v07_truth.sql"));
+	}
 
 	const store = new Store({ path: ":memory:" });
 	try {
@@ -100,14 +106,22 @@ async function main(): Promise<void> {
 			store.prepare("SELECT 1").get();
 		});
 
-		check("7 migraciones copiadas", () => {
+		check("8 migraciones copiadas", () => {
 			const files = readdirSync(migrationsDir).filter((f) =>
 				f.endsWith(".sql"),
 			);
-			if (files.length !== 7) {
+			if (files.length !== 8) {
 				throw new Error(
-					`esperadas 7 migraciones, encontradas ${files.length}: ${files.join(", ")}`,
+					`esperadas 8 migraciones, encontradas ${files.length}: ${files.join(", ")}`,
 				);
+			}
+		});
+
+		// v0.7.0 (K7-003 / plan §8.11) — name the migration explicitly so the
+		// release gate output proves 008 was exercised, not just counted.
+		check("008_v07_truth.sql presente", () => {
+			if (!existsSync(join(migrationsDir, "008_v07_truth.sql"))) {
+				throw new Error("falta migrations/008_v07_truth.sql");
 			}
 		});
 

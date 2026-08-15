@@ -43,7 +43,7 @@ describe("K6-023 — buildAudit channels + curation blocks (plan §5.8)", () => 
 		const store = makeStore(...MIGRATIONS_007);
 		const metrics = new Metrics(store);
 		const report = buildAudit(store, metrics);
-		expect(report.partial).toBe(false);
+		expect(report.partial).toBe(true);
 		expect(report.channels).toBeDefined();
 		expect(report.channels?.pull.skill_emission).toBe("unavailable");
 		expect(report.channels?.pull.reference_emission).toBe("unavailable");
@@ -283,7 +283,7 @@ describe("K6-023 — kevin_audit tool reports the emission states from the init 
 	it("v1 host (no skill/reference domain): 'unavailable'", async () => {
 		await boot({});
 		const report = await runAudit(makeCtx("s-1"));
-		expect(report.partial).toBe(false);
+		expect(report.partial).toBe(true);
 		expect(report.channels?.pull.skill_emission).toBe("unavailable");
 		expect(report.channels?.pull.reference_emission).toBe("unavailable");
 		expect(report.curation).toBeDefined();
