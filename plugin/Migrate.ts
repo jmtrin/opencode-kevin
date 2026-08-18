@@ -140,6 +140,35 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v0.8.0 (K8-002 / plan §6.1, D8-03) — Team: three operations, all
+	// idempotent by re-derivation (same discipline as "006"/"007"/"008").
+	// 1. Back-fill the new scope from the old one: repo_id = project_id
+	//    keeps every pre-v0.8 row retrievable on the same machine with an
+	//    identical result set. Guarded by `repo_id IS NULL`; a row whose
+	//    project_id is also NULL keeps a NULL repo_id — the retrieval
+	//    path handles NULL as global (K8-007) instead of the hook faking
+	//    a value. No git-derived identity here: the hook runs inside a
+	//    migration and must not read the filesystem (K8-002 criterion).
+	// 2. Normalize the layer marker for any row written by a concurrent
+	//    v0.7.0 process between ALTER and hook (belt and braces; the
+	//    column DEFAULT already covers the ordinary case).
+	// 3. Re-derive shared_entries_total from state rather than trusting
+	//    an incremented value that may predate a crash.
+	"009": (store) => {
+		store
+			.prepare("UPDATE memories SET repo_id = project_id WHERE repo_id IS NULL")
+			.run();
+		store
+			.prepare(
+				"UPDATE memories SET layer = 'local' WHERE layer IS NULL OR layer = ''",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM shared_entries) WHERE key = 'shared_entries_total'",
+			)
+			.run();
+	},
 };
 
 export class Migrate {
@@ -181,9 +210,14 @@ export class Migrate {
 
 		if (pending.length === 0) {
 			// v0.7.0 (K7-002) — heal drift in the 008 counters on a no-op
-			// startup while preserving `applied: []` idempotency.
-			if (from === "008") {
-				const repairHook = this.postApplyHooks.get("008");
+			// startup while preserving `applied: []` idempotency. v0.8.0
+			// (K8-002 / plan §6.1) extends the same repair to the 009
+			// back-fill and the shared_entries_total re-derivation: both
+			// hooks are idempotent by guarded updates and re-derivation,
+			// so a no-op startup can heal a crash that landed between the
+			// ALTER and the hook without re-applying DDL.
+			if (from === "008" || from === "009") {
+				const repairHook = this.postApplyHooks.get(from);
 				if (repairHook) this.store.transaction(() => repairHook(this.store));
 			}
 			return { from, to: from, applied: [] };

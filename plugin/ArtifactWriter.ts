@@ -22,6 +22,29 @@ export const MARKER_END = "<!-- kevin:end -->";
 
 export type WriteOutcome = "written" | "noop" | "refused";
 
+/**
+ * v0.8.0 (K8-019 / D8-08) — the two write modes. `markers` is the
+ * v0.6.0 behaviour, byte for byte: a splice between the two marker
+ * comments, used for `AGENTS.md`, a file humans edit. `whole` replaces
+ * the entire file and is used only for Kevin-owned paths such as
+ * `.kevin/knowledge.okf` — a file humans do not hand-edit.
+ */
+export type WriteMode = "markers" | "whole";
+
+export interface WriteRequest {
+	readonly path: string;
+	readonly mode: WriteMode;
+	/** marker block body ("markers"), or whole-file content ("whole"). */
+	readonly content: string;
+	/**
+	 * Caller-side refusal reason (K8-020 / D6-03): when present, the plan
+	 * is refused — nothing is written, and the refusal is audited with
+	 * both hashes. The refusal conditions belong to the caller; the
+	 * writer only records them.
+	 */
+	readonly refusal?: string;
+}
+
 export interface WritePlan {
 	readonly path: string;
 	readonly before: string;
@@ -116,7 +139,18 @@ export class ArtifactWriter {
 		this.metrics = metrics ?? null;
 	}
 
-	plan(path: string, body: string): WritePlan {
+	// v0.6.0 (K6-005 / plan §5.1, D6-02) — the two-argument form is the
+	// markers-mode convenience kept so every v0.6.0 call site and test
+	// stays byte-for-byte unmodified (K8-019 acceptance). The
+	// WriteRequest form carries the mode explicitly.
+	plan(path: string, body: string): WritePlan;
+	plan(request: WriteRequest): WritePlan;
+	plan(pathOrRequest: string | WriteRequest, body?: string): WritePlan {
+		const request: WriteRequest =
+			typeof pathOrRequest === "string"
+				? { path: pathOrRequest, mode: "markers", content: body ?? "" }
+				: pathOrRequest;
+		const { path, mode, content } = request;
 		let before: string;
 		try {
 			// Read as Buffer, not as utf8 text: readFileSync's text decoding
@@ -131,10 +165,32 @@ export class ArtifactWriter {
 			}
 		}
 
+		if (mode === "whole") {
+			// K8-019 (D8-08) — the whole-file path. The file is Kevin-owned,
+			// so there are no markers, no sanitization and no EOL
+			// normalization: the rendered bytes are written as-is, which is
+			// what makes a re-render of the same content a `noop`. A
+			// caller-side refusal leaves the file untouched and is audited
+			// like any other refusal: after = before, both hashes recorded.
+			const refusal = request.refusal;
+			const refused = refusal !== undefined;
+			const after = refused ? before : content;
+			return {
+				path,
+				before,
+				after,
+				diff: unifiedDiff(path, before, after),
+				outcome: refused ? "refused" : after === before ? "noop" : "written",
+				...(refusal !== undefined ? { reason: refusal } : {}),
+				hashBefore: sha256(before),
+				hashAfter: sha256(after),
+			};
+		}
+
 		const eol = detectEol(before);
 		// Rule 9 — sanitation happens in plan(), before hashing, so the hashes
 		// describe what was actually written.
-		const bodyEol = normalizeEol(sanitizeArtifactBody(body), eol);
+		const bodyEol = normalizeEol(sanitizeArtifactBody(content), eol);
 		const firstBegin = before.indexOf(MARKER_BEGIN);
 		const firstEnd = before.indexOf(MARKER_END);
 		let after: string;
@@ -207,6 +263,15 @@ export class ArtifactWriter {
 			hashBefore: sha256(before),
 			hashAfter: sha256(after),
 		};
+	}
+
+	/**
+	 * K8-019 (D8-08) — the single write funnel: every file Kevin writes
+	 * goes through this method, which is the ONLY call site of `apply()`
+	 * in the plugin (asserted by tests/unit/single_write_path.test.ts).
+	 */
+	write(request: WriteRequest, proposalId?: string): WriteOutcome {
+		return this.apply(this.plan(request), proposalId);
 	}
 
 	// v0.6.0 (K6-007 / plan §5.1, rules 7–8) — atomic write + audit row.

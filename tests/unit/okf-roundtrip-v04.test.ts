@@ -34,7 +34,7 @@ function makeStore(with005: boolean): Store {
 	return store;
 }
 
-function seedPattern(memoryService: MemoryService): string {
+function seedPattern(memoryService: MemoryService, projectId?: string): string {
 	return memoryService.save({
 		type: "pattern",
 		content:
@@ -45,6 +45,7 @@ function seedPattern(memoryService: MemoryService): string {
 		evidenceCount: 2,
 		recurrenceCount: 1,
 		lastVerifiedAt: "2026-08-01 10:00:00",
+		projectId,
 	});
 }
 
@@ -52,9 +53,9 @@ describe("BUG-008 — OKF export/import round-trip fidelity", () => {
 	it("exports the two-sided confidence and recurrence_count, and the round-trip restores them", () => {
 		const storeA = makeStore(true);
 		const serviceA = new MemoryService(storeA);
-		const id = seedPattern(serviceA);
+		const id = seedPattern(serviceA, "proj-a");
 
-		const bundle = exportOkf(storeA);
+		const bundle = exportOkf(storeA, "proj-a");
 		// computeConfidence(2, 1) = 0.55 — the legacy one-sided formula
 		// would have printed 0.70 (the bug).
 		expect(bundle).toContain("confidence: 0.55");
@@ -79,9 +80,9 @@ describe("BUG-008 — OKF export/import round-trip fidelity", () => {
 	it("markdown export carries the recurrence count too (round-trip via headings parser)", () => {
 		const storeA = makeStore(true);
 		const serviceA = new MemoryService(storeA);
-		const id = seedPattern(serviceA);
+		const id = seedPattern(serviceA, "proj-a");
 
-		const md = exportMarkdown(storeA);
+		const md = exportMarkdown(storeA, "proj-a");
 		expect(md).toContain("**Confidence:** 0.55");
 		expect(md).toContain("**Recurrence count:** 1");
 
@@ -100,9 +101,9 @@ describe("BUG-008 — OKF export/import round-trip fidelity", () => {
 	it("pre-005 DBs keep the legacy one-sided formula and no recurrence line", () => {
 		const store = makeStore(false);
 		const service = new MemoryService(store);
-		seedPattern(service);
+		seedPattern(service, "proj-a");
 
-		const bundle = exportOkf(store);
+		const bundle = exportOkf(store, "proj-a");
 		expect(bundle).toContain("confidence: 0.70"); // legacy formula
 		expect(bundle).not.toContain("recurrence_count");
 		store.close();
@@ -113,8 +114,8 @@ describe("BUG-009 — imported content is the bundle body verbatim", () => {
 	it("does not embed the evidence marker into content (typed fields carry the values)", () => {
 		const store = makeStore(true);
 		const service = new MemoryService(store);
-		const id = seedPattern(service);
-		const bundle = exportOkf(store);
+		const id = seedPattern(service, "proj-a");
+		const bundle = exportOkf(store, "proj-a");
 
 		const storeB = makeStore(true);
 		const serviceB = new MemoryService(storeB);

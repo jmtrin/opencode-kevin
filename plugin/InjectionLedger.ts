@@ -39,6 +39,12 @@ export interface InjectionRecordInput {
 	sessionId: string;
 	hook: InjectionHook;
 	tokens: number;
+	/**
+	 * v0.8.0 (K8-024 / plan §5.7) — the memory's layer, passed by the
+	 * caller (the injector already knows it — no lookup on the hot path).
+	 * Drives the `injections_from_shared` counter.
+	 */
+	layer?: string | null;
 }
 
 interface InjectionRow {
@@ -81,6 +87,12 @@ export class InjectionLedger {
 				input.tokens,
 			);
 		this.metrics?.incr("injections_total", 1);
+		// v0.8.0 (K8-024 / plan §5.7) — shared-layer consumption is counted
+		// separately so the audit can tell how much of the push channel
+		// came from teammates' entries.
+		if (input.layer === "shared") {
+			this.metrics?.incr("injections_from_shared", 1);
+		}
 	}
 
 	/**

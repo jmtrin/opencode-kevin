@@ -77,11 +77,33 @@ export interface Memory {
 	/** v0.7.0 (K7-008 / plan §5.3, D7-03) — de-ranking penalty in
 	 * [0, 0.5], clamped by applyTruthPenalty. Multiplies rankScore as
 	 * `(1 - truthPenalty)`. Defaults to 0. */
-	truthPenalty?: number;
-	/** v0.7.0 (K7-008 / plan §5.3) — when the memory was first contradicted
-	 * (ISO/sqlite time). Null when never contradicted. */
+	truthPenalty?: number | null;
+	/** v0.7.0 (K7-008 / plan §5.3, D7-03) — first contradiction timestamp. */
 	contradictedAt?: string | null;
+	/** v0.8.0 (K8-018 / plan §5.2) — the memory's layer marker: 'local'
+	 * (default) or 'shared'. */
+	layer?: string | null;
 }
+
+/**
+ * v0.8.0 (K8-018 / plan §5.2) — outcome of `update()`. A refusal is a
+ * typed value, never a throw and never a silent no-op.
+ */
+export type MemoryUpdateResult =
+	| { ok: true }
+	| { ok: false; refused: readonly string[] };
+
+/**
+ * v0.8.0 (K8-018 / plan §5.2) — the shared layer's immutable columns,
+ * by Memory field name. See the contract comment in `update()`.
+ */
+const SHARED_FORBIDDEN_FIELDS = {
+	content: "statement",
+	type: "type",
+	scope: "scope",
+	relevanceScore: "confidence",
+	evidenceCount: "evidence_count",
+} as const;
 
 export interface SaveInput {
 	type: MemoryType;
@@ -243,6 +265,8 @@ interface MemoryRow {
 	truth_penalty?: number | null;
 	/** v0.7.0 (K7-008 / migration 008) — first contradiction timestamp. */
 	contradicted_at?: string | null;
+	/** v0.8.0 (K8-018 / migration 009) — layer marker on the row. */
+	layer?: string | null;
 }
 
 const TYPE_PRIORITY: Record<MemoryType, number> = {
@@ -360,9 +384,51 @@ function hasTruthColumns(store: Store): boolean {
 }
 
 /**
+ * v0.8.0 (K8-007 / plan §5.7) — cached per-store probe for the 009-only
+ * `repo_id` column (pre-009 DBs must not reference it). Same positive-only
+ * caching discipline as `ignored` (K6-001a): a successful probe is cached,
+ * a failed probe is NOT. Exported so `kevin_audit`'s rollups scope on the
+ * same column.
+ */
+const repoIdColumnCache = new WeakMap<Store, boolean>();
+export function hasRepoIdColumn(store: Store): boolean {
+	const cached = repoIdColumnCache.get(store);
+	if (cached === true) return true;
+	try {
+		store.prepare("SELECT repo_id FROM memories LIMIT 1").get();
+		repoIdColumnCache.set(store, true);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * v0.8.0 (K8-018 / plan §5.2) — cached per-store probe for the 009-only
+ * `layer` column (pre-009 DBs must not reference it). Same positive-only
+ * caching discipline: pre-009 databases have no shared layer, so the
+ * immutability refusal in `update()` is skipped there entirely.
+ */
+const layerColumnCache = new WeakMap<Store, boolean>();
+function hasLayerColumn(store: Store): boolean {
+	const cached = layerColumnCache.get(store);
+	if (cached === true) return true;
+	try {
+		store.prepare("SELECT layer FROM memories LIMIT 1").get();
+		layerColumnCache.set(store, true);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * v0.5.0 (K5-009 / plan §5.3) — the 006-only columns are appended when the
  * migration has run (same probe as the `ignored = 0` retrieval filter).
  * v0.6.0 (K6-011) — the 007-only curation columns are appended likewise.
+ * v0.8.0 (BUG-007) — the 009-only `layer` column is appended likewise, so
+ * getById() and every other rowSelect consumer observe 'shared' exactly
+ * like loadAll and queryRelevant do.
  */
 function rowSelect(store: Store): string {
 	const base = hasIgnoredColumn(store)
@@ -372,9 +438,10 @@ function rowSelect(store: Store): string {
 	const withCurated = hasCuratedColumn(store)
 		? `${base}, curated, curated_at, inferable`
 		: base;
-	return hasTruthColumns(store)
+	const withTruth = hasTruthColumns(store)
 		? `${withCurated}, truth_penalty, contradicted_at`
 		: withCurated;
+	return hasLayerColumn(store) ? `${withTruth}, layer` : withTruth;
 }
 
 function mapRow(row: MemoryRow, score?: number): Memory {
@@ -434,6 +501,9 @@ function mapRow(row: MemoryRow, score?: number): Memory {
 		// `contradicted_at` is null until the first contradiction.
 		truthPenalty: row.truth_penalty ?? 0,
 		contradictedAt: row.contradicted_at ?? null,
+		// v0.8.0 (K8-018 / plan §5.2) — the layer marker ('local' | 'shared').
+		// Absent on pre-009 rows.
+		layer: row.layer ?? null,
 	};
 	if (score !== undefined) {
 		if (!mem.metadata) mem.metadata = {};
@@ -482,15 +552,30 @@ function persistInferable(
 export class MemoryService {
 	private readonly metrics: Metrics | null;
 
-	constructor(store: Store, metrics?: Metrics | null) {
+	constructor(store: Store, metrics?: Metrics | null, repoId?: string | null) {
 		this.store = store;
 		this.metrics = metrics ?? null;
+		this.repoId = repoId ?? null;
 	}
 
 	// `store` is declared here (rather than as a constructor parameter property)
 	// so that Metrics can be added without changing the parameter order callers
 	// have been using since v0.1.0.
 	private store: Store;
+
+	// v0.8.0 (K8-007 / plan §5.7) — the resolved repository identity. When
+	// present (and the 009 migration has run) every retrieval path is scoped
+	// on it; NULL-repo_id rows stay global and match every scope. When absent
+	// the service keeps the pre-009 behaviour byte-for-byte.
+	private repoId: string | null;
+
+	// v0.8.0 (BUG-002) — align the service with a mid-session identity
+	// change (kevin_project rekey). The id must change together with the
+	// SharedLayer bridge, or retrieval silently stops matching the corpus
+	// until a restart.
+	setRepoId(repoId: string | null): void {
+		this.repoId = repoId;
+	}
 
 	// v0.4.0 (BUG-008) — cached column probe for pre-005 DBs (which lack
 	// `recurrence_count`); save() must not reference the column there.
@@ -528,6 +613,13 @@ export class MemoryService {
 	// the column there, or rankScore cannot see the de-ranking factor.
 	private hasTruthColumns(): boolean {
 		return hasTruthColumns(this.store);
+	}
+
+	// v0.8.0 (K8-007 / plan §5.7) — cached column probe for pre-009 DBs
+	// (which lack `repo_id`); the retrieval SELECTs and save() must not
+	// reference the column there.
+	private hasRepoIdColumn(): boolean {
+		return hasRepoIdColumn(this.store);
 	}
 
 	save(input: SaveInput): string {
@@ -576,6 +668,16 @@ export class MemoryService {
 			const setClause = withSupersededBy
 				? "SET status = 'superseded', superseded_by = ?, updated_at = datetime('now')"
 				: "SET status = 'superseded', updated_at = datetime('now')";
+			// v0.8.0 (K8-007 / plan §5.7) — once the 009 column exists and an
+			// identity is resolved, supersession is scoped on repo_id (NULL
+			// rows are global); project_id stays as the pre-009 scope.
+			const scopedOnRepoId = this.hasRepoIdColumn() && this.repoId !== null;
+			const whereScope = scopedOnRepoId
+				? "AND (repo_id IS ? OR repo_id IS NULL)"
+				: "AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))";
+			const scopeParams: unknown[] = scopedOnRepoId
+				? [this.repoId]
+				: [projectId, projectId];
 			this.store
 				.prepare(
 					`UPDATE memories
@@ -583,12 +685,12 @@ export class MemoryService {
 					 WHERE fingerprint = ?
 					   AND type = ?
 					   AND status = 'active'
-					   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))`,
+					   ${whereScope}`,
 				)
 				.run(
 					...(withSupersededBy
-						? [id, fp, input.type, projectId, projectId]
-						: [fp, input.type, projectId, projectId]),
+						? [id, fp, input.type, ...scopeParams]
+						: [fp, input.type, ...scopeParams]),
 				);
 			const after = this.store.prepare("SELECT changes() AS n").get() as {
 				n: number;
@@ -650,6 +752,15 @@ export class MemoryService {
 				params.push(
 					persistInferable(input.type, input.content, input.metadata),
 				);
+			}
+			// v0.8.0 (K8-007 / plan §5.7) — repo_id is persisted on every new
+			// memory (009 column). A NULL projectId stays NULL-scoped — the
+			// global rows PatternMiner's nullPid convention relies on — and a
+			// NULL repo_id row matches every scope. project_id remains written
+			// above: it is provenance now, not scope (D8-02).
+			if (this.hasRepoIdColumn()) {
+				columns.push("repo_id");
+				params.push(projectId !== null ? this.repoId : null);
 			}
 			const insert = `INSERT INTO memories (${columns.join(", ")})
            VALUES (${params.map(() => "?").join(", ")})`;
@@ -751,7 +862,37 @@ export class MemoryService {
 		return row ? mapRow(row) : null;
 	}
 
-	update(id: string, fields: Partial<Memory>): void {
+	/**
+	 * v0.8.0 (K8-018 / plan §5.2) — result of a memory mutation.
+	 * `refused` lists the shared-layer columns that were not written.
+	 */
+	update(id: string, fields: Partial<Memory>): MemoryUpdateResult {
+		// v0.8.0 (K8-018 / plan §5.2) — the shared layer's immutability
+		// contract. statement/type/scope are inputs to entry_id: a local
+		// edit would silently desynchronize the row from the committed file
+		// with no way to detect it — to change a shared entry, author a new
+		// one that supersedes it. confidence/evidence_count are merged from
+		// the file through the lattice: a local write would be overwritten
+		// at the next kevin_sync and the user would watch their edit vanish.
+		// The allowed columns (feedback_*, truth_penalty, contradicted_at,
+		// ignored, last_injected_at, injection outcomes) are per-machine
+		// operational state: your opinion of a teammate's rule is yours
+		// (plan §5.2). A refusal is counted, never thrown, and never silent.
+		const refused: string[] = [];
+		for (const [field, label] of Object.entries(SHARED_FORBIDDEN_FIELDS)) {
+			if ((fields as Record<string, unknown>)[field] !== undefined) {
+				refused.push(label);
+			}
+		}
+		if (refused.length > 0 && hasLayerColumn(this.store)) {
+			const layerRow = this.store
+				.prepare("SELECT layer FROM memories WHERE id = ?")
+				.get(id) as { layer?: string | null } | undefined;
+			if (layerRow?.layer === "shared") {
+				this.countSharedRefusal();
+				return { ok: false, refused };
+			}
+		}
 		const cols: string[] = [];
 		const vals: unknown[] = [];
 		if (fields.content !== undefined) {
@@ -797,12 +938,43 @@ export class MemoryService {
 			cols.push("recurrence_count = ?");
 			vals.push(fields.recurrenceCount);
 		}
-		if (cols.length === 0) return;
+		if (cols.length === 0) return { ok: true };
 		cols.push("updated_at = datetime('now')");
 		vals.push(id);
 		this.store
 			.prepare(`UPDATE memories SET ${cols.join(", ")} WHERE id = ?`)
 			.run(...vals);
+		return { ok: true };
+	}
+
+	/**
+	 * v0.8.0 (K8-018 / plan §5.2) — count a refused shared-row write. The
+	 * key lives OUTSIDE the frozen METRIC_KEYS ladder (K7-004), following
+	 * the v0.6.0 `incrRegistered` precedent: it persists to the same
+	 * `kevin_metrics` table and is read back by `kevin_audit` as a bare SQL
+	 * scalar, so the counter survives across processes without growing the
+	 * 39-key ladder.
+	 */
+	private countSharedRefusal(): void {
+		const store = this.store;
+		store.transaction(() => {
+			store.exec(
+				`CREATE TABLE IF NOT EXISTS kevin_metrics (
+					key        TEXT PRIMARY KEY,
+					value      INTEGER NOT NULL DEFAULT 0,
+					updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+				)`,
+			);
+			store
+				.prepare(
+					`INSERT INTO kevin_metrics (key, value, updated_at)
+					 VALUES ('shared_write_refusals', 1, datetime('now'))
+					 ON CONFLICT(key) DO UPDATE SET
+					   value = value + 1,
+					   updated_at = datetime('now')`,
+				)
+				.run();
+		});
 	}
 
 	/**
@@ -896,6 +1068,14 @@ export class MemoryService {
 			sql += " AND m.scope = ?";
 			params.push(scope);
 		}
+		// v0.8.0 (K8-007 / plan §5.7) — retrieval is scoped on repo_id once
+		// the 009 column exists and an identity is resolved; NULL-repo_id
+		// rows are global and match every scope. Without an identity the
+		// predicate is skipped entirely (pre-009 behaviour).
+		if (this.hasRepoIdColumn() && this.repoId !== null) {
+			sql += "\n        AND (m.repo_id = ? OR m.repo_id IS NULL)";
+			params.push(this.repoId);
+		}
 		sql += " ORDER BY bm25(memories_fts) LIMIT ?";
 		params.push(limit);
 
@@ -970,6 +1150,10 @@ export class MemoryService {
 		if (this.hasTruthColumns()) {
 			sql += ", truth_penalty, contradicted_at";
 		}
+		// v0.8.0 (K8-018) — 009-only layer column, appended when present.
+		if (hasLayerColumn(this.store)) {
+			sql += ", layer";
+		}
 		sql += `
       FROM memories
       WHERE (expires_at IS NULL OR expires_at > datetime('now'))`;
@@ -985,6 +1169,13 @@ export class MemoryService {
 		if (scope !== "all") {
 			sql += " AND scope = ?";
 			params.push(scope);
+		}
+		// v0.8.0 (K8-007 / plan §5.7) — repo_id scoping on the loadAll path
+		// (bare column names; see queryRelevant for the m.-prefixed twin).
+		// NULL-repo_id rows are global and match every scope.
+		if (this.hasRepoIdColumn() && this.repoId !== null) {
+			sql += "\n        AND (repo_id = ? OR repo_id IS NULL)";
+			params.push(this.repoId);
 		}
 		sql += " ORDER BY relevance_score DESC, created_at DESC";
 		return this.store.prepare(sql).all(...params) as MemoryRow[];
@@ -1019,6 +1210,10 @@ export class MemoryService {
 		if (this.hasTruthColumns()) {
 			sql += ", m.truth_penalty, m.contradicted_at";
 		}
+		// v0.8.0 (K8-018) — 009-only layer column, appended when present.
+		if (hasLayerColumn(this.store)) {
+			sql += ", m.layer";
+		}
 		sql += `,
              bm25(memories_fts) AS score
       FROM memories_fts
@@ -1037,6 +1232,12 @@ export class MemoryService {
 		if (scope !== "all") {
 			sql += " AND m.scope = ?";
 			params.push(scope);
+		}
+		// v0.8.0 (K8-007 / plan §5.7) — repo_id scoping on the FTS path.
+		// NULL-repo_id rows are global and match every scope.
+		if (this.hasRepoIdColumn() && this.repoId !== null) {
+			sql += "\n        AND (m.repo_id = ? OR m.repo_id IS NULL)";
+			params.push(this.repoId);
 		}
 		sql += " ORDER BY bm25(memories_fts) LIMIT 100";
 
@@ -1310,7 +1511,17 @@ export class MemoryService {
 		fingerprint: string | null | undefined,
 		projectId: string | null,
 	): number {
-		return countSupersedeCandidates(this.store, type, fingerprint, projectId);
+		// v0.8.0 (K8-007 / plan §5.7) — with a resolved identity the count
+		// mirrors save()'s repo_id scope (NULL rows are global); project_id
+		// stays as the legacy (pre-009) scope.
+		return this.hasRepoIdColumn() && this.repoId !== null
+			? countSupersedeCandidatesOnRepo(
+					this.store,
+					type,
+					fingerprint,
+					this.repoId,
+				)
+			: countSupersedeCandidates(this.store, type, fingerprint, projectId);
 	}
 
 	penalizeRecurringReflectors(sessionId: string): number {
@@ -1476,6 +1687,33 @@ export function countSupersedeCandidates(
 			   AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))`,
 		)
 		.get(fingerprint, projectId, projectId) as { c: number } | undefined;
+	return row?.c ?? 0;
+}
+
+/**
+ * v0.8.0 (K8-007 / plan §5.7) — repo_id-scoped twin of the exported
+ * `countSupersedeCandidates`, mirroring save()'s supersede predicate once
+ * the 009 column exists and an identity is resolved. NULL-repo_id rows are
+ * global and count for every scope.
+ */
+function countSupersedeCandidatesOnRepo(
+	store: Store,
+	type: MemoryType,
+	fingerprint: string | null | undefined,
+	repoId: string,
+): number {
+	if (!fingerprint) return 0;
+	if (type !== "decision" && type !== "rule") return 0;
+	const row = store
+		.prepare(
+			`SELECT COUNT(*) AS c
+			 FROM memories
+			 WHERE type IN ('decision', 'rule')
+			   AND fingerprint = ?
+			   AND status = 'active'
+			   AND (repo_id = ? OR repo_id IS NULL)`,
+		)
+		.get(fingerprint, repoId) as { c: number } | undefined;
 	return row?.c ?? 0;
 }
 

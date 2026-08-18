@@ -50,6 +50,15 @@ export const METRIC_KEYS = [
 	"conventions_mined",
 	"conflicts_detected",
 	"error_lessons_suppressed",
+	// v0.8.0 (K8-003 / plan §8.3) — order matches migration 009's seed block.
+	// These are the Team counters. shared_entries_total is re-derived from
+	// the table by the 009 post-apply hook, never trusted from increments.
+	"shared_entries_total",
+	"shared_entries_imported",
+	"shared_entries_exported",
+	"okf_merge_folds",
+	"rekey_events",
+	"injections_from_shared",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

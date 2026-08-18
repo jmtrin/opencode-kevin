@@ -37,8 +37,17 @@ interface ExportRow {
  * demotion signal, column from migration 005). DBs that predate 005 have
  * no such column; the SELECT is retried without it and recurrences
  * degrade to 0 (legacy confidence formula applies — see below).
+ *
+ * v0.8.0 (K8-027) — the v1 export is scoped to one project: the global
+ * database may hold several projects' memories, and once an export lands
+ * in a committed file a cross-project leak becomes permanent history.
+ * A `project_id` of null keeps the legacy unscoped behaviour for direct
+ * callers that predate the fix; the kevin_export tool always threads it.
  */
-function selectExportRows(store: Store): {
+function selectExportRows(
+	store: Store,
+	projectId: string | null,
+): {
 	rows: ExportRow[];
 	hasRecurrence: boolean;
 } {
@@ -52,9 +61,10 @@ function selectExportRows(store: Store): {
 					        source_tool, source_session, created_at, updated_at
 					 FROM memories
 					 WHERE status = 'active'
+					   AND project_id = ?
 					 ORDER BY type, created_at DESC`,
 				)
-				.all() as ExportRow[],
+				.all(projectId) as ExportRow[],
 		};
 	} catch {
 		const legacy = store
@@ -64,9 +74,10 @@ function selectExportRows(store: Store): {
 				        source_tool, source_session, created_at, updated_at
 				 FROM memories
 				 WHERE status = 'active'
+				   AND project_id = ?
 				 ORDER BY type, created_at DESC`,
 			)
-			.all() as Array<Omit<ExportRow, "recurrence_count">>;
+			.all(projectId) as Array<Omit<ExportRow, "recurrence_count">>;
 		return {
 			hasRecurrence: false,
 			rows: legacy.map((r) => ({ ...r, recurrence_count: 0 })),
@@ -89,8 +100,11 @@ function exportConfidence(
 	return confidence.toFixed(2);
 }
 
-export function exportOkf(store: Store): string {
-	const { rows: allRows, hasRecurrence } = selectExportRows(store);
+export function exportOkf(
+	store: Store,
+	projectId: string | null = null,
+): string {
+	const { rows: allRows, hasRecurrence } = selectExportRows(store, projectId);
 	const filtered = allRows.filter((r) => EXPORT_TYPES.has(r.type));
 	if (filtered.length === 0) return "<!-- No exportable memories found. -->\n";
 
@@ -122,8 +136,11 @@ export function exportOkf(store: Store): string {
 	return `${blocks.join("\n\n")}\n`;
 }
 
-export function exportMarkdown(store: Store): string {
-	const { rows: allRows, hasRecurrence } = selectExportRows(store);
+export function exportMarkdown(
+	store: Store,
+	projectId: string | null = null,
+): string {
+	const { rows: allRows, hasRecurrence } = selectExportRows(store, projectId);
 	const filtered = allRows.filter((r) => EXPORT_TYPES.has(r.type));
 	if (filtered.length === 0)
 		return "# Kevin Knowledge Export\n\n_No exportable memories found._\n";

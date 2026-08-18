@@ -178,7 +178,8 @@ describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
 		for (const key of NEW_KEYS_V07) {
 			expect(KEVIN_CONFIG_KEYS).toContain(key);
 		}
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(18);
+		// v0.8.0 (K8-003): the five migration-009 keys bring the total to 23.
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(23);
 	});
 
 	it("a new key rejected by kevin_config set is a config surface defect", async () => {

@@ -85,6 +85,15 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	conventions_mined: "Convenciones minadas",
 	conflicts_detected: "Conflictos detectados",
 	error_lessons_suppressed: "Lecciones de error suprimidas",
+	// v0.8.0 (K8-003 / plan §8.16) — the K8 metric keys need their own
+	// Spanish labels; the audit regression forbids raw-key fallback for any
+	// key in METRIC_KEYS.
+	shared_entries_total: "Entradas compartidas (totales)",
+	shared_entries_imported: "Entradas compartidas importadas",
+	shared_entries_exported: "Entradas compartidas exportadas",
+	okf_merge_folds: "Fusiones OKF (folds)",
+	rekey_events: "Re-keys de repositorio",
+	injections_from_shared: "Inyecciones desde la capa compartida",
 };
 
 function originLabel(

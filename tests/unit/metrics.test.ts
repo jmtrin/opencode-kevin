@@ -19,6 +19,10 @@ const SQL_004 = readFileSync(
 	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
+const SQL_009 = readFileSync(
+	join(__dirname, "..", "..", "migrations", "009_v08_team.sql"),
+	"utf8",
+);
 
 let tmpRoot: string;
 
@@ -71,7 +75,8 @@ describe("Metrics", () => {
 		const store = new Store({ path: ":memory:" });
 		const m = new Metrics(store);
 		const snap = m.snapshot();
-		// All 33 keys still present at zero.
+		// All 39 keys still present at zero.
+		// v0.8.0 (K8-003) adds the six Team keys.
 		expect(Object.keys(snap).sort()).toEqual(
 			[
 				"artifact_writes_noop",
@@ -90,12 +95,14 @@ describe("Metrics", () => {
 				"injections_blocked_stale",
 				"injections_blocked_weak",
 				"injections_effective",
+				"injections_from_shared",
 				"injections_inconclusive",
 				"injections_ineffective",
 				"injections_total",
 				"memories_archived",
 				"memories_contradicted",
 				"memories_superseded",
+				"okf_merge_folds",
 				"patterns_causal",
 				"patterns_mined",
 				"patterns_promoted_new",
@@ -103,7 +110,11 @@ describe("Metrics", () => {
 				"proposals_created",
 				"proposals_rejected",
 				"reflections_throttled",
+				"rekey_events",
 				"repo_facts_scanned",
+				"shared_entries_exported",
+				"shared_entries_imported",
+				"shared_entries_total",
 				"tokens_injected_compacting",
 				"tokens_injected_pre_prompt",
 				"tool_calls_deduped",
@@ -307,8 +318,9 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 	// The cumulative ladder was pinned at 28 through v0.6.0; v0.7.0 (K7-004)
 	// appends five Project Truth keys for a total of 33. This length is the
 	// verifiable cumulative ladder the later release gates depend on.
-	it("METRIC_KEYS has exactly 33 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(33);
+	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
+	it("METRIC_KEYS has exactly 39 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(39);
 	});
 
 	it("snapshot() includes all keys", () => {
@@ -402,6 +414,7 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 		store.exec(SQL_006);
 		store.exec(SQL_007);
 		store.exec(SQL_008);
+		store.exec(SQL_009);
 		return store;
 	}
 
@@ -454,8 +467,9 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 });
 
 describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
-	it("METRIC_KEYS has exactly 33 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(33);
+	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
+	it("METRIC_KEYS has exactly 39 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(39);
 	});
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {
@@ -466,9 +480,10 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 		}
 	});
 
-	it("DB metric rows and METRIC_KEYS are the same set after migration 008", () => {
-		// The K6-004 counterpart store helper now also applies 008, so the
-		// seeded kevin_metrics set equals the 33-key METRIC_KEYS ladder.
+	it("DB metric rows and METRIC_KEYS are the same set after migration 009", () => {
+		// The K6-004 counterpart store helper now also applies 008 and 009, so
+		// the seeded kevin_metrics set equals the 39-key METRIC_KEYS ladder.
+		// v0.8.0 (K8-003): migration 009 seeds the six Team keys.
 		const store = new Store({ path: ":memory:" });
 		const migrationFiles = [
 			"001_initial.sql",
@@ -478,6 +493,7 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 			"006_v05_glassbox.sql",
 			"007_v06_pull.sql",
 			"008_v07_truth.sql",
+			"009_v08_team.sql",
 		];
 		for (const f of migrationFiles) {
 			store.exec(

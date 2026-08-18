@@ -556,6 +556,15 @@ Consider adding this convention to AGENTS.md:
 	/**
 	 * v0.4.0 (K4-017) — one ledger row per admitted memory (plan §5.2).
 	 * Token attribution uses the memory's share of the final block.
+	 *
+	 * v0.8.0 (K8-024 / plan §5.7) — shared projections are recorded even
+	 * though they carry NO fingerprint by design (K8-017 — it is a
+	 * different identity dimension): the memory id is their identity in
+	 * the ledger, and recording them is what makes `injections_from_shared`
+	 * observable at all. No tool call can ever match a memory id, so
+	 * settle() marks the row inconclusive — excluded from the precision
+	 * denominator (K5-005) — and the BUG-015 skip is unchanged for local
+	 * notes without a fingerprint.
 	 */
 	private recordInjections(
 		admitted: Memory[],
@@ -565,16 +574,17 @@ Consider adding this convention to AGENTS.md:
 	): void {
 		if (this.ledger === null) return;
 		const blockTokens = estimateTokens(block);
-		const measurable = admitted.filter((m) => m.fingerprint);
 		const perMemory = Math.max(1, Math.round(blockTokens / admitted.length));
 		const hook = tag === "context" ? "pre_prompt" : "compacting";
-		for (const m of measurable) {
+		for (const m of admitted) {
+			if (!m.fingerprint && m.layer !== "shared") continue;
 			this.ledger.record({
 				memoryId: m.id,
-				fingerprint: m.fingerprint as string,
+				fingerprint: m.fingerprint ?? m.id,
 				sessionId,
 				hook,
 				tokens: perMemory,
+				layer: m.layer ?? "local",
 			});
 		}
 	}

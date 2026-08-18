@@ -10,7 +10,7 @@ Kevin is an [OpenCode](https://opencode.ai) plugin that **observes** every agent
 - **Signal over Noise**: a quality gate that stores weak lessons without injecting them, an injection ledger with honest `precision_rate`, and two-sided confidence.
 - **Glass Box**: honest measurement replaces estimates — three-way injection settlement (`effective` / `ineffective` / `inconclusive`), human feedback that actually moves confidence, a strict dry-run `kevin_trace`, a read-only `kevin_audit`, and a hermetic replay harness.
 - **Pull**: knowledge earns its way into files the model actually reads — `kevin_propose` generates a reviewable diff, a human approves, and **only then** does Kevin write, inside a frozen marker block, preserving your file's CRLF/BOM/formatting byte-for-byte outside it. Plus three distribution channels (AGENTS.md, skills, references) and a push budget gated by a confidence floor.
-- **Audited**: the v0.4.0 bug catalog (`docs/Kevin_v0.4.0_Bugs.md`) is fully closed — 16/16 bugs fixed and regression-tested.
+- **Audited**: the v0.4.0 bug catalog (`docs/Kevin_v0.4.0_Bugs.md`) is fully closed — 16/16 bugs fixed and regression-tested; the v0.8.0 release audit closed 8/8 bugs (repo identity, session coherence through rekey, port normalization in remotes, refusal semantics, read-path `layer`).
 - **Standalone**: works without any other plugin. With the ecosystem, it learns more richly.
 
 ---
@@ -22,6 +22,7 @@ Kevin is an [OpenCode](https://opencode.ai) plugin that **observes** every agent
 - [Tools](#tools)
 - [How Kevin measures itself](#how-kevin-measures-itself)
 - [Curation & Pull](#curation--pull)
+- [The shared layer (v0.8.0)](#the-shared-layer-v080)
 - [Replay harness](#replay-harness)
 - [Hooks](#hooks)
 - [Configuration](#configuration)
@@ -50,7 +51,7 @@ For a **single project**, put the same `plugin` array in `./opencode.json` or `.
 
 ### 2. Restart OpenCode
 
-Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, Kevin exposes 18 tools, including `kevin_facts` and `kevin_conflicts`.
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, Kevin exposes 21 tools, including `kevin_facts`, `kevin_conflicts`, `kevin_project`, `kevin_share` and `kevin_sync`.
 
 Contradictions de-rank memories and surface conflicts. They never delete, stale, archive, or auto-resolve a memory.
 
@@ -138,13 +139,24 @@ Every tool call is observed; every failure becomes a lesson; every lesson is eit
   └─────────────────────────┘  promotion, pattern mining (opt-in)
 ```
 
-At `session.idle` Kevin also settles injection outcomes, retires stale memories, and — when curation is enabled — drafts pull proposals for your review (see [Curation & Pull](#curation--pull)).
+At `session.idle` Kevin also settles injection outcomes, retires stale memories, drafts pull proposals for your review when curation is enabled (see [Curation & Pull](#curation--pull)), and syncs the shared OKF file when the shared layer is enabled.
+
+In plain words, the whole loop is:
+
+1. **Watch.** Every tool call is observed — what ran, what failed, what fixed it.
+2. **Learn.** Failures become short lessons, deduplicated per error fingerprint and throttled so a noisy failure does not spam.
+3. **Push.** At the next prompt, the best lessons are injected as `<kevin-context>` — capped, confidence-gated, and every rejection counted.
+4. **Write.** With your explicit approval, a lesson can also land in `AGENTS.md`, a skill or a reference file — only ever inside the frozen marker block.
+5. **Share.** With the shared layer on (v0.8.0, opt-in), approved lessons can be exported to a committed `.kevin/knowledge.okf` file that every teammate pulls and imports.
+6. **Retire.** Lessons that stop being true — recurrences, staleness, a human `ignore` — stop being injected. Nothing lives forever by default.
+
+Since v0.8.0, memories live in one of two layers: **local** (private to this installation, the model above) and **shared** (a committed `.kevin/knowledge.okf` file projected into the local database, immutable, retrievable and injectable like any local memory). See [The shared layer](#the-shared-layer-v080) — the feature is opt-in and off by default.
 
 ---
 
 ## Tools
 
-Kevin exposes 16 tools callable by the agent.
+Kevin exposes 21 tools callable by the agent.
 
 ### `kevin_save`
 
@@ -193,13 +205,13 @@ kevin_recall({ query: "auth", limit: 3 })
 
 ### `kevin_status`
 
-Global counts and metrics: memory census, the precision block, the six blocked-gate counters, feedback totals, and the v0.6 block (`schema_version`, `curation_enabled`, emission states, `proposals_pending` — omitted on pre-007 databases).
+Global counts and metrics: memory census, the precision block, the six blocked-gate counters, feedback totals, and the v0.6 block (`schema_version`, `curation_enabled`, emission states, `proposals_pending` — omitted on pre-007 databases). On 009 databases (v0.8.0) it also reports the `v08` block: `repo_id` (a 16-hex hash derived from the identity sources below — never a raw remote URL), `identity_source` (`"declared"` from `.kevin/project.json`, `"remote"` from the git origin URL, or `"path"` fallback), `shared_layer_enabled` and the repo's `shared_entries` count. Omitted on pre-009 databases.
 
 ```
 kevin_status({})
 // → { "memories": 42, "memories_reflector": 12, "memories_agent": 30,
 //      "memories_pattern": 0, "memories_causal": 1, "tool_calls": 318,
-//      "retrospectives": 7, "tool_count": 16,
+//      "retrospectives": 7, "tool_count": 21,
 //      "metrics": { "tokens_injected_pre_prompt": 51, "tokens_injected_compacting": 0,
 //                   "reflections_throttled": 3, "duplicate_suppressions": 2,
 //                   "tool_calls_deduped": 0, "patterns_mined": 0,
@@ -214,7 +226,9 @@ kevin_status({})
 //      "patterns_promoted_new": 2, "recurrence_by_origin": { "reflector": 3, "causal": 1 },
 //      "v06": { "schema_version": "007", "curation_enabled": "1",
 //               "skill_emission": "off", "reference_emission": "off",
-//               "proposals_pending": 2 } }
+//               "proposals_pending": 2 },
+//      "v08": { "repo_id": "2114ad162af50a25", "identity_source": "remote",
+//               "shared_layer_enabled": "0", "shared_entries": 3 } }
 ```
 
 ### `kevin_retrospective`
@@ -340,6 +354,40 @@ kevin_approve({ proposal_id: "...", decision: "approve" })   // or "reject"
 
 Regenerates the pull-channel bundles under `~/.opencode-kevin/` — `skills/project-knowledge.md` and `refs/<topic>.md` — reporting per-bundle outcome and the emission state (`on` / `off` / `unavailable`). Registration with the host happens at plugin startup; this tool only materializes and reports.
 
+### `kevin_project`
+
+Repository identity (v0.8.0). `action: "show"` reports the resolved `repoId`, `identity_source`, `projectId`, the memory counts under each scope and `rekey_available`; `action: "init"` writes `.kevin/project.json` pinning the derived id (refused if it already exists); `action: "rekey"` moves the whole corpus to the resolved `repo_id` in one transaction — without `confirm: true` it is a dry run that mutates nothing, and a monorepo collision is rejected unless `force: true`.
+
+A **confirmed** rekey updates the running session live — the identity, the memory service and the shared-layer bridge all move to the new `repo_id` immediately, so `kevin_status`, `kevin_audit` and `kevin_share` keep working without a restart, and the OKF file's `#repo` header is repaired so the shared channel keeps working too.
+
+```
+kevin_project({ action: "show" })
+// → { "repoId": "2114ad162af50a25", "source": "remote", "evidence": "origin",
+//      "projectId": "8f3c2a1b...", "projectScoped": 41, "repoScoped": 0,
+//      "rekeyAvailable": true }
+```
+
+### `kevin_share`
+
+Promotes curated memories into the shared layer: plans an export to the OKF file and (with `confirm: true`) writes it through the single write funnel. **A strict dry run by default** — with no `confirm` it returns the plan and its diff, writing nothing. With no `memory_ids`, it selects every `layer='local'`, curated memory whose confidence clears the shared floor. Refusals: `not_okf`, `version_ahead`, `repo_mismatch`, `too_many_entries`, `line_too_long`, `below_floor`, `not_curated`, `unknown_entry`, `parse_damaged` — a typo'd or foreign memory id refuses the whole export (`unknown_entry`) instead of silently sharing a subset.
+
+```
+kevin_share({ memory_ids: ["0195a3b2-..."], dry_run: false, confirm: true })
+// → { "memory_ids": [...], "entries_added": 1, "outcome": "written",
+//      "okf_path": ".kevin/knowledge.okf", "diff": "--- a/...\n+++ b/..." }
+```
+
+### `kevin_sync`
+
+Ingests the OKF file (asserts → shared-layer projections; tombstones → archived) and returns `{ imported, tombstoned, skipped, reason }`. Idempotent: an unchanged file is a no-op. Also runs automatically at `session.idle` while `shared_layer_enabled = "1"`.
+
+```
+kevin_sync({})
+// → { "path": ".kevin/knowledge.okf", "fileHash": "3d2f...", "parsed": 1,
+//      "folded": 0, "rejected": 0, "imported": 1, "tombstoned": 0,
+//      "skipped": false }
+```
+
 ---
 
 ## How Kevin measures itself
@@ -425,6 +473,131 @@ Rejection history is never deleted: it is the evidence base for the roadmap's ki
 
 ---
 
+## The shared layer (v0.8.0)
+
+### Two layers, one file
+
+Every memory lives in one of two layers:
+
+| Layer | Storage | Visibility |
+|---|---|---|
+| **local** | `kevin.db` → `memories` | private to this installation (the whole v0.1–v0.7 model) |
+| **shared** | `.kevin/knowledge.okf` (a committed file) → `shared_entries` projections | visible to every teammate who pulls the repo and runs Kevin |
+
+The OKF file is the *only* distribution vehicle. Kevin **never** commits it, pushes it, or talks to a server — you commit and push it with the rest of your repository. A teammate's `git pull` + `kevin_sync` (or the automatic sync at `session.idle`) turns every `assert` entry into a read-only projection in their `memories` table, retrievable and injectable like any local memory — but immutable: the shared layer is an exact projection of the committed file, so it is never edited, only re-imported or tombstoned. A tombstone in the file archives the projection everywhere.
+
+The whole feature is opt-in: with `shared_layer_enabled = "0"` (the default), Kevin never reads or writes the file, and `session.idle` performs no filesystem access at all.
+
+### Where the repo identity comes from
+
+Every repo has a `repo_id` — a 16-hex hash that scopes both the OKF file (`#repo`) and the shared projections. Kevin resolves it from three sources, in priority order:
+
+| Priority | Source | `identity_source` | Typical case |
+|---|---|---|---|
+| 1 | `.kevin/project.json` (`repo_id` pinned) | `declared` | after `kevin_project init` |
+| 2 | the git `origin` remote URL, hashed | `remote` | a repo cloned from a known remote |
+| 3 | the project path | `path` | a local folder without git |
+
+Only the **hash** is ever stored, written or reported — the raw remote URL never reaches the database or the OKF file. `kevin_project` is the mirror of this resolution: `show` tells you which source won, `init` pins it, `rekey` moves the whole corpus when the identity changes (say, the repo got a new remote):
+
+```
+   startup or kevin_project call
+        │
+        ▼
+   resolve():  declared ──► remote ──► path      (first source that yields)
+        │
+        ▼
+   repo_id (16-hex hash — never the raw URL)
+        │
+        ├── kevin_project show   →  which source won, counts, rekey_available
+        ├── kevin_project init   →  pins the id into .kevin/project.json
+        └── kevin_project rekey  →  one transaction moves everything together:
+                                     DB corpus + live session identity
+                                     + the OKF file's #repo header
+```
+
+Because `rekey` re-aligns the running session (not just the database), the natural flow "add a remote → rekey → share" works without restarting OpenCode — and the `#repo` header heal keeps `kevin_share`/`kevin_sync` from refusing the file with `repo_mismatch`.
+
+### The round trip, step by step
+
+```
+  you (repo A)                                teammate (repo B)
+  ┌───────────────────────────────────────┐   ┌───────────────────────────────────────┐
+  │  kevin_share({ memory_ids,           │   │  git pull                              │
+  │               confirm: true })       │   │     │                                  │
+  │    │ 1. identity gate: #repo must    │   │     ▼                                  │
+  │    │    match your repo_id           │   │  kevin_sync (or automatically at       │
+  │    │ 2. entry_id = hash(type,        │   │  session.idle)                         │
+  │    │    statement, scope)            │   │    │                                   │
+  │    │ 3. per-line and corpus limits   │   │    ├─ new asserts   → shared_entries   │
+  │    ▼                                 │   │    │   → projections (layer='shared',  │
+  │  .kevin/knowledge.okf                │   │    │     immutable, retrievable)       │
+  │    │  (the only thing Kevin writes)  │   │    ├─ tombstones    → projections      │
+  │    ▼                                 │   │    │   archived                        │
+  │  git commit + push                   │   │    └─ unchanged file → no-op           │
+  └───────────────────────────────────────┘   └───────────────────────────────────────┘
+```
+
+Kevin never commits, pushes or fetches anything: the git remote is the transport, and `git commit`/`git push` are yours.
+
+### The OKF v2 format
+
+One annotated example, byte-exact (the three header lines are always first):
+
+```
+#okf 2
+#repo 2114ad162af50a25
+#generated-by opencode-kevin/0.8.0
+{"author_hash":null,"created_at":"2026-08-17T03:34:17Z","entry_id":"2d80f0972a4b8c92","evidence":6,"op":"assert","origin":"pattern","recurrence":0,"scope":"project","statement":"Always use the repository pattern for the data layer","supersedes":null,"type":"rule"}
+```
+
+- `#okf 2` — the format version. A file with a **higher** version is refused (`version_ahead`), never downgraded.
+- `#repo <16-hex>` — the repo identity the file belongs to. A file from another repo is refused (`repo_mismatch`) — the shared layer never crosses repositories.
+- `#generated-by opencode-kevin/<version>` — provenance of the writer.
+- Each following line is one JSON entry. `op: "assert"` declares knowledge; `op: "tombstone"` retires the `entry_id` it carries. `entry_id` is a deterministic hash of `(type, statement, scope)`, so the same statement from any teammate collides to the same entry — that is what makes imports idempotent.
+- Limits, enforced at export *and* import: `MAX_LINE_BYTES = 4096`, `MAX_ENTRIES = 2000`. A corpus beyond the limits is refused, never truncated.
+
+### When git reports a conflict in `.kevin/knowledge.okf`
+
+A merge conflict in the OKF file is expected — both sides asserted different knowledge. The counter-intuitive answer: **keep both sides, then run `kevin_sync`.** Kevin's import is merge-friendly by design: entries are idempotent (same `entry_id` → no-op) and disjoint entries coexist in the same file.
+
+Worked example — your branch asserted "Always use the repository pattern…" and your teammate's branch asserted "Always wrap file writes in a temp-file + rename helper". Git cannot merge two files that both changed, so it stops:
+
+```
+<<<<<<< HEAD
+#okf 2
+#repo 2114ad162af50a25
+#generated-by opencode-kevin/0.8.0
+{"op":"assert", ... "statement":"Always use the repository pattern..."}
+=======
+#okf 2
+#repo 2114ad162af50a25
+#generated-by opencode-kevin/0.8.0
+{"op":"assert", ... "statement":"Always wrap file writes in a temp-file + rename helper..."}
+>>>>>>> teammate
+```
+
+1. Resolve by keeping both entry lines (drop the `<<<<<<<`, `=======`, `>>>>>>>` markers and the duplicated headers, keep the other headers and both JSON lines).
+2. Save the file — it now contains both assertions.
+3. Run `kevin_sync`. Both entries import; both projections become active; the conflict is resolved and the corpus is the union of both sides.
+
+Do **not** delete either side "to make it clean" — that deletes knowledge. The one thing to avoid: a file left with the conflict markers still present will refuse to import (`parse_damaged`), because a `<<<<<<<` line is not a valid entry.
+
+### Retiring shared knowledge
+
+There is no in-product tool that writes a `tombstone` entry for you (a deliberate v0.8.0 scope decision). To retire a shared entry, edit the file by hand: replace the `assert` line with a `tombstone` line carrying the same `entry_id`, commit, and let teammates' `kevin_sync` archive the projection. The import side always honors tombstones — the export side just has no button for them yet.
+
+### Non-goals (asked for, deliberately not built)
+
+- **No server.** The file, the git remote, and your own discipline are the only transport.
+- **No account.** No signup, no cloud, no telemetry — `author_identity_mode` defaults to `hashed` and no identity is ever transmitted.
+- **No automatic commit.** Kevin writes the file; git is yours.
+- **No cross-repository corpus.** `#repo` scopes the file: exports are refused (`repo_mismatch`) when the file belongs to another repository. Imports, by contrast, are deliberately tolerant — an entry's validity is decided by its own `entry_id`, so a copied file imports as if it belonged to your repo (the tested, documented behaviour).
+- **No undelete.** A tombstone is a statement, not a recovery mechanism — keep your git history if you need to resurrect an entry.
+- **No tombstone tool (yet).** See [Retiring shared knowledge](#retiring-shared-knowledge) — retirement happens by editing the file.
+
+---
+
 ## Replay harness
 
 `npm run replay` runs every transcript in `tests/replay/fixtures/` through the plugin against an in-memory database with a frozen clock and prints one table row per transcript (memories created, injection outcomes, `precision_rate`, `coverage_rate`, tokens). Record your own session as a JSON array of typed events (`session.created`, `chat.message`, `tool.before`, `tool.after`, `system.transform`, `compacting`, `session.idle`) with ISO-8601 `at` timestamps, drop it into `tests/replay/fixtures/`, and re-run. The `at` timestamps are the only source of time during replay.
@@ -442,7 +615,7 @@ Kevin subscribes to 6 OpenCode hooks:
 | `experimental.chat.system.transform` | Injects relevant lessons in `<kevin-context>` (400 tokens by default, configurable) + optional `<kevin-suggestion>` |
 | `experimental.session.compacting` | Re-injects lessons in `<kevin-memory>` after compacting (2000 tokens) + optional `<kevin-suggestion>` |
 | `event` (`session.created`) | Captures current `sessionID` (skill/reference emissions register at plugin startup, not per session) |
-| `event` (`session.idle`) | Settles injection outcomes; generates the retrospective; boosts positive lessons; penalizes recurring failures; promotes causal patterns and mines patterns (opt-in); drafts curation proposals (`curation_enabled`); flushes metrics |
+| `event` (`session.idle`) | Settles injection outcomes; generates the retrospective; boosts positive lessons; penalizes recurring failures; promotes causal patterns and mines patterns (opt-in); drafts curation proposals (`curation_enabled`); syncs the shared OKF file (`shared_layer_enabled`); flushes metrics |
 
 **Redaction**: absolute paths (`C:\Users\...`, `/home/...`) → `<path>` and secrets (`API_KEY=`, `Bearer`, `token`) → `<redacted>` before persisting anything. `<private>…</private>` blocks are swept from tool call args and output before persistence and replaced with `<private: redacted N chars>`.
 
@@ -472,7 +645,7 @@ KevinPlugin(input, {
 
 ### Settings
 
-Read/write via `kevin_config({ action: "list" | "set", ... })`. All values are TEXT; booleans compare against `"1"`.
+Read/write via `kevin_config({ action: "list" | "set", ... })`. All 23 values are TEXT; booleans compare against `"1"`.
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -490,6 +663,17 @@ Read/write via `kevin_config({ action: "list" | "set", ... })`. All values are T
 | `skill_emission_enabled` | `"0"` | Registers the curated skill with the host at startup (v2 hosts only) |
 | `reference_emission_enabled` | `"0"` | Registers `@kevin/<topic>` references at startup (v2 hosts only) |
 | `injection_confidence_floor` | `"0.6"` | Push gate: memories below this confidence are counted and rejected |
+| `repo_truth_enabled` | `"0"` | Opt-in Project Truth: fact scanning + contradiction detection at `session.idle` |
+| `convention_mining_enabled` | `"0"` | Opt-in deterministic convention mining into `AGENTS.md` |
+| `conflict_detection_enabled` | `"0"` | Opt-in contradiction detection between memories and observed facts |
+| `error_lesson_mode` | `"all"` | Which failures produce lessons: `all` / `rules_only` / `patterns_only` |
+| `shared_layer_enabled` | `"0"` | Master switch for the shared layer. When `"0"`, Kevin never reads or writes the OKF file and `session.idle` performs no filesystem access. Compare with `=== "1"` — a truthiness check would turn the feature on for every installation |
+| `okf_path` | `".kevin/knowledge.okf"` | Project-relative path of the committed OKF file (**string** — always truthy, which is exactly why the layer flag above must not be read as a boolean) |
+| `share_requires_approval` | `"1"` | When `"1"`, `kevin_share` writes only with `confirm: true`; un-curated memories are refused with `not_curated` |
+| `author_identity_mode` | `"hashed"` | Author attribution in exports: `"hashed"` or `"none"` (**string** enum) |
+| `shared_confidence_floor` | `"0.7"` | Gate for `kevin_share` selection and export — a **string**, read with `Number.parseFloat` and clamped to `[0, 1]`. Deliberately stricter than `injection_confidence_floor` (`0.6`): sharing is a commitment, injecting is a suggestion. `parseInt` on this setting would yield `0` and share everything |
+
+All 23 settings are TEXT values; booleans and flags compare against `"1"`; the three v0.8 **string-valued** settings are `okf_path`, `author_identity_mode` and `shared_confidence_floor`.
 
 ---
 
@@ -548,6 +732,9 @@ plugin/
   kevin_publish.ts      # kevin_publish tool (bundle regeneration)
   kevin_audit.ts        # Read-only audit + channels/curation blocks
   kevin_why.ts          # kevin_why tool: failure→fix traces + related rules
+  SharedLayer.ts        # v0.8: OKF plan/apply/tombstone + import → shared projections
+  RepoIdentity.ts       # v0.8: repo_id resolution (declared → remote → path) + rekey
+  okf.ts                # v0.8: OKF v2 parse/serialize (headers, entry_id, limits)
   okf-export.ts         # kevin_export: OKF/markdown export
   okf-import.ts         # kevin_import: bundle parser + import
   confidence.ts         # Two-sided computeConfidence (evidence + recurrence + feedback)
@@ -565,6 +752,8 @@ migrations/
   005_v04_signal.sql    # recurrence_count, fix_args, last_injected_at
   006_v05_glassbox.sql  # ignored/archived/superseded_by, feedback, metrics
   007_v06_pull.sql      # curation_proposals, artifact_writes, curated/inferable
+  008_v07_truth.sql     # facts + contradictions, conflict_detection settings
+  009_v08_team.sql      # shared_entries, okf_imports, the five v0.8 settings
 tests/
   unit/                 # component tests
   integration/          # tool-level tests through real components

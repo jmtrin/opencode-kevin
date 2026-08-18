@@ -84,14 +84,20 @@ export function kevinApprove(
 	}
 
 	// approve → apply → applied (plan §5.5). The proposed_text is re-planned
-	// at approval time against the file as it is now; apply() is atomic and
+	// at approval time against the file as it is now; write() is atomic and
 	// audits every outcome including noop. The disk write happens BEFORE the
-	// state transitions: if apply() throws (e.g. a filesystem error), the
+	// state transitions: if write() throws (e.g. a filesystem error), the
 	// proposal is still 'pending' and the human can retry or reject — a
 	// row stuck in 'approved' with no file written would be a dead end,
 	// since kevin_approve only accepts pending rows.
-	const plan = writer.plan(row.target_path, row.proposed_text);
-	const outcome = writer.apply(plan, args.proposalId);
+	const outcome = writer.write(
+		{
+			path: row.target_path,
+			mode: "markers",
+			content: row.proposed_text,
+		},
+		args.proposalId,
+	);
 	curator.transition(args.proposalId, "approve");
 	curator.transition(args.proposalId, "apply");
 	const memoryIds = row.memory_id.split(",").filter((s) => s.length > 0);

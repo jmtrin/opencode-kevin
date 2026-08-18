@@ -67,6 +67,7 @@ async function main(): Promise<void> {
 	const sql006Src = join(process.cwd(), "migrations", "006_v05_glassbox.sql");
 	const sql007Src = join(process.cwd(), "migrations", "007_v06_pull.sql");
 	const sql008Src = join(process.cwd(), "migrations", "008_v07_truth.sql");
+	const sql009Src = join(process.cwd(), "migrations", "009_v08_team.sql");
 	if (!existsSync(sqlSrc)) {
 		console.log("\u2717 No existe migrations/001_initial.sql");
 		failed++;
@@ -99,6 +100,11 @@ async function main(): Promise<void> {
 	if (existsSync(sql008Src)) {
 		copyFileSync(sql008Src, join(migrationsDir, "008_v07_truth.sql"));
 	}
+	// v0.8.0 (K8-004 / plan §8.11) — without this entry `npm run verify`
+	// silently never exercises migration 009.
+	if (existsSync(sql009Src)) {
+		copyFileSync(sql009Src, join(migrationsDir, "009_v08_team.sql"));
+	}
 
 	const store = new Store({ path: ":memory:" });
 	try {
@@ -106,13 +112,22 @@ async function main(): Promise<void> {
 			store.prepare("SELECT 1").get();
 		});
 
-		check("8 migraciones copiadas", () => {
+		// v0.8.0 (K8-004 / plan §8.11) — the expected count is derived from
+		// the source directory, not hard-coded: the second acceptance
+		// criterion requires that deleting a migration from `migrations/`
+		// degrades to a silently weaker verification (the guard holds) rather
+		// than a failure. Forgetting the copy line while the file exists
+		// still fails, because the copied count then no longer matches.
+		const expectedSqlCount = readdirSync(
+			join(process.cwd(), "migrations"),
+		).filter((f) => f.endsWith(".sql")).length;
+		check(`${expectedSqlCount} migraciones copiadas`, () => {
 			const files = readdirSync(migrationsDir).filter((f) =>
 				f.endsWith(".sql"),
 			);
-			if (files.length !== 8) {
+			if (files.length !== expectedSqlCount) {
 				throw new Error(
-					`esperadas 8 migraciones, encontradas ${files.length}: ${files.join(", ")}`,
+					`esperadas ${expectedSqlCount} migraciones, encontradas ${files.length}: ${files.join(", ")}`,
 				);
 			}
 		});
@@ -124,6 +139,21 @@ async function main(): Promise<void> {
 				throw new Error("falta migrations/008_v07_truth.sql");
 			}
 		});
+
+		// v0.8.0 (K8-004 / plan §8.11) — name the migration explicitly so the
+		// release gate output proves 009 was exercised, not just counted. The
+		// check lives under the same `existsSync` guard as the copy, so a
+		// missing source file makes the line disappear from the output
+		// instead of failing the run (acceptance criterion 2); the derived
+		// count check above still fails when the copy line is forgotten while
+		// the file exists.
+		if (existsSync(sql009Src)) {
+			check("009_v08_team.sql presente", () => {
+				if (!existsSync(join(migrationsDir, "009_v08_team.sql"))) {
+					throw new Error("falta migrations/009_v08_team.sql");
+				}
+			});
+		}
 
 		await checkAsync("Migracion 001 aplica", async () => {
 			await new Migrate(store, migrationsDir).run();

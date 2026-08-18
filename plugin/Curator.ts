@@ -66,6 +66,9 @@ interface CandidateRow {
 	updated_at: string;
 }
 
+/** v0.8.0 (K8-023 / plan §5.7) — the candidate source. */
+export type CandidateSource = "memories" | "shared";
+
 export function firstSentence(content: string): string {
 	const match = content.match(/^[\s\S]*?(?=[.!?](?:\s|$)|\r?\n|$)/);
 	const sentence = (match ? match[0] : content).trim();
@@ -94,8 +97,44 @@ export class Curator {
 		private readonly memoryService: MemoryService,
 		private readonly projectId: string,
 		metrics?: Metrics | null,
+		private readonly repoId?: string | null,
 	) {
 		this.metrics = metrics ?? null;
+	}
+
+	/**
+	 * v0.8.0 (K8-023 / plan §5.7) — the source the flag selects. When
+	 * `shared_layer_enabled` is on, curation reads the committed OKF file's
+	 * projection (`shared_entries`) instead of the local `memories` table.
+	 * The routing lives here, next to the predicate it switches, so a
+	 * reviewer sees substrate and rendering change together (D8-11).
+	 */
+	private sourceFromFlag(): CandidateSource {
+		return this.memoryService.getSetting("shared_layer_enabled", "0") === "1"
+			? "shared"
+			: "memories";
+	}
+
+	/** v0.8.0 (K8-023) — the shared-layer candidate rows. */
+	private sharedRows(): CandidateRow[] {
+		if (!this.repoId) {
+			throw new Error("shared source requires a repoId");
+		}
+		return this.store
+			.prepare(
+				`SELECT entry_id AS id, statement AS content,
+				        evidence AS evidence_count,
+				        0 AS recurrence_count,
+				        0 AS feedback_positive,
+				        0 AS feedback_negative,
+				        NULL AS last_verified_at,
+				        created_at AS updated_at
+				 FROM shared_entries
+				 WHERE repo_id = ?
+				   AND op = 'assert'
+				   AND evidence >= 2`,
+			)
+			.all(this.repoId) as CandidateRow[];
 	}
 
 	/**
@@ -115,21 +154,34 @@ export class Curator {
 	 * 4000 characters of content, whichever binds first. The char budget
 	 * counts the raw content length: rendered lines are truncated to 160
 	 * chars, so a rendered-line budget could never bind before the line cap.
+	 *
+	 * v0.8.0 (K8-023 / plan §5.7) — `source` selects the substrate: the
+	 * v0.6.0 path over `memories` ("local") or the shared layer. The
+	 * predicate, the caps and the deterministic sort are unchanged in both
+	 * cases — only the FROM changes. The shared schema has no feedback
+	 * columns, so the feedback disjunct of the predicate can never fire
+	 * there; `evidence >= 2` is its SQL half, evaluated in the query.
 	 */
-	candidates(limit?: number): CurationCandidate[] {
-		const rows = this.store
-			.prepare(
-				`SELECT id, content, evidence_count, recurrence_count,
-			        feedback_positive, feedback_negative,
-			        last_verified_at, updated_at
-			 FROM memories
-			 WHERE status = 'active'
-			   AND ignored = 0
-			   AND curated = 0
-			   AND (inferable IS NULL OR inferable != 1)
-			   AND (evidence_count >= 2 OR feedback_positive >= 1)`,
-			)
-			.all() as CandidateRow[];
+	candidates(
+		limit?: number,
+		source: CandidateSource = "memories",
+	): CurationCandidate[] {
+		const rows =
+			source === "shared"
+				? this.sharedRows()
+				: (this.store
+						.prepare(
+							`SELECT id, content, evidence_count, recurrence_count,
+					        feedback_positive, feedback_negative,
+					        last_verified_at, updated_at
+					 FROM memories
+					 WHERE status = 'active'
+					   AND ignored = 0
+					   AND curated = 0
+					   AND (inferable IS NULL OR inferable != 1)
+					   AND (evidence_count >= 2 OR feedback_positive >= 1)`,
+						)
+						.all() as CandidateRow[]);
 		const scored = rows
 			.map((row) => ({
 				row,
@@ -201,7 +253,7 @@ export class Curator {
 	 */
 	propose(kind: ProposalKind, writer: ArtifactWriter): CurationProposal[] {
 		const targetPath = this.targetPathFor(kind);
-		const candidates = this.candidates();
+		const candidates = this.candidates(undefined, this.sourceFromFlag());
 		if (candidates.length === 0) return [];
 
 		const readPlan = writer.plan(targetPath, this.renderBlock(candidates));

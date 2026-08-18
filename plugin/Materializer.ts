@@ -258,11 +258,10 @@ export class Materializer {
 	}
 
 	/**
-	 * Regenerate every bundle through the ArtifactWriter (plan + apply).
-	 * The only call site of `apply()` outside `kevin_approve` — D6-01's
-	 * single write FUNCTION with two constrained targets: `kevin_approve`
-	 * reaches `agents_md_path`, this module reaches `~/.opencode-kevin`
-	 * only (D6-07; enforced by K6-020).
+	 * Regenerate every bundle through the ArtifactWriter (write). This is
+	 * a call site of `write()` — the single write FUNCTION with two
+	 * constrained targets: `kevin_approve` reaches `agents_md_path`, this
+	 * module reaches `~/.opencode-kevin` only (D6-07; enforced by K6-020).
 	 */
 	materialize(writer: ArtifactWriter): MaterializedBundle[] {
 		const pending: { topic: string; path: string; body: string }[] = [];
@@ -287,7 +286,11 @@ export class Materializer {
 		return pending.map((bundle) => ({
 			topic: bundle.topic,
 			path: bundle.path,
-			outcome: writer.apply(writer.plan(bundle.path, bundle.body)),
+			outcome: writer.write({
+				path: bundle.path,
+				mode: "markers",
+				content: bundle.body,
+			}),
 		}));
 	}
 }

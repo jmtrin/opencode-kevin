@@ -1,0 +1,5 @@
+#okf 2
+#repo 8f3a2c1d9e7b6045
+#generated-by opencode-kevin/0.8.0
+{"author_hash":"1f2e3d4c5b6a7988","created_at":"2026-08-02T00:00:00Z","entry_id":"e3e2b234af780395","evidence":7,"op":"assert","origin":"decision","recurrence":0,"scope":null,"statement":"database access in tests goes through a temp file, never :memory:","supersedes":null,"type":"decision"}
+{"author_hash":"3c9ab8d2f7e14a05","created_at":"2026-08-01T00:00:00Z","entry_id":"ebcf15ce21f4b91b","evidence":3,"op":"assert","origin":"pattern","recurrence":0,"scope":"src/","statement":"always run tests","supersedes":null,"type":"rule"}

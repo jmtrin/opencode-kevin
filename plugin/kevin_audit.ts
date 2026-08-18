@@ -1,4 +1,5 @@
 import { effectivePrePromptCap } from "./ContextInjector.js";
+import { hasRepoIdColumn } from "./MemoryService.js";
 import type { Store } from "./Store.js";
 import type { Capabilities } from "./capabilities.js";
 import type { Metrics } from "./metrics.js";
@@ -78,6 +79,24 @@ export interface AuditReport {
 	};
 	channels?: ChannelReport;
 	curation?: CurationReport;
+	/**
+	 * v0.8.0 (K8-018/023 / plan §5.2, §5.7) — the shared-layer block.
+	 * K8-018 kept it minimal (write_refusals); K8-023 extends it with
+	 * the full team rollup, computed in pure SQL. On a database below
+	 * the v0.7.0 maturity floor the precision numbers are omitted and
+	 * `reason: "immature_db"` reported instead.
+	 */
+	team?: {
+		write_refusals: number;
+		shared_total?: number;
+		tombstones?: number;
+		distinct_authors?: number;
+		last_import_at?: string | null;
+		last_import_rejected?: number;
+		precision_shared?: number;
+		precision_local?: number;
+		reason?: "immature_db";
+	};
 	partial: boolean;
 }
 
@@ -164,6 +183,7 @@ export function buildAudit(
 	metrics: Metrics,
 	capabilities: Capabilities = ALL_FALSE_CAPABILITIES,
 	projectId?: string,
+	repoId?: string | null,
 ): AuditReport {
 	let partial = false;
 
@@ -404,6 +424,117 @@ export function buildAudit(
 	} else {
 		partial = true;
 	}
+	// v0.8.0 (K8-018/023 / plan §5.2, §5.7) — the shared-layer block.
+	// `write_refusals` lives OUTSIDE the frozen METRIC_KEYS ladder (K7-004)
+	// and is read as a bare SQL scalar, following the `skills_registered`
+	// precedent; a missing row means no refusals yet. The K8-023 team
+	// rollup (shared_entries, okf_imports, layer precision) is gated on
+	// migration 009's schema and is pure SQL — no JavaScript-side
+	// aggregation (plan §5.7 acceptance).
+	let team: AuditReport["team"] = { write_refusals: 0 };
+	try {
+		team = {
+			write_refusals: scalar(
+				store,
+				`SELECT COALESCE(
+					(SELECT value FROM kevin_metrics WHERE key = 'shared_write_refusals'),
+					0
+				) AS n`,
+			),
+		};
+	} catch {
+		partial = true;
+		team = undefined;
+	}
+	let hasSchema009 = false;
+	try {
+		store.prepare("SELECT 1 FROM shared_entries LIMIT 1").get();
+		hasSchema009 = true;
+	} catch {
+		hasSchema009 = false;
+	}
+	if (hasSchema009 && team !== undefined) {
+		try {
+			const repoWhere = (column: string): string =>
+				repoId ? `${column} = ?` : "1 = 1";
+			const repoParams: (string | null)[] = repoId ? [repoId] : [];
+			const lastImport = store
+				.prepare(
+					`SELECT imported_at, entries_rejected
+					 FROM okf_imports
+					 WHERE ${repoWhere("repo_id")}
+					 ORDER BY imported_at DESC, id DESC LIMIT 1`,
+				)
+				.get(...repoParams) as
+				| { imported_at: string; entries_rejected: number }
+				| undefined;
+			// v0.5.0 precision formula (effective / (effective +
+			// ineffective)) per layer, same shape as `mix`.
+			const layerPrecision = (layer: string): number => {
+				const row = store
+					.prepare(
+						`SELECT
+						 SUM(CASE WHEN i.outcome = 'effective' THEN 1 ELSE 0 END) AS effective,
+						 SUM(CASE WHEN i.outcome = 'ineffective' THEN 1 ELSE 0 END) AS ineffective
+						 FROM kevin_injections i JOIN memories m ON m.id = i.memory_id
+						 WHERE m.layer = ? ${
+								repoId ? "AND (m.repo_id = ? OR m.repo_id IS NULL)" : ""
+							}`,
+					)
+					.get(layer, ...((repoId ? [repoId] : []) as (string | null)[])) as {
+					effective: number | null;
+					ineffective: number | null;
+				};
+				const effective = row.effective ?? 0;
+				const measured = effective + (row.ineffective ?? 0);
+				return measured > 0 ? effective / measured : 0;
+			};
+			// The v0.7.0 maturity floor, verbatim: below it the
+			// precision numbers are omitted and `immature_db` reported
+			// (plan §5.7 step 5).
+			const memoryCount = scalar(store, "SELECT COUNT(*) AS n FROM memories");
+			const settled = scalar(
+				store,
+				"SELECT COUNT(*) AS n FROM kevin_injections WHERE outcome IN ('effective','ineffective')",
+			);
+			const mature = memoryCount >= 100 && settled >= 50;
+			team = {
+				...team,
+				shared_total: scalar(
+					store,
+					`SELECT COUNT(*) AS n FROM shared_entries
+					 WHERE ${repoWhere("repo_id")} AND op = 'assert'`,
+					...repoParams,
+				),
+				tombstones: scalar(
+					store,
+					`SELECT COUNT(*) AS n FROM shared_entries
+					 WHERE ${repoWhere("repo_id")} AND op = 'tombstone'`,
+					...repoParams,
+				),
+				// Counts distinct non-null author_hash values; with
+				// author_identity_mode='none' imports write NULL, so
+				// the count is naturally 0.
+				distinct_authors: scalar(
+					store,
+					`SELECT COUNT(DISTINCT author_hash) AS n FROM shared_entries
+					 WHERE ${repoWhere("repo_id")} AND author_hash IS NOT NULL`,
+					...repoParams,
+				),
+				last_import_at: lastImport?.imported_at ?? null,
+				last_import_rejected: lastImport?.entries_rejected ?? 0,
+				...(mature
+					? {
+							precision_shared: layerPrecision("shared"),
+							precision_local: layerPrecision("local"),
+						}
+					: { reason: "immature_db" as const }),
+			};
+		} catch {
+			partial = true;
+			team = undefined;
+		}
+	}
 	try {
 		const rows = store
 			.prepare(
@@ -424,25 +555,36 @@ export function buildAudit(
 	// project-scoped. On a pre-008 database the repo_facts query throws, so
 	// the block is omitted and `partial` set — a report that cannot answer
 	// "how many facts does this project have?" must say so.
+	// v0.8.0 (K8-007 / plan §5.7) — the penalized-memory rollup scopes on
+	// repo_id once the 009 column exists and an identity is resolved
+	// (NULL-repo_id rows are global); project_id stays as the fallback.
 	let truth: AuditReport["truth"];
-	if (projectId) {
+	if (projectId || repoId) {
 		try {
 			const truncatedRow = store
 				.prepare(
 					"SELECT value FROM repo_facts WHERE project_id = ? AND key_path = '_truncated'",
 				)
 				.get(projectId) as { value: string } | undefined;
+			const penalized =
+				repoId && hasRepoIdColumn(store)
+					? scalar(
+							store,
+							"SELECT COUNT(*) AS n FROM memories WHERE (repo_id = ? OR repo_id IS NULL) AND truth_penalty > 0",
+							repoId,
+						)
+					: scalar(
+							store,
+							"SELECT COUNT(*) AS n FROM memories WHERE project_id = ? AND truth_penalty > 0",
+							projectId,
+						);
 			truth = {
 				facts_scanned: scalar(
 					store,
 					"SELECT COUNT(*) AS n FROM repo_facts WHERE project_id = ?",
 					projectId,
 				),
-				penalized_memories: scalar(
-					store,
-					"SELECT COUNT(*) AS n FROM memories WHERE project_id = ? AND truth_penalty > 0",
-					projectId,
-				),
+				penalized_memories: penalized,
 				truncated: truncatedRow
 					? { is_truncated: true, count: Number(truncatedRow.value) || 0 }
 					: { is_truncated: false },
@@ -523,6 +665,7 @@ export function buildAudit(
 		mix,
 		channels,
 		curation,
+		team,
 		partial,
 	};
 }

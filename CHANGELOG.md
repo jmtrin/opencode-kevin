@@ -4,6 +4,46 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-18
+
+### Added - Team
+
+- **Repository identity** (F1): `plugin/RepoIdentity.ts` resolves a stable `repo_id` from three sources in order — `.kevin/project.json` (`declared`), the git `origin` URL (`remote`, hashed, never a raw URL) and the project path fallback (`path`) — alongside the v0.7 `project_id`, which is now provenance, not scope (K8-005, K8-006, K8-008, K8-009). `kevin_project` reports/initializes/rekeys (transactional, confirm-gated) the identity.
+- **Retrieval scoped on `repo_id`** (K8-007): every retrieval path filters on `repo_id` (NULL-repo_id rows stay global); a 009-migrated snapshot reproduces v0.7.0 `getRelevant()` output byte-identically.
+- **The OKF v2 file format** (F2): `.kevin/knowledge.okf` — `#okf 2` / `#repo` / `#generated-by` headers plus one JSON entry per line; deterministic `entry_id = hash(type, statement, scope)` (unsalted, un-normalized, K8-010); byte-deterministic `canonicalize()`/`serialize()` (K8-011); total `parse()` with a rejection taxonomy (`version_ahead`, `repo_mismatch`, `line_too_long`, `wrong_type`, …) (K8-012); the field lattice `join()` (K8-013); `merge()` as a semilattice with property tests (K8-014); a git-conflict-marker fixture (K8-015).
+- **The shared layer** (F3, F4): `plugin/SharedLayer.ts` imports the OKF file into `shared_entries` + `okf_imports` with a file-hash skip for unchanged files (K8-016), projects `assert` entries into `memories` as immutable `layer='shared'` rows and archives them on `tombstone` (K8-017, K8-018); `planExport()`/`applyExport()`/`planTombstone()` with nine refusals (`not_okf`, `version_ahead`, `repo_mismatch`, `too_many_entries`, `line_too_long`, `below_floor`, `not_curated`, `unknown_entry`, `parse_damaged`) and `ArtifactWriter` `mode:"whole"` as the single write path (K8-019, K8-020). `kevin_share` (19th tool) promotes curated local memories into the file; `kevin_sync` (20th tool) imports it, wired into `session.idle` behind `shared_layer_enabled = "1"` (K8-021, K8-022).
+- **`kevin_status` v0.8 block** (K8-025): `repo_id`, `identity_source`, `shared_layer_enabled`, `shared_entries`; tool ladder 18 → 21. `kevin_audit.team` reports the shared-layer census and per-layer precision (K8-023).
+- **`kevin_status`/`Curator` shared rendering** (K8-023): curation proposals can source candidates from the shared layer; `team` block with `shared_total`, `tombstones`, `distinct_authors`, `last_import_at`, `last_import_rejected`, `precision_shared`/`precision_local` (gated on a `shared_entries` probe, `"partial"`-style omission on pre-009 databases).
+- **Migration `009_v08_team.sql`**: `shared_entries`, `okf_imports`, `memories.layer`, six metric keys (incl. `injections_from_shared`, `shared_entries_imported`), five new settings — `shared_layer_enabled` (`'0'`, opt-in), `okf_path` (`'.kevin/knowledge.okf'`, a string), `share_requires_approval` (`'1'`), `author_identity_mode` (`'hashed'`, a string), `shared_confidence_floor` (`'0.7'`, a string) (K8-001, K8-002, K8-003, K8-004).
+- **`injections_from_shared` metric** (K8-024): injections of shared-layer projections are counted separately; the two-clone closed-loop e2e proves share → pull → sync → retrieve → inject → tombstone → archive with zero process spawns and zero network calls.
+- **OKF v1 export scoped to v0.7 semantics** (K8-027): `kevin_export` `format:"okf"` output is v1-only, proving the v1/v2 separation.
+
+### Behaviour changes
+
+- **Defaults preserve v0.7.0 behaviour exactly**: `shared_layer_enabled = '0'` means Kevin never reads or writes the OKF file and `session.idle` performs no filesystem access; shared knowledge is never written without `confirm: true` when `share_requires_approval = '1'`.
+- **Tool ladder 18 → 21**: `kevin_project`, `kevin_share`, `kevin_sync` (kevin_facts ladder test, `kevin_status.tool_count`).
+- **`MemoryService` rows carry `layer`** (`'local'` | `'shared'` | `null` on pre-009 databases) so retrieval, injection and settlement can distinguish the two layers.
+- **Three string-valued settings** (`okf_path`, `author_identity_mode`, `shared_confidence_floor`) — flags must still compare with `=== "1"`, never truthiness.
+- **`kevin_share` refuses unknown memory ids** with `unknown_entry` instead of silently sharing the subset (BUG-006).
+
+### Fixed
+
+- **Transport forms no longer fragment a team** (BUG-004): `normalizeRemote` stripped the numeric port into the path (`https://host:8443/org/repo.git` became `host/8443/org/repo`), so the same repository reached over different transports or ports produced different `repo_id`s and the team silently split. Ports are now normalized away (`https://git.example.com:8443/org/repo.git` ≡ `ssh://git@host:2222/org/repo.git` ≡ `git@host:org/repo.git` → `host/org/repo`).
+- **Session identity stays coherent through a rekey** (BUG-001/002): `kevin_status`, `kevin_audit.team` and `kevin_share` now report against the session identity, and a confirmed `kevin_project rekey` live-updates the SharedLayer bridge, the memory service and the curator. Previously the plugin kept the pre-rekey identity until restart, so after the natural "add remote → rekey" flow it could no longer see its own shared corpus.
+- **Rekey repairs a stale `#repo` header** (BUG-003): a rekey leaves the OKF file header pointing at the old repository, so every later `planExport`/`planTombstone` refused with `repo_mismatch` and the channel was dead. `SharedLayer.healHeader()` rewrites only the header line (EOL style and every other byte preserved, still through the single `mode:"whole"` write path) and runs inside the rekey success path.
+- **`kevin_share` never silently drops ids** (BUG-006): a typo'd or foreign memory id in the request now refuses the whole export with `unknown_entry`, mirroring `planTombstone` semantics.
+- **`layer` is visible on every read path** (BUG-007): `getById`/`rowSelect` never selected the column, so a memory fetched by id always reported `layer: null`; the column is now appended (guarded on migrated databases) and `getById`/`getRelevant` agree.
+- **`planExport` documents its real refusal ladder** (BUG-008): file-side checks first (`not_okf`, `version_ahead`, `repo_mismatch`), then the candidate loop in code order (`line_too_long`, `below_floor`, `not_curated`, `unknown_entry`), then `too_many_entries`, then `parse_damaged` — the docstring previously described an order the code did not implement.
+
+### Known limitations
+
+- **Tombstones have no in-product tool** (BUG-005): `planTombstone` exists but has no production call site, so a shared entry can only be retired by editing the OKF file by hand. This is a deliberate scope decision for v0.8.0 — the import side already archives the projected memory when the entry disappears.
+
+### Tests
+
+- K8-001…K8-027 by ID: migration idempotency (K8-002), config-key surface (K8-003), verify-install (K8-004), INI reader + normalization (K8-005), identity resolution + rekey (K8-006, K8-008, K8-009), repo-scoped retrieval + byte-identical v0.7 proof (K8-007), entry-id determinism (K8-010), canonicalization byte determinism (K8-011), parse taxonomy (K8-012), join lattice (K8-013), merge semilattice (K8-014), conflict-marker fixture (K8-015), import + hash skip (K8-016), projection + tombstone retirement (K8-017), immutability refusals (K8-018), whole-mode writer + single write path (K8-019), export refusals (K8-020), `kevin_share` (K8-021), `kevin_sync` + idle wiring (K8-022), Curator shared rendering + `team` audit (K8-023), two-clone closed-loop e2e with stubbed `child_process`/`fetch` and a source scan (K8-024), `kevin_status` v0.8 fields (K8-025), final verification + `no_spawn_no_network` scan (K8-026), OKF v1/v2 separation (K8-027). 1147 tests passing (149 files); `npm run typecheck` and `npm run lint` clean.
+- **Post-release audit regressions**: port normalization (`tests/unit/repo_identity_remote.test.ts`, BUG-004); in-session rekey coherence + header heal with CRLF fixtures (`tests/integration/rekey_session.test.ts`, BUG-001/002/003); `unknown_entry` refusal (`tests/integration/kevin_share.test.ts`, BUG-006); `layer` on the id path (`tests/unit/shared_immutability.test.ts`, BUG-007); §11.2 checks 17–18 (no float reaches the file + `serialize` never derives confidence in `tests/unit/okf_serialize.test.ts`; demotion survives the merge round trip in `tests/unit/okf_merge_properties.test.ts`).
+
 ## [0.7.0] - 2026-08-15
 
 ### Added

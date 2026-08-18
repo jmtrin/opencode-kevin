@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,15 +19,20 @@ import {
 	MemoryService,
 	type SlimMemory,
 	type SlimMemoryWithEvidence,
+	hasRepoIdColumn,
 } from "./MemoryService.js";
 import { Migrate } from "./Migrate.js";
 import { PatternMiner } from "./PatternMiner.js";
 import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "./Reflector.js";
+import * as RepoIdentity from "./RepoIdentity.js";
+import type { IdentitySource, ResolvedIdentity } from "./RepoIdentity.js";
 import { RepoTruth } from "./RepoTruth.js";
 import { Retrospective } from "./Retrospective.js";
+import { type ImportReport, SharedLayer } from "./SharedLayer.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
 import { probe } from "./capabilities.js";
+import { computeConfidence } from "./confidence.js";
 import { fingerprint } from "./fingerprint.js";
 import { kevinApprove } from "./kevin_approve.js";
 import { buildAudit } from "./kevin_audit.js";
@@ -93,6 +98,17 @@ export const KEVIN_CONFIG_KEYS = [
 	"convention_mining_enabled",
 	"conflict_detection_enabled",
 	"error_lesson_mode",
+	// v0.8.0 (K8-003 / plan §8.10) — the five keys seeded by migration 009
+	// section 5. Omitting these makes `kevin_config set` return
+	// { error: "unknown_key" } while `kevin_config list` still shows them.
+	// shared_layer_enabled must be compared with === "1" (it is TEXT, and
+	// '0' is truthy); shared_confidence_floor is a string read with
+	// Number.parseFloat and clamped to [0, 1] (conventions, §2).
+	"shared_layer_enabled",
+	"okf_path",
+	"share_requires_approval",
+	"author_identity_mode",
+	"shared_confidence_floor",
 ] as const;
 
 // v0.7.0 (K7-003 / plan §5.6, D7-12) — the explicit VALUE domain for
@@ -103,9 +119,191 @@ export const KEVIN_CONFIG_KEYS = [
 // behaviour on the next reflection.
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
 
+/** Plugin release version — stamped into generated files (K8-021/027). */
+export const KEVIN_VERSION = "0.8.0";
+
 function resolveMigrationsDir(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
 	return join(here, "..", "migrations");
+}
+
+// v0.8.0 (K8-009 / plan §5.1, D8-03) — `kevin_project rekey`.
+// The only call site in this file is the `kevin_project` tool handler; the
+// acceptance for K8-009 asserts exactly that by source scan. Re-keying is
+// explicit, human-confirmed, and transactional — it never runs at init, on
+// session.idle, or from a migration hook, because silently merging two
+// corpora in a monorepo is unrecoverable and undiffable.
+export interface RekeyCounts {
+	memories: number;
+	shared_entries: number;
+	okf_imports: number;
+}
+
+export interface RekeyResult {
+	action: "rekey";
+	ok: boolean;
+	reason?: string;
+	/** Present on a dry run (no `confirm`): nothing was mutated. */
+	dry_run?: boolean;
+	/** The resolved id the corpus would move to. */
+	to_repo_id?: string;
+	/** Per source repo_id, the rows that would move (from-value → counts). */
+	from?: Record<string, RekeyCounts>;
+	/** Total rows that would move, per table. */
+	rows?: RekeyCounts;
+	/** A monorepo collision was detected (refused unless `force`). */
+	collision?: boolean;
+	/** Present on a successful confirmed run. */
+	rekeyed?: boolean;
+}
+
+const REKEY_TABLES = ["memories", "shared_entries", "okf_imports"] as const;
+
+export function performRekey(
+	store: Store,
+	toRepoId: string,
+	opts: { confirm: boolean; force?: boolean },
+): RekeyResult {
+	// The 009 migration carries the repo_id column AND the shared-layer
+	// tables; without it there is nothing to re-key.
+	if (!hasRepoIdColumn(store)) {
+		return {
+			action: "rekey",
+			ok: false,
+			reason:
+				"la migracion 009 no se ha aplicado: no existe repo_id (ni shared_entries/okf_imports) sobre el que re-key",
+		};
+	}
+
+	// Rows that would move: every scoped row stored under a repo_id
+	// different from the target. NULL-repo_id rows are global by design
+	// and never move.
+	const groupRows = (table: string): { repo_id: string; c: number }[] =>
+		store
+			.prepare(
+				`SELECT repo_id, COUNT(*) AS c FROM ${table}
+				 WHERE repo_id IS NOT NULL AND repo_id != ? GROUP BY repo_id`,
+			)
+			.all(toRepoId) as { repo_id: string; c: number }[];
+
+	const from: Record<string, RekeyCounts> = {};
+	const rows: RekeyCounts = {
+		memories: 0,
+		shared_entries: 0,
+		okf_imports: 0,
+	};
+	for (const table of REKEY_TABLES) {
+		for (const r of groupRows(table)) {
+			rows[table] += r.c;
+			from[r.repo_id] ??= {
+				memories: 0,
+				shared_entries: 0,
+				okf_imports: 0,
+			};
+			from[r.repo_id][table] = r.c;
+		}
+	}
+	const total = rows.memories + rows.shared_entries + rows.okf_imports;
+	if (total === 0) {
+		return {
+			action: "rekey",
+			ok: true,
+			rekeyed: false,
+			to_repo_id: toRepoId,
+			rows,
+			from,
+		};
+	}
+
+	// Monorepo collision (D8-03): rows already at the target repo_id
+	// belong to a different project_id set than the rows that would move.
+	// shared_entries and okf_imports carry no project_id, so memories is
+	// the only witness.
+	const pidSet = (sql: string, ...params: unknown[]): Set<string> => {
+		const out = new Set<string>();
+		for (const r of store.prepare(sql).all(...params) as {
+			project_id: string | null;
+		}[]) {
+			if (r.project_id !== null) out.add(r.project_id);
+		}
+		return out;
+	};
+	const targetPids = pidSet(
+		"SELECT DISTINCT project_id FROM memories WHERE repo_id = ?",
+		toRepoId,
+	);
+	const movePids = pidSet(
+		"SELECT DISTINCT project_id FROM memories WHERE repo_id IS NOT NULL AND repo_id != ?",
+		toRepoId,
+	);
+	const collision =
+		targetPids.size > 0 &&
+		!(
+			movePids.size === targetPids.size &&
+			[...movePids].every((p) => targetPids.has(p))
+		);
+
+	if (!opts.confirm) {
+		return {
+			action: "rekey",
+			ok: true,
+			dry_run: true,
+			to_repo_id: toRepoId,
+			rows,
+			from,
+			collision,
+		};
+	}
+	if (collision && opts.force !== true) {
+		return {
+			action: "rekey",
+			ok: false,
+			reason:
+				"monorepo collision: el repo_id destino ya contiene memorias de un conjunto de project_id distinto; pasa force: true solo si quieres fusionarlos",
+			to_repo_id: toRepoId,
+			rows,
+			collision: true,
+		};
+	}
+
+	// One transaction: the row moves and the rekey_events counter move
+	// together — a mid-way failure rolls both back and the database is
+	// completely unchanged.
+	try {
+		store.transaction(() => {
+			for (const table of REKEY_TABLES) {
+				store
+					.prepare(
+						`UPDATE ${table} SET repo_id = ?
+						 WHERE repo_id IS NOT NULL AND repo_id != ?`,
+					)
+					.run(toRepoId, toRepoId);
+			}
+			store
+				.prepare(
+					`INSERT INTO kevin_metrics (key, value, updated_at)
+					 VALUES ('rekey_events', 1, datetime('now'))
+					 ON CONFLICT(key) DO UPDATE SET
+					   value = value + 1,
+					   updated_at = datetime('now')`,
+				)
+				.run();
+		});
+	} catch (err) {
+		return {
+			action: "rekey",
+			ok: false,
+			reason: `rekey fallo y se revirtio completamente: ${(err as { message?: string })?.message ?? "unknown error"}`,
+		};
+	}
+	return {
+		action: "rekey",
+		ok: true,
+		rekeyed: true,
+		to_repo_id: toRepoId,
+		rows,
+		from,
+	};
 }
 
 export const KevinPlugin: Plugin = async (input, options) => {
@@ -122,8 +320,22 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// v0.4.0 (K4-019): the plugin hooks expose no project field, so the
 	// project id is derived once from the plugin host's working directory
 	// (plan §5.7 fallback; D2-11 project scoping wired into the live path).
-	const projectId = fingerprint(process.cwd());
-	const memoryService = new MemoryService(store, metrics);
+	// v0.8.0 (K8-006 / plan §5.1): the repository identity resolves once at
+	// init, next to the project id, and never on a hot path.
+	const identity = RepoIdentity.resolve(process.cwd());
+	const projectId = identity.projectId;
+	const repoId = identity.repoId;
+	const identitySource = identity.source;
+	const identityEvidence = identity.evidence;
+	// v0.8.0 (BUG-001/002) — the SESSION identity: what the shared layer
+	// bridge, MemoryService, Curator and the tools actually use. It is
+	// derived once at init and only moves when kevin_project rekey
+	// succeeds (the rows move with it). kevin_status and the audit
+	// rollups report THIS id, never a fresh per-call resolve — a
+	// mid-session `git remote add` changes what the identity WILL be,
+	// not what the session is scoped on.
+	let sessionIdentity: ResolvedIdentity = identity;
+	const memoryService = new MemoryService(store, metrics, repoId);
 	// v0.7.0 (K7-009 / plan §5.1, D7-13) — the repository truth scanner reads
 	// the JSON project files. Runs once at init, gated by repo_truth_enabled.
 	const projectRoot = opts.projectRoot ?? process.cwd();
@@ -196,7 +408,33 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// ArtifactWriter is constructed here and only `kevin_approve` may call
 	// `apply()`. `kevin_propose` reaches the file only through `plan()`.
 	const writer = new ArtifactWriter(store, projectId, metrics);
-	const curator = new Curator(store, memoryService, projectId, metrics);
+	// v0.8.0 (K8-020/021 / plan §5.5) — the shared layer bridge, built
+	// once at init next to the writer. okf_path resolves against
+	// projectRoot at call time; the writer is the only write path
+	// (D8-08).
+	let sharedLayer = new SharedLayer({
+		store,
+		repoId,
+		projectId,
+		version: KEVIN_VERSION,
+		writer,
+	});
+	// v0.8.0 (K8-022 / plan §5.5) — the shared layer re-read. sync is
+	// deliberately narrow: re-read a file that is already on disk —
+	// one read plus one hash on an unchanged repository (the
+	// okf_imports hash skip), and nothing else. No fetch, no push, no
+	// remote, no poll (D8-01, Principle 30). Reachable only from the
+	// kevin_sync tool and session.idle, never from a hot-path hook.
+	function syncSharedLayer(): ImportReport {
+		const okfPath = join(
+			projectRoot,
+			memoryService.getSetting("okf_path", ".kevin/knowledge.okf"),
+		);
+		const report = sharedLayer.import(okfPath);
+		metrics.incr("shared_entries_imported", report.imported);
+		return report;
+	}
+	let curator = new Curator(store, memoryService, projectId, metrics, repoId);
 	// v0.6.0 (K6-017/018 / plan §5.6-5.7, D6-13) — pull-channel bundles and
 	// the v2 domain probe. `probe()` runs ONCE at init and the result is
 	// held; probing per-event is a hot-path cost for a value that cannot
@@ -698,6 +936,48 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					} catch {
 						v07 = undefined;
 					}
+					// v0.8.0 (K8-025 / plan §5.8) — identity and shared-layer
+					// fields. repo_id is always a derived hash (never a raw
+					// remote URL — the "declared" source pins the .kevin/
+					// project.json id, "remote" hashes the normalized origin
+					// URL, "path" falls back to the project fingerprint).
+					// identity_source tells the user which of the three won.
+					// shared_layer_enabled is the config key read from
+					// kevin_settings (default "0"); shared_entries counts the
+					// active (asserted) entries for this repo — best-effort
+					// on pre-009 DBs, which have no shared layer at all.
+					// BUG-001: the SESSION identity (init-time, moved only by
+					// a successful rekey) — not a fresh per-call resolve, so
+					// the count always agrees with what kevin_share/kevin_sync
+					// actually read and write.
+					const identity = sessionIdentity;
+					let v08:
+						| {
+								repo_id: string;
+								identity_source: IdentitySource;
+								shared_layer_enabled: string;
+								shared_entries: number;
+						  }
+						| undefined;
+					try {
+						v08 = {
+							repo_id: identity.repoId,
+							identity_source: identity.source,
+							shared_layer_enabled: memoryService.getSetting(
+								"shared_layer_enabled",
+								"0",
+							),
+							shared_entries: (
+								store
+									.prepare(
+										"SELECT COUNT(*) AS c FROM shared_entries WHERE repo_id = ? AND op = 'assert'",
+									)
+									.get(identity.repoId) as { c: number }
+							).c,
+						};
+					} catch {
+						v08 = undefined;
+					}
 					return {
 						title: "Estado de Kevin",
 						output: JSON.stringify({
@@ -706,8 +986,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							// (13 v0.5 + kevin_propose + kevin_approve +
 							// kevin_publish). The frozen ladder is verified
 							// monotone across releases; K6-024 extends this
-							// block with the remaining v0.6 fields.
-							tool_count: 18,
+							// block with the remaining v0.6 fields. v0.8.0
+							// (K8-025) — 18 v0.7 + kevin_project +
+							// kevin_share + kevin_sync = 21.
+							tool_count: 21,
 							v07,
 							memories_reflector: memoriesReflector,
 							memories_agent: memoriesAgent,
@@ -740,6 +1022,169 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							},
 							// v0.6.0 (K6-024) — omitted on pre-007 DBs.
 							v06,
+							// v0.8.0 (K8-025) — omitted on pre-009 DBs.
+							v08,
+						}),
+					};
+				},
+			}),
+			kevin_project: tool({
+				description:
+					"Identidad de repositorio (v0.8.0, K8-008/009 / plan §5.8): show reporta repoId, source, evidence, projectId, los conteos de memorias bajo cada scope y rekey_available (true cuando el corpus esta almacenado bajo un scope distinto del resuelto); init escribe .kevin/project.json fijando el id derivado (refusa si ya existe); rekey mueve el corpus entero al repo_id resuelto en UNA transaccion — sin confirm: true es un dry run que no muta nada, y la colision monorepo se rechaza salvo force: true.",
+				args: {
+					action: tool.schema.enum(["show", "init", "rekey"]),
+					confirm: tool.schema.boolean().optional(),
+					force: tool.schema.boolean().optional(),
+				},
+				async execute(args) {
+					// v0.8.0 (K8-008) — identity resolves against the boot
+					// project root (the directory the plugin was wired with),
+					// never against the host's cwd.
+					const identity = RepoIdentity.resolve(projectRoot);
+					if (args.action === "init") {
+						const res = RepoIdentity.initProjectFile(projectRoot, writer);
+						return {
+							title: "Kevin project.json",
+							output: JSON.stringify(
+								res.ok
+									? {
+											action: "init",
+											written: true,
+											path: res.path,
+											id: res.id,
+											created_at: res.createdAt,
+											generator: "opencode-kevin/0.8.0",
+										}
+									: {
+											action: "init",
+											written: false,
+											path: res.path,
+											reason: res.reason,
+										},
+							),
+						};
+					}
+					if (args.action === "rekey") {
+						// v0.8.0 (K8-009 / plan §5.1, D8-03) — the only call
+						// site of performRekey in this codebase (asserted by
+						// source scan in the K8-009 acceptance).
+						const res = performRekey(store, identity.repoId, {
+							confirm: args.confirm === true,
+							force: args.force === true,
+						});
+						// v0.8.0 (BUG-002) — a successful rekey moves the
+						// rows to the freshly resolved id; the session must
+						// follow, or kevin_share/kevin_sync/retrieval stay
+						// scoped on the old id until a restart. The bridge,
+						// MemoryService and Curator are rebuilt on the new id
+						// in the same breath the rows move — there is never
+						// a window in which the session and the store
+						// disagree. A dry run or a refusal mutates nothing.
+						if (res.ok && !res.dry_run) {
+							const live = RepoIdentity.resolve(projectRoot);
+							sessionIdentity = live;
+							memoryService.setRepoId(live.repoId);
+							sharedLayer = new SharedLayer({
+								store,
+								repoId: live.repoId,
+								projectId: live.projectId,
+								version: KEVIN_VERSION,
+								writer,
+							});
+							curator = new Curator(
+								store,
+								memoryService,
+								projectId,
+								metrics,
+								live.repoId,
+							);
+							// v0.8.0 (BUG-003) — heal the OKF file header.
+							// Rekey changes the scope the file is written
+							// under; a stale `#repo` first line would make
+							// every later planExport/planTombstone refuse
+							// with repo_mismatch forever. The heal lives in
+							// SharedLayer so the whole-file construction
+							// stays at its single allowed site (D8-08).
+							try {
+								sharedLayer.healHeader(
+									join(
+										projectRoot,
+										memoryService.getSetting(
+											"okf_path",
+											".kevin/knowledge.okf",
+										),
+									),
+									live.repoId,
+								);
+							} catch {
+								// Missing or unreadable file — nothing to heal.
+							}
+						}
+						return {
+							title: "Kevin project rekey",
+							output: JSON.stringify(res),
+						};
+					}
+					// show.
+					const withRepoColumn = hasRepoIdColumn(store);
+					const memoriesTotal = (
+						store.prepare("SELECT COUNT(*) AS c FROM memories").get() as {
+							c: number;
+						}
+					).c;
+					const memoriesUnderRepo = withRepoColumn
+						? (
+								store
+									.prepare(
+										"SELECT COUNT(*) AS c FROM memories WHERE repo_id = ?",
+									)
+									.get(identity.repoId) as { c: number }
+							).c
+						: 0;
+					const memoriesUnderProject = (
+						store
+							.prepare(
+								"SELECT COUNT(*) AS c FROM memories WHERE project_id = ?",
+							)
+							.get(identity.projectId) as { c: number }
+					).c;
+					// v0.8.0 (K8-008) — rekey_available: rows whose current
+					// scope differs from the resolved repo_id. On an
+					// unmigrated corpus the stored scope is project_id, so a
+					// git remote present (repoId != path fingerprint) reports
+					// true without the 009 column existing.
+					const differentlyScoped = withRepoColumn
+						? (
+								store
+									.prepare(
+										"SELECT COUNT(*) AS c FROM memories WHERE repo_id IS NOT NULL AND repo_id != ?",
+									)
+									.get(identity.repoId) as { c: number }
+							).c
+						: (
+								store
+									.prepare(
+										"SELECT COUNT(*) AS c FROM memories WHERE project_id IS NOT NULL AND project_id != ?",
+									)
+									.get(identity.repoId) as { c: number }
+							).c;
+					return {
+						title: "Identidad de repositorio",
+						output: JSON.stringify({
+							action: "show",
+							repo_id: identity.repoId,
+							source: identity.source,
+							evidence: identity.evidence,
+							project_id: identity.projectId,
+							memories_total: memoriesTotal,
+							memories_repo_id: memoriesUnderRepo,
+							memories_project_id: memoriesUnderProject,
+							rekey_available: differentlyScoped > 0,
+							project_json: existsSync(
+								join(projectRoot, ".kevin", "project.json"),
+							)
+								? "present"
+								: "absent",
 						}),
 					};
 				},
@@ -756,7 +1201,15 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					// three emission states ("unavailable" vs "off" vs "on").
 					// v0.7.0 (K7-019 / K7-006) — projectId scopes the `truth`
 					// block; on a pre-008 DB the block is omitted, partial:true.
-					const report = buildAudit(store, metrics, capabilities, projectId);
+					// v0.8.0 (K8-007 / plan §5.7) — the penalized-memory rollup
+					// scopes on repoId once the 009 column exists.
+					const report = buildAudit(
+						store,
+						metrics,
+						capabilities,
+						projectId,
+						sessionIdentity.repoId,
+					);
 					const payload = args.verbose
 						? report
 						: { ...report, settings: undefined };
@@ -922,10 +1375,14 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						.describe("okf | markdown"),
 				},
 				async execute(args) {
+					// v0.8.0 (K8-027) — the v1 export is scoped to this
+					// plugin's project: the global database holds several
+					// projects' memories, and a committed export must not
+					// leak another project's knowledge.
 					const output =
 						args.format === "markdown"
-							? exportMarkdown(store)
-							: exportOkf(store);
+							? exportMarkdown(store, projectId)
+							: exportOkf(store, projectId);
 					return {
 						title: "Export completado",
 						output,
@@ -1147,6 +1604,129 @@ export const KevinPlugin: Plugin = async (input, options) => {
 									? "Propuesta aplicada"
 									: "Propuesta no procesada",
 						output: JSON.stringify(result),
+					};
+				},
+			}),
+			// v0.8.0 (K8-021 / plan §5.5) — kevin_share. The dry run is the
+			// default: nothing is written until the diff is shown. The
+			// write itself goes through the single funnel (applyExport),
+			// and shared_entries_exported counts only entries actually
+			// added to the file.
+			kevin_share: tool({
+				description:
+					"Comparte memorias locales al archivo OKF compartido (v0.8.0, K8-021 / plan 5.5): dry-run por defecto - sin memory_ids selecciona toda memoria curated=1 en o sobre shared_confidence_floor no ya compartida, y devuelve el plan con su diff sin escribir nada. confirm: true escribe via el unico write path (ArtifactWriter, D8-08); con share_requires_approval='1' (default) ademas se requiere confirm para escribir y las memorias no curadas se rechazan con not_curated; las que no alcanzan el floor se rechazan con below_floor; compartir la misma memoria dos veces es un noop en el segundo intento. Nunca escribe otro fichero que no sea okf_path.",
+				args: {
+					memory_ids: tool.schema.array(tool.schema.string()).optional(),
+					dry_run: tool.schema.boolean().optional(),
+					confirm: tool.schema.boolean().optional(),
+				},
+				async execute(args) {
+					const okfPath = join(
+						projectRoot,
+						memoryService.getSetting("okf_path", ".kevin/knowledge.okf"),
+					);
+					const requiresApproval =
+						memoryService.getSetting("share_requires_approval", "1") === "1";
+					const dryRun = args.dry_run ?? true;
+					const confirm = args.confirm ?? false;
+					const floor = Number.parseFloat(
+						memoryService.getSetting("shared_confidence_floor", "0.7"),
+					);
+					const clampedFloor = Number.isNaN(floor)
+						? 0.7
+						: Math.min(1, Math.max(0, floor));
+
+					const ids: string[] =
+						args.memory_ids !== undefined && args.memory_ids.length > 0
+							? args.memory_ids
+							: (
+									store
+										.prepare(
+											`SELECT id, evidence_count, recurrence_count
+											 FROM memories
+											 WHERE layer = 'local' AND curated = 1
+											   AND shared_entry_id IS NULL AND repo_id = ?`,
+										)
+										.all(sessionIdentity.repoId) as Array<{
+										id: string;
+										evidence_count: number | null;
+										recurrence_count: number | null;
+									}>
+								)
+									.filter(
+										(row) =>
+											computeConfidence(
+												row.evidence_count ?? 0,
+												row.recurrence_count ?? 0,
+											) >= clampedFloor,
+									)
+									.map((row) => row.id);
+
+					const plan = sharedLayer.planExport(ids, okfPath);
+					if (plan.write.outcome === "refused") {
+						return {
+							title: "Exportacion rechazada",
+							output: JSON.stringify({
+								refused: plan.write.reason,
+								okf_path: okfPath,
+							}),
+						};
+					}
+					const base = {
+						memory_ids: ids,
+						entries_added: plan.entriesAdded,
+						okf_path: okfPath,
+						diff: plan.write.diff,
+					};
+					if (dryRun) {
+						return {
+							title: "Plan de exportacion (dry-run)",
+							output: JSON.stringify({ ...base, dry_run: true }),
+						};
+					}
+					if (requiresApproval && !confirm) {
+						return {
+							title: "Confirmacion requerida",
+							output: JSON.stringify({
+								...base,
+								dry_run: true,
+								confirm_required: true,
+							}),
+						};
+					}
+					// The writer's atomic temp file lives next to the target,
+					// so the .kevin directory must exist before the write
+					// (same prep as RepoIdentity.initProjectFile).
+					mkdirSync(dirname(okfPath), { recursive: true });
+					const applied = sharedLayer.applyExport(plan);
+					if (applied.applied === "written") {
+						metrics.incr("shared_entries_exported", plan.entriesAdded);
+					}
+					return {
+						title:
+							applied.applied === "noop"
+								? "Nada nuevo que compartir"
+								: "Exportacion aplicada",
+						output: JSON.stringify({
+							...base,
+							outcome: applied.applied,
+						}),
+					};
+				},
+			}),
+			// v0.8.0 (K8-022 / plan §5.5) — kevin_sync. The name and the
+			// scope are deliberately narrow: "sync" means re-reading a
+			// file that is already on disk. Manual invocation works
+			// regardless of shared_layer_enabled; the automatic idle
+			// re-read below is the one gated by the flag.
+			kevin_sync: tool({
+				description:
+					"Re-lee el archivo OKF compartido ya en disco (v0.8.0, K8-022 / plan 5.5): importa las entradas del archivo okf_path al store compartido y reporta el ImportReport (parsed/folded/rejected/imported/tombstoned/skipped). No hay fetch, push, remoto ni polling (D8-01, Principle 30). Funciona con shared_layer_enabled en '0'; la sincronizacion automatica en session.idle esta gated por shared_layer_enabled === '1' y nunca corre en hot paths.",
+				args: {},
+				async execute() {
+					return {
+						title: "Sincronizacion compartida",
+						output: JSON.stringify(syncSharedLayer()),
 					};
 				},
 			}),
@@ -1391,6 +1971,23 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					} catch {
 						// best-effort, same pattern as ledger.settle — a
 						// curation failure must not break the idle path
+					}
+					// v0.8.0 (K8-022 / plan §5.5) — the shared layer
+					// re-read at idle. Gated by shared_layer_enabled ===
+					// "1", a TEXT comparison: '0' is a truthy string, so a
+					// truthiness check would turn the release on for every
+					// installation that upgrades. Never wired into
+					// tool.execute.*, chat.message, system.transform or
+					// session.compacting — the hot-path rule is absolute;
+					// the file-hash skip is what makes the idle cost one
+					// read plus one hash on an unchanged repository.
+					try {
+						if (memoryService.getSetting("shared_layer_enabled", "0") === "1") {
+							syncSharedLayer();
+						}
+					} catch {
+						// best-effort, same pattern as ledger.settle — a
+						// sync failure must not break the idle path
 					}
 				}
 				metrics.flush();
