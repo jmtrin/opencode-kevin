@@ -119,7 +119,13 @@ describe("K9-020 — kevin_audit host block (plan §5.5)", () => {
 		const report = buildAudit(store, metrics);
 		// The report without the new host block should match the old structure exactly
 		// We verify all original keys are present (may be empty objects but must exist)
-		const { host: _host, partial, ...rest } = report;
+		const {
+			host: _host,
+			perf: _perf,
+			contract: _contract,
+			partial,
+			...rest
+		} = report;
 		const expectedKeys = [
 			"blocked",
 			"channels",
@@ -137,9 +143,13 @@ describe("K9-020 — kevin_audit host block (plan §5.5)", () => {
 		for (const key of expectedKeys) {
 			expect(rest).toHaveProperty(key);
 		}
-		// No new keys beyond host should have been added
+		// No new keys beyond host/contract/perf should have been added.
+		// v1.0.0 (K10-020) adds the contract block (always present) and the
+		// perf block (omitted on this pre-011 store).
 		const keys = Object.keys(rest).sort();
 		expect(keys).toEqual(expectedKeys);
+		expect(report.contract).toBeDefined();
+		expect(report.perf).toBeUndefined();
 	});
 
 	it("block is derivable from DB alone (no live probe)", () => {

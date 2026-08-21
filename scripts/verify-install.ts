@@ -82,6 +82,14 @@ async function main(): Promise<void> {
 		);
 		process.exit(1);
 	}
+	// v1.0.0 (K10-022 / plan §5.5) — 002_indexes.sql was absent from every
+	// hard-coded list for six releases; its presence is asserted explicitly
+	// so deleting any migration fails loudly instead of silently migrating
+	// less.
+	if (!sqlFiles.includes("002_indexes.sql")) {
+		console.error("Floor check failed: 002_indexes.sql is missing");
+		process.exit(1);
+	}
 	for (const f of sqlFiles) {
 		copyFileSync(join(srcMigrations, f), join(migrationsDir, f));
 	}
@@ -174,6 +182,29 @@ async function main(): Promise<void> {
 			if (!output.system[0].includes("<kevin-context>"))
 				throw new Error("falta tag <kevin-context>");
 		});
+
+		// v1.0.0 (K10-022 / plan §5.5) — the Bun smoke joins `verify` for the
+		// first time. Without Bun installed the check is skipped with a printed
+		// notice and a zero exit; with Bun present it must pass.
+		function bunAvailable(): boolean {
+			try {
+				execSync("bun --version", { stdio: "pipe" });
+				return true;
+			} catch {
+				return false;
+			}
+		}
+
+		if (bunAvailable()) {
+			await checkAsync("Bun smoke (bun:sqlite)", async () => {
+				execSync("bun scripts/smoke-bun.ts", {
+					stdio: "pipe",
+					cwd: process.cwd(),
+				});
+			});
+		} else {
+			console.log("\u21b7 Bun smoke omitido (bun no disponible)");
+		}
 
 		check("TypeScript strict (tsc --noEmit)", () => {
 			execSync("npx tsc --noEmit", { stdio: "pipe", cwd: process.cwd() });

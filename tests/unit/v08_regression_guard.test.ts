@@ -19,6 +19,18 @@ const ALLOWLIST = [
 
 function gitDiffNames(): string[] {
 	try {
+		// The guard's subject is "a v0.8.0-or-earlier TEST FILE that
+		// differs from its v0.8.0 content" — so only files that existed at
+		// v0.8.0 can violate it. Test files ADDED by later releases are
+		// new obligations, not modifications of frozen ones.
+		const existedAtV08 = new Set(
+			execSync("git ls-tree -r --name-only v0.8.0 -- tests/", {
+				encoding: "utf8",
+			})
+				.split("\n")
+				.map((s) => s.trim())
+				.filter(Boolean),
+		);
 		const out = execSync("git diff --name-only v0.8.0 -- tests/", {
 			encoding: "utf8",
 		});
@@ -26,6 +38,7 @@ function gitDiffNames(): string[] {
 			.split("\n")
 			.map((s) => s.trim())
 			.filter(Boolean)
+			.filter((f) => existedAtV08.has(f))
 			.sort();
 	} catch {
 		// If git history is unavailable (e.g. shallow CI), fail open

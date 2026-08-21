@@ -1,18 +1,19 @@
 {
 	"name": "@jmtrin/opencode-kevin",
-	"version": "0.9.0",
+	"version": "1.0.0",
 	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
 	"type": "module",
 	"main": "dist/plugin/index.js",
+	"types": "./dist/plugin/index.d.ts",
 	"exports": {
 		".": {
-			"import": "./dist/plugin/index.js",
-			"types": "./dist/plugin/index.d.ts"
+			"types": "./dist/plugin/index.d.ts",
+			"import": "./dist/plugin/index.js"
 		}
 	},
-	"files": ["dist/plugin", "dist/migrations", "migrations"],
+	"files": ["dist/plugin", "dist/migrations"],
 	"scripts": {
-		"build": "tsc --outDir dist && node scripts/copy-migrations.mjs",
+		"build": "tsc -p tsconfig.build.json && node scripts/copy-migrations.mjs",
 		"prepublishOnly": "npm run build",
 		"test": "vitest run",
 		"test:unit": "vitest run tests/unit",
@@ -21,7 +22,11 @@
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"format": "biome format --write .",
-		"verify": "node --import tsx scripts/verify-install.ts",
+		"verify": "node --import tsx scripts/verify-install.ts && npm run verify:pack",
+		"verify:pack": "node --import tsx scripts/verify-pack.ts",
+		"bench": "node --import tsx scripts/bench.ts",
+		"gen:corpus": "node --import tsx scripts/gen-corpus.ts",
+		"bench:check": "node --import tsx scripts/bench-check.ts",
 		"replay": "node --import tsx scripts/replay.ts",
 		"measure:mix": "node --import tsx scripts/measure-mix.ts"
 	},
@@ -42,6 +47,16 @@
 	"engines": {
 		"node": ">=22.5.0"
 	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/jmtrin/opencode-kevin.git"
+	},
+	"homepage": "https://github.com/jmtrin/opencode-kevin#readme",
+	"bugs": {
+		"url": "https://github.com/jmtrin/opencode-kevin/issues"
+	},
+	"keywords": ["opencode", "plugin", "memory", "learning", "ai"],
+	"author": "jmtrin",
 	"publishConfig": {
 		"access": "public"
 	},

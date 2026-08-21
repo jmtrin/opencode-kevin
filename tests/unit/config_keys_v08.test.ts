@@ -20,6 +20,9 @@ const MIGRATION_FILES = [
 	// v0.9.0 (K9-006 / plan §8): the plugin now applies migration 010 too;
 	// the v0.9.0 keys must be derivable from the same seed blocks.
 	"010_v09_native.sql",
+	// v1.0.0 (K10-005 / plan §5.2): migration 011 seeds the perf/contract
+	// settings and metrics; same derivation rule.
+	"011_v10_proven.sql",
 ];
 
 const SQL_009 = readFileSync(
@@ -48,6 +51,16 @@ function seededKeys(sql: string, table: string): string[] {
 	for (const line of block.split("\n")) {
 		const m = line.match(/^\s*\('([^']+)'/);
 		if (m) keys.push(m[1]);
+	}
+	// v1.0.0: migration 011 also uses one-statement-per-row seeds
+	// (`INSERT ... VALUES ('k', v);` on a single line), which the block
+	// parser above cannot see.
+	const single = new RegExp(
+		`INSERT OR IGNORE INTO ${table} \\(key, value\\) VALUES \\('([^']+)'`,
+		"g",
+	);
+	for (const m of sql.matchAll(single)) {
+		if (!keys.includes(m[1])) keys.push(m[1]);
 	}
 	return keys;
 }
@@ -81,6 +94,15 @@ const V08_METRIC_KEYS = seededKeys(SQL_009, "kevin_metrics");
 // metrics; the constant must cover them exactly like 009's seeds.
 const V09_SETTING_KEYS = seededKeys(SQL_010, "kevin_settings");
 const V09_METRIC_KEYS = seededKeys(SQL_010, "kevin_metrics");
+
+// v1.0.0 (K10-005 / plan §5.2): migration 011 seeds four settings and six
+// metrics for the perf/contract surface; same derivation rule.
+const SQL_011 = readFileSync(
+	join(process.cwd(), "migrations", "011_v10_proven.sql"),
+	"utf8",
+);
+const V10_SETTING_KEYS = seededKeys(SQL_011, "kevin_settings");
+const V10_METRIC_KEYS = seededKeys(SQL_011, "kevin_metrics");
 
 let tmpRoot: string;
 let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
@@ -135,28 +157,39 @@ async function runConfig(
 }
 
 describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
-	it("set equality: every key seeded by migration 009 or 010 is a known config key, and every constant key not seeded before 009 is seeded by 009 or 010", () => {
-		// v0.9.0 (K9-006 / plan §6): the union now spans 009 and 010.
+	it("set equality: every key seeded by migration 009, 010 or 011 is a known config key, and every constant key not seeded before 009 is seeded by 009, 010 or 011", () => {
+		// v0.9.0 (K9-006 / plan §6): the union spans 009 and 010.
+		// v1.0.0 (K10-005 / plan §5.2): 011 joins the union.
 		expect(V08_SETTING_KEYS).toHaveLength(5);
 		expect(V09_SETTING_KEYS).toHaveLength(4);
+		expect(V10_SETTING_KEYS).toHaveLength(4);
 		const constantV09 = KEVIN_CONFIG_KEYS.filter(
 			(k) => !PRIOR_SETTING_KEYS.includes(k),
 		);
 		expect([...constantV09].sort()).toEqual(
-			[...V08_SETTING_KEYS, ...V09_SETTING_KEYS].sort(),
+			[...V08_SETTING_KEYS, ...V09_SETTING_KEYS, ...V10_SETTING_KEYS].sort(),
 		);
 	});
 
-	it("kevin_config set succeeds for all new keys and list shows all 27 keys", async () => {
+	it("kevin_config set succeeds for all new keys and list shows all 31 keys", async () => {
 		// v0.9.0 (K9-006 / plan §6): 23 → 27 with the four Native settings.
-		for (const key of [...V08_SETTING_KEYS, ...V09_SETTING_KEYS]) {
+		// v1.0.0 (K10-005 / plan §5.2): 27 → 31 with the perf/contract settings.
+		for (const key of [
+			...V08_SETTING_KEYS,
+			...V09_SETTING_KEYS,
+			...V10_SETTING_KEYS,
+		]) {
 			const out = await runConfig({ action: "set", key, value: "1" });
 			expect(out.ok).toBe(true);
 			expect(out.key).toBe(key);
 		}
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(27);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(31);
 		const listed = await runConfig({ action: "list" });
-		for (const key of [...V08_SETTING_KEYS, ...V09_SETTING_KEYS]) {
+		for (const key of [
+			...V08_SETTING_KEYS,
+			...V09_SETTING_KEYS,
+			...V10_SETTING_KEYS,
+		]) {
 			expect(listed[key]).toBe("1");
 		}
 	});

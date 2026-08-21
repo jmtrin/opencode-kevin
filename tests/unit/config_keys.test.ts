@@ -161,7 +161,7 @@ describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
 		expect(listed.error_lesson_mode).toBe("triage_only");
 	});
 
-	it("the derived key-set test still passes; KEVIN_CONFIG_KEYS covers 18 keys", async () => {
+	it("the derived key-set test still passes; KEVIN_CONFIG_KEYS covers 31 keys", async () => {
 		// Inherited from the v0.6.0 release: the key set is derived from the
 		// database, not hand-written, so a future migration cannot silently
 		// reintroduce a key that is settable-but-not-listed.
@@ -181,7 +181,10 @@ describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
 		// v0.8.0 (K8-003): the five migration-009 keys bring the total to 23.
 		// v0.9.0 (K9-003 / plan §6): the four migration-010 keys bring the
 		// total to 27.
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(27);
+		// v1.0.0 (K10-005 / plan §5.2): perf_enabled, perf_ring_capacity,
+		// perf_flush_on_idle and contract_report_enabled bring the total
+		// to 31 (C-04).
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(31);
 	});
 
 	it("a new key rejected by kevin_config set is a config surface defect", async () => {

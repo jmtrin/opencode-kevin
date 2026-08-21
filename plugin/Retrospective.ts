@@ -103,6 +103,13 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	injections_suppressed_dead_hook: "Inyecciones suprimidas (hook muerto)",
 	native_registrations_total: "Registros nativos (totales)",
 	native_registration_failures: "Fallos de registro nativo",
+	// v1.0.0 (K10-005 / plan §6) — the six keys seeded by migration 011 section 3.
+	perf_samples_recorded: "Muestras de rendimiento registradas",
+	perf_budget_breaches: "Brechas de presupuesto de rendimiento",
+	dispose_fires_total: "Disparos de dispose (totales)",
+	dispose_misses_total: "Misses de dispose",
+	contract_digest_changes: "Cambios de digest de contrato",
+	bench_runs_total: "Ejecuciones de benchmark (totales)",
 };
 
 function originLabel(

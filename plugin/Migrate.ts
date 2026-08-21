@@ -11,7 +11,8 @@ export interface MigrateResult {
 export type PostApplyHook = (store: Store) => void;
 
 // v0.9.0 (K9-001 / plan §5.3, D9-08) — the six hooks Kevin registers, in
-// hook-object order. Canonical list: the "010" post-apply hook seeds
+// hook-object order, plus `dispose` (v1.0.0 K10-013): the seventh
+// instrumented hook. Canonical list: the "010" post-apply hook seeds
 // hook_liveness from it, and HookLiveness (K9-009) wraps exactly these
 // names, so a future hook added here is visible in the table on the next
 // migration run.
@@ -22,6 +23,7 @@ export const HOOK_NAMES = [
 	"experimental.chat.system.transform",
 	"experimental.session.compacting",
 	"event",
+	"dispose",
 ] as const;
 
 // Built-in post-apply hooks, keyed by migration version. Each hook runs inside
@@ -214,6 +216,30 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v1.0.0 (K10-005 / plan §6.1) — Proven: four operations, all idempotent.
+	// 1. Seed dispose row defensively.
+	// 2-3. Re-derive perf_budget_breaches and bench_runs_total.
+	// 4. Normalise NULL within_budget to 1.
+	"011": (store) => {
+		store
+			.prepare("INSERT OR IGNORE INTO hook_liveness (hook) VALUES ('dispose')")
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM perf_samples WHERE within_budget = 0) WHERE key = 'perf_budget_breaches'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM bench_runs) WHERE key = 'bench_runs_total'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE perf_samples SET within_budget = 1 WHERE within_budget IS NULL",
+			)
+			.run();
+	},
 };
 
 export class Migrate {
@@ -264,7 +290,12 @@ export class Migrate {
 			// updates and re-derivation, so a no-op startup can heal a
 			// crash that landed between the DDL and the hook without
 			// re-applying DDL.
-			if (from === "008" || from === "009" || from === "010") {
+			if (
+				from === "008" ||
+				from === "009" ||
+				from === "010" ||
+				from === "011"
+			) {
 				const repairHook = this.postApplyHooks.get(from);
 				if (repairHook) this.store.transaction(() => repairHook(this.store));
 			}

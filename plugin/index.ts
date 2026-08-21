@@ -38,7 +38,9 @@ import { fingerprint } from "./fingerprint.js";
 import { probeHost, summarize } from "./host.js";
 import { kevinApprove } from "./kevin_approve.js";
 import { buildAudit } from "./kevin_audit.js";
+import { buildKevinBench } from "./kevin_bench.js";
 import { executeKevinConflicts } from "./kevin_conflicts.js";
+import { buildKevinContract } from "./kevin_contract.js";
 import { buildDoctor } from "./kevin_doctor.js";
 import { buildKevinFacts } from "./kevin_facts.js";
 import { handleNative } from "./kevin_native.js";
@@ -50,6 +52,7 @@ import { Metrics } from "./metrics.js";
 import { attachNative } from "./native.js";
 import { exportMarkdown, exportOkf } from "./okf-export.js";
 import { importOkf } from "./okf-import.js";
+import { Perf } from "./perf.js";
 import { uuidv7 } from "./uuid.js";
 
 export interface KevinPluginOptions {
@@ -126,6 +129,13 @@ export const KEVIN_CONFIG_KEYS = [
 	"native_registration_enabled",
 	"host_probe_history_enabled",
 	"dead_hook_report_threshold",
+	// v1.0.0 (K10-005 / plan §6) — the four keys seeded by migration 011
+	// section 4. Omitting these makes `kevin_config set` return
+	// { error: "unknown_key" } while `kevin_config list` still shows them.
+	"perf_enabled",
+	"perf_ring_capacity",
+	"perf_flush_on_idle",
+	"contract_report_enabled",
 ] as const;
 
 // v0.7.0 (K7-003 / plan §5.6, D7-12) — the explicit VALUE domain for
@@ -137,7 +147,7 @@ export const KEVIN_CONFIG_KEYS = [
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
 
 /** Plugin release version — stamped into generated files (K8-021/027). */
-export const KEVIN_VERSION = "0.9.0";
+export const KEVIN_VERSION = "1.0.0";
 
 function resolveMigrationsDir(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
@@ -389,6 +399,15 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		thresholdText: memoryService.getSetting("dead_hook_report_threshold", "3"),
 		pluginVersion: host.pluginVersion,
 	});
+	// v1.0.0 (K10-012 / plan §5.2) — the performance instrument. Measures
+	// how long each hook holds the host into per-scope ring buffers that
+	// only reach the store at session.idle (D10-11: no perf_samples write
+	// anywhere else). perf_enabled uses the explicit === "1" TEXT
+	// comparison; the capacity string goes through the parse guard/clamp.
+	const perf = new Perf({
+		enabled: memoryService.getSetting("perf_enabled", "1") === "1",
+		capacity: memoryService.getSetting("perf_ring_capacity", "") ?? "",
+	});
 	// v0.7.0 (K7-009 / plan §5.1, D7-13) — the repository truth scanner reads
 	// the JSON project files. Runs once at init, gated by repo_truth_enabled.
 	const projectRoot = opts.projectRoot ?? process.cwd();
@@ -589,6 +608,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		}
 	}
 	let currentSessionId: string | null = null;
+
+	// v1.0.0 (K10-013 / D10-08) — set on the first tool completion of a
+	// session; consumed at idle to arm the deferred-dispose marker.
+	let sessionRecordedWork = false;
 	// BUG-011 — process-global last derived query. Cleared on
 	// `session.idle`; the per-session map below is the preferred source.
 	let lastUserQuery: string | null = null;
@@ -1344,6 +1367,56 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					};
 				},
 			}),
+			// v1.0.0 (K10-018 / plan §5.6) — kevin_contract: the frozen
+			// surface, inspectable at runtime rather than only at test
+			// time. Read-only; summary by default, one clause's full value
+			// with clause+format:'full'. Unknown clause ids are a
+			// structured error, never a throw.
+			kevin_contract: tool({
+				description:
+					"Contrato publico de Kevin (v1.0.0): version, digest y por clausula id/titulo/estabilidad/since/deprecacion. clause:'C-0N' con format:'full' retorna el valor completo de esa clausula (marcadores, tool names, settings keys, metric keys, entry points, schema, invariantes). Solo lectura, sin LLM ni red.",
+				args: {
+					clause: tool.schema
+						.string()
+						.optional()
+						.describe("Id de clausula (ej. 'C-01'). Sin clause: resumen."),
+					format: tool.schema
+						.enum(["summary", "full"])
+						.optional()
+						.describe(
+							"summary (default): una linea por clausula. full: valores completos (requiere clause para una clausula; solo devuelve resumen enriquecido si se omite).",
+						),
+				},
+				async execute(args) {
+					const result = buildKevinContract(
+						{ packageVersion: KEVIN_VERSION },
+						args,
+					);
+					return {
+						title: "Contrato de Kevin",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
+			// v1.0.0 (K10-019 / plan §5.6) — kevin_bench: reports what
+			// `npm run bench` recorded in bench_runs. It NEVER runs the
+			// benchmark from inside a live session.
+			kevin_bench: tool({
+				description:
+					"Resultados del benchmark de retrieval (v1.0.0). status: si hay corridas, digest del corpus mas reciente y si coincide con el corpus en disco. last: los cuatro brazos (none/recent-k/random-k/kevin) con precision@5, recall@5 y MRR de la ultima corrida. NUNCA ejecuta el benchmark — corre 'npm run bench' fuera de la sesion.",
+				args: {
+					action: tool.schema
+						.enum(["status", "last"])
+						.describe("status | last"),
+				},
+				async execute(args) {
+					const result = buildKevinBench({ store }, args);
+					return {
+						title: "Benchmark de Kevin",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
 			kevin_retrospective: tool({
 				description:
 					"Genera un retrospective markdown para una sesion (resume tools que fallaron y lecciones aprendidas).",
@@ -1858,295 +1931,439 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		},
 
 		"tool.execute.before": async (hookInput, output) => {
-			rememberToolCall(
-				hookInput.callID,
-				hookInput.tool,
-				output.args as Record<string, unknown> | undefined,
-			);
-			observer.onBefore(
-				{
-					tool: hookInput.tool,
-					args: output.args as Record<string, unknown>,
-					sessionId: hookInput.sessionID,
-					callID: hookInput.callID,
-					projectId,
-				},
-				{},
-			);
-		},
-
-		"tool.execute.after": async (hookInput, output) => {
-			// v0.9.0 (K9-010 / plan §5.3) — checkpoint: the session reached a
-			// model turn, so the system prompt was assembled and
-			// `experimental.chat.system.transform` MUST have been offered.
-			// Deduped per session inside HookLiveness.expect.
-			if (hookInput.sessionID) {
-				liveness.expect(
-					"experimental.chat.system.transform",
-					hookInput.sessionID,
+			// v1.0.0 (K10-012) — perf measures the synchronous hold time;
+			// HookLiveness wraps the outside of this handler (compose,
+			// never merge — D10-09).
+			perf.measure("tool.execute.before", () => {
+				rememberToolCall(
+					hookInput.callID,
+					hookInput.tool,
+					output.args as Record<string, unknown> | undefined,
 				);
-			}
-			const meta = (output.metadata ?? {}) as Record<string, unknown>;
-			const outputText = String(output.output ?? "");
-			const stderr = String(meta.stderr ?? "");
-			const stdout = String(meta.stdout ?? outputText);
-			const exitCode = pickExitCode(meta);
-			let success: boolean;
-			if (meta.success === false) {
-				success = false;
-			} else if (exitCode !== undefined) {
-				success = exitCode === 0;
-			} else if (stderr.length > 0 && ERROR_LINE_RE.test(stderr)) {
-				success = false;
-			} else {
-				const stream = stdout.length > 0 ? stdout : outputText;
-				success = !(stream.length > 0 && STRONG_ERROR_RE.test(stream));
-			}
-			observer.onAfter(
-				{
-					tool: hookInput.tool,
-					args: hookInput.args as Record<string, unknown>,
-					sessionId: hookInput.sessionID,
-					callID: hookInput.callID,
-					projectId,
-				},
-				{ success, stdout, stderr, exitCode },
-			);
-			if (!success) {
-				const errorType = observer.inferErrorType(stderr, stdout, exitCode);
-				fireAndForget(
-					reflector.invoke({
-						toolName: hookInput.tool,
-						argsSummary: observer.summarizeArgs(
-							hookInput.args as Record<string, unknown>,
-						),
-						stderr,
-						stdout,
-						exitCode,
-						errorType,
+				observer.onBefore(
+					{
+						tool: hookInput.tool,
+						args: output.args as Record<string, unknown>,
 						sessionId: hookInput.sessionID,
 						callID: hookInput.callID,
 						projectId,
-					}),
+					},
+					{},
 				);
-			} else {
-				causalChain.onSuccess(
-					hookInput.tool,
-					hookInput.args as Record<string, unknown>,
-					projectId,
-					hookInput.sessionID,
+			});
+		},
+
+		"tool.execute.after": async (hookInput, output) => {
+			perf.measure("tool.execute.after", () => {
+				sessionRecordedWork = true;
+				// v0.9.0 (K9-010 / plan §5.3) — checkpoint: the session reached a
+				// model turn, so the system prompt was assembled and
+				// `experimental.chat.system.transform` MUST have been offered.
+				// Deduped per session inside HookLiveness.expect.
+				if (hookInput.sessionID) {
+					liveness.expect(
+						"experimental.chat.system.transform",
+						hookInput.sessionID,
+					);
+				}
+				const meta = (output.metadata ?? {}) as Record<string, unknown>;
+				const outputText = String(output.output ?? "");
+				const stderr = String(meta.stderr ?? "");
+				const stdout = String(meta.stdout ?? outputText);
+				const exitCode = pickExitCode(meta);
+				let success: boolean;
+				if (meta.success === false) {
+					success = false;
+				} else if (exitCode !== undefined) {
+					success = exitCode === 0;
+				} else if (stderr.length > 0 && ERROR_LINE_RE.test(stderr)) {
+					success = false;
+				} else {
+					const stream = stdout.length > 0 ? stdout : outputText;
+					success = !(stream.length > 0 && STRONG_ERROR_RE.test(stream));
+				}
+				observer.onAfter(
+					{
+						tool: hookInput.tool,
+						args: hookInput.args as Record<string, unknown>,
+						sessionId: hookInput.sessionID,
+						callID: hookInput.callID,
+						projectId,
+					},
+					{ success, stdout, stderr, exitCode },
 				);
-			}
+				if (!success) {
+					const errorType = observer.inferErrorType(stderr, stdout, exitCode);
+					fireAndForget(
+						reflector.invoke({
+							toolName: hookInput.tool,
+							argsSummary: observer.summarizeArgs(
+								hookInput.args as Record<string, unknown>,
+							),
+							stderr,
+							stdout,
+							exitCode,
+							errorType,
+							sessionId: hookInput.sessionID,
+							callID: hookInput.callID,
+							projectId,
+						}),
+					);
+				} else {
+					causalChain.onSuccess(
+						hookInput.tool,
+						hookInput.args as Record<string, unknown>,
+						projectId,
+						hookInput.sessionID,
+					);
+				}
+			});
 		},
 
 		"chat.message": async (hookInput, output) => {
-			const text = output.parts
-				.map((p) => p as { type?: string; text?: string })
-				.filter((p) => p.type === "text")
-				.map((p) => p.text ?? "")
-				.join(" ");
-			if (text.trim()) {
-				const derived = injector.deriveQuery([{ role: "user", content: text }]);
-				lastUserQuery = derived.length > 0 ? derived : null;
-				if (hookInput.sessionID && lastUserQuery) {
-					lastUserQueryBySession.set(hookInput.sessionID, lastUserQuery);
+			perf.measure("chat.message", () => {
+				const text = output.parts
+					.map((p) => p as { type?: string; text?: string })
+					.filter((p) => p.type === "text")
+					.map((p) => p.text ?? "")
+					.join(" ");
+				if (text.trim()) {
+					const derived = injector.deriveQuery([
+						{ role: "user", content: text },
+					]);
+					lastUserQuery = derived.length > 0 ? derived : null;
+					if (hookInput.sessionID && lastUserQuery) {
+						lastUserQueryBySession.set(hookInput.sessionID, lastUserQuery);
+					}
 				}
-			}
+			});
 		},
 
 		"experimental.chat.system.transform": async (hookInput, output) => {
-			// BUG-011 — prefer the per-session query so a new session whose
-			// first transform fires before any chat.message cannot reuse the
-			// previous session's query (the global is cleared on idle).
-			const query =
-				lastUserQueryBySession.get(hookInput.sessionID ?? "") ?? lastUserQuery;
-			if (!query) return;
-			const suggestion = injector.generateSuggestion();
-			if (suggestion) output.system.push(suggestion);
-			injector.onSystemTransform(
-				{
-					sessionID: hookInput.sessionID ?? undefined,
-					messages: [{ role: "user", content: query }],
-				},
-				output,
-			);
+			perf.measure("chat.system.transform", () => {
+				// BUG-011 — prefer the per-session query so a new session whose
+				// first transform fires before any chat.message cannot reuse the
+				// previous session's query (the global is cleared on idle).
+				const query =
+					lastUserQueryBySession.get(hookInput.sessionID ?? "") ??
+					lastUserQuery;
+				if (!query) return;
+				const suggestion = injector.generateSuggestion();
+				if (suggestion) output.system.push(suggestion);
+				injector.onSystemTransform(
+					{
+						sessionID: hookInput.sessionID ?? undefined,
+						messages: [{ role: "user", content: query }],
+					},
+					output,
+				);
+			});
 		},
 
 		"experimental.session.compacting": async (hookInput, output) => {
-			// v0.4.0 (K4-018) — plan §5.6: compaction often fires with no
-			// recent chat.message (auto-compact after a long tool turn,
-			// resumed sessions). Resolve a query per session first, then
-			// the global fallback, then any messages the runtime may
-			// provide (defensive — the current SDK contract only exposes
-			// sessionID).
-			// BUG-012 — the HITL suggestion fires AT MOST ONCE per session:
-			// whichever hook (transform or compacting) runs first consumes
-			// the pending recurrence signal (generateSuggestion resets it).
-			const suggestion = injector.generateSuggestion();
-			if (suggestion) output.context.push(suggestion);
-			const sid = hookInput.sessionID;
-			const sessionQuery = lastUserQueryBySession.get(sid) ?? lastUserQuery;
-			const runtimeMessages = (hookInput as { messages?: ChatMessage[] })
-				.messages;
-			const messages =
-				sessionQuery != null
-					? [{ role: "user" as const, content: sessionQuery }]
-					: (runtimeMessages ?? []);
-			injector.onCompacting(
-				{
-					sessionID: sid,
-					messages,
-				},
-				output,
-			);
+			perf.measure("session.compacting", () => {
+				// v0.4.0 (K4-018) — plan §5.6: compaction often fires with no
+				// recent chat.message (auto-compact after a long tool turn,
+				// resumed sessions). Resolve a query per session first, then
+				// the global fallback, then any messages the runtime may
+				// provide (defensive — the current SDK contract only exposes
+				// sessionID).
+				// BUG-012 — the HITL suggestion fires AT MOST ONCE per session:
+				// whichever hook (transform or compacting) runs first consumes
+				// the pending recurrence signal (generateSuggestion resets it).
+				const suggestion = injector.generateSuggestion();
+				if (suggestion) output.context.push(suggestion);
+				const sid = hookInput.sessionID;
+				const sessionQuery = lastUserQueryBySession.get(sid) ?? lastUserQuery;
+				const runtimeMessages = (hookInput as { messages?: ChatMessage[] })
+					.messages;
+				const messages =
+					sessionQuery != null
+						? [{ role: "user" as const, content: sessionQuery }]
+						: (runtimeMessages ?? []);
+				injector.onCompacting(
+					{
+						sessionID: sid,
+						messages,
+					},
+					output,
+				);
+			});
 		},
 
 		event: async ({ event }: { event: unknown }) => {
 			const type = (event as { type?: string }).type;
 			const props =
 				(event as { properties?: Record<string, unknown> }).properties ?? {};
-			if (type === "session.created") {
-				const info = props.info as { id?: string } | undefined;
-				if (info?.id) {
-					currentSessionId = info.id;
-					// BUG-011 — a fresh session must not inherit the
-					// previous session's derived query (the global may
-					// still hold it if no idle fired).
-					lastUserQueryBySession.delete(info.id);
-					// v0.4.0 (K4-017) — plan §5.1 rule 3: the per-session
-					// seen-set resets when a session is created.
-					injector.onSessionCreated(info.id);
-				}
-			} else if (type === "session.idle") {
+			if (type === "session.idle") {
+				// v1.0.0 (K10-012) — the idle branch measures under
+				// "session.idle" (150/600 ms budget); every other branch
+				// measures under "event" (5/25 ms). Recording idle's ~150 ms
+				// under "event" would make that budget permanently breached
+				// and therefore ignored.
 				const sid = props.sessionID as string | undefined;
-				if (sid) {
-					toolCache.clear();
-					// BUG-011 — the session is done: drop the global query
-					// so the next session cannot reuse it.
-					lastUserQuery = null;
-					// v0.4.0 (K4-024) — plan §5.2: settle the session's
-					// unmeasured injections (effective/ineffective +
-					// recurrence_count charges) at idle. Best-effort: a
-					// legacy DB without migration 005 has no ledger table.
-					try {
-						ledger.settle(sid);
-					} catch {
-						// best-effort: a legacy DB without the ledger
-						// table must not break the idle path
-					}
-					// v0.5.0 (K5-012 / plan §5.4) — retire stale lessons at
-					// idle; pre-006 DBs degrade to a no-op.
-					try {
-						archiver.run();
-					} catch {
-						// best-effort, same pattern as ledger.settle
-					}
-					fireAndForget(retrospective.generate(sid));
-					memoryService.boostPositiveReflectors(sid);
-					const recurred = memoryService.penalizeRecurringReflectors(sid);
-					injector.setRecurrences(recurred, sid);
-					patternMiner.mine(projectId);
-					// v0.7.0 (K7-012 / plan §5.4, D7-10) — convention mining is
-					// session.idle-only, default-off, and isolated from the rest of
-					// the idle chain. Mined rules still enter the ordinary Curator
-					// approval path; this step never writes to the repository.
-					try {
-						if (
-							memoryService.getSetting("convention_mining_enabled", "0") === "1"
-						) {
-							const conventions = conventionMiner.mine();
-							conventionMiner.emit(conventions);
+				await perf.measureAsync("session.idle", async () => {
+					if (sid) {
+						toolCache.clear();
+						// BUG-011 — the session is done: drop the global query
+						// so the next session cannot reuse it.
+						lastUserQuery = null;
+						// v0.4.0 (K4-024) — plan §5.2: settle the session's
+						// unmeasured injections (effective/ineffective +
+						// recurrence_count charges) at idle. Best-effort: a
+						// legacy DB without migration 005 has no ledger table.
+						try {
+							ledger.settle(sid);
+						} catch {
+							// best-effort: a legacy DB without the ledger
+							// table must not break the idle path
 						}
-					} catch {
-						// A throwing miner must not reject or truncate the idle chain.
-					}
-					// v0.7.0 (K7-016 / plan §5.5, D7-06) — conflict detection is
-					// surfacing-only on idle. It may create/open conflict rows, but
-					// no idle path can acknowledge or resolve one.
-					try {
-						if (
-							memoryService.getSetting("conflict_detection_enabled", "0") ===
-							"1"
-						) {
-							conflictDetector.detect();
+						// v0.5.0 (K5-012 / plan §5.4) — retire stale lessons at
+						// idle; pre-006 DBs degrade to a no-op.
+						try {
+							archiver.run();
+						} catch {
+							// best-effort, same pattern as ledger.settle
 						}
-					} catch {
-						// Conflict surfacing is best-effort and must not reject idle.
-					}
-					fireAndForget(
-						Promise.resolve()
-							.then(() => causalChain.onSessionIdle(sid))
-							// non-blocking — promote is a best-effort pass
-							// (legacy DBs pre-005 lack the recurrence_count
-							// column)
-							.catch(() => {}),
-					);
-					// v0.6.0 (K6-015 / plan §8.14) — session-idle curation
-					// generation. Dry-run only: `propose()` calls `plan()`
-					// and never `apply()`, so nothing here can touch disk
-					// (D6-01). Guarded by curation_enabled (TEXT compare)
-					// and a 1-hour throttle persisted in kevin_settings.
-					try {
-						if (memoryService.getSetting("curation_enabled", "1") === "1") {
-							const CURATION_THROTTLE_MS = 3_600_000;
-							const last = memoryService.getSetting("last_curation_at", "");
+						fireAndForget(retrospective.generate(sid));
+						memoryService.boostPositiveReflectors(sid);
+						const recurred = memoryService.penalizeRecurringReflectors(sid);
+						injector.setRecurrences(recurred, sid);
+						patternMiner.mine(projectId);
+						// v0.7.0 (K7-012 / plan §5.4, D7-10) — convention mining is
+						// session.idle-only, default-off, and isolated from the rest of
+						// the idle chain. Mined rules still enter the ordinary Curator
+						// approval path; this step never writes to the repository.
+						try {
 							if (
-								last === "" ||
-								Date.now() - Date.parse(last) > CURATION_THROTTLE_MS
+								memoryService.getSetting("convention_mining_enabled", "0") ===
+								"1"
 							) {
-								curator.propose("agents_md", writer);
+								const conventions = conventionMiner.mine();
+								conventionMiner.emit(conventions);
+							}
+						} catch {
+							// A throwing miner must not reject or truncate the idle chain.
+						}
+						// v0.7.0 (K7-016 / plan §5.5, D7-06) — conflict detection is
+						// surfacing-only on idle. It may create/open conflict rows, but
+						// no idle path can acknowledge or resolve one.
+						try {
+							if (
+								memoryService.getSetting("conflict_detection_enabled", "0") ===
+								"1"
+							) {
+								conflictDetector.detect();
+							}
+						} catch {
+							// Conflict surfacing is best-effort and must not reject idle.
+						}
+						fireAndForget(
+							Promise.resolve()
+								.then(() => causalChain.onSessionIdle(sid))
+								// non-blocking — promote is a best-effort pass
+								// (legacy DBs pre-005 lack the recurrence_count
+								// column)
+								.catch(() => {}),
+						);
+						// v0.6.0 (K6-015 / plan §8.14) — session-idle curation
+						// generation. Dry-run only: `propose()` calls `plan()`
+						// and never `apply()`, so nothing here can touch disk
+						// (D6-01). Guarded by curation_enabled (TEXT compare)
+						// and a 1-hour throttle persisted in kevin_settings.
+						try {
+							if (memoryService.getSetting("curation_enabled", "1") === "1") {
+								const CURATION_THROTTLE_MS = 3_600_000;
+								const last = memoryService.getSetting("last_curation_at", "");
+								if (
+									last === "" ||
+									Date.now() - Date.parse(last) > CURATION_THROTTLE_MS
+								) {
+									curator.propose("agents_md", writer);
+									store
+										.prepare(
+											`INSERT INTO kevin_settings (key, value) VALUES (?, ?)
+										 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+										)
+										.run("last_curation_at", new Date().toISOString());
+								}
+							}
+						} catch {
+							// best-effort, same pattern as ledger.settle — a
+							// curation failure must not break the idle path
+						}
+						// v0.8.0 (K8-022 / plan §5.5) — the shared layer
+						// re-read at idle. Gated by shared_layer_enabled ===
+						// "1", a TEXT comparison: '0' is a truthy string, so a
+						// truthiness check would turn the release on for every
+						// installation that upgrades. Never wired into
+						// tool.execute.*, chat.message, system.transform or
+						// session.compacting — the hot-path rule is absolute;
+						// the file-hash skip is what makes the idle cost one
+						// read plus one hash on an unchanged repository.
+						try {
+							if (
+								memoryService.getSetting("shared_layer_enabled", "0") === "1"
+							) {
+								syncSharedLayer();
+							}
+						} catch {
+							// best-effort, same pattern as ledger.settle — a
+							// sync failure must not break the idle path
+						}
+						// v1.0.0 (K10-013 / D10-08) — the session recorded work:
+						// arm the deferred dispose settlement. The ISO timestamp
+						// lets the next session.start compare it against
+						// hook_liveness.last_seen_at for dispose.
+						if (sessionRecordedWork) {
+							try {
 								store
 									.prepare(
-										`INSERT INTO kevin_settings (key, value) VALUES (?, ?)
-										 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+										"INSERT INTO kevin_settings (key, value) VALUES ('last_session_recorded_work', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
 									)
-									.run("last_curation_at", new Date().toISOString());
+									.run(new Date().toISOString());
+							} catch {
+								// best-effort: arming must not break idle
 							}
+							sessionRecordedWork = false;
 						}
-					} catch {
-						// best-effort, same pattern as ledger.settle — a
-						// curation failure must not break the idle path
 					}
-					// v0.8.0 (K8-022 / plan §5.5) — the shared layer
-					// re-read at idle. Gated by shared_layer_enabled ===
-					// "1", a TEXT comparison: '0' is a truthy string, so a
-					// truthiness check would turn the release on for every
-					// installation that upgrades. Never wired into
-					// tool.execute.*, chat.message, system.transform or
-					// session.compacting — the hot-path rule is absolute;
-					// the file-hash skip is what makes the idle cost one
-					// read plus one hash on an unchanged repository.
-					try {
-						if (memoryService.getSetting("shared_layer_enabled", "0") === "1") {
-							syncSharedLayer();
-						}
-					} catch {
-						// best-effort, same pattern as ledger.settle — a
-						// sync failure must not break the idle path
-					}
-				}
+				});
 				metrics.flush();
-				// v0.9.0 (K9-009 / plan §5.3) — liveness counters persist on
-				// the same cadence as the metrics.
-				liveness.flush();
-			} else if (type === "session.next.tool.failed") {
-				const callID = props.callID as string | undefined;
-				const sessionID = props.sessionID as string | undefined;
-				const error = props.error as { message?: string } | undefined;
-				if (callID && sessionID && error?.message) {
-					handleToolFailed(callID, sessionID, error.message);
+				// v1.0.0 (K10-012 / plan §5.2, D10-11) — the idle perf_samples
+				// write (the dispose hook holds the other one), gated by
+				// perf_flush_on_idle (TEXT compare; the fallback matches the
+				// migration-seeded default '1').
+				if (memoryService.getSetting("perf_flush_on_idle", "1") === "1") {
+					try {
+						perf.flush(store);
+					} catch {
+						// best-effort: pre-011 DBs have no perf_samples table
+					}
 				}
-			} else if (type === "session.next.tool.success") {
-				const callID = props.callID as string | undefined;
-				if (callID) toolCache.delete(callID);
+				liveness.flush();
+				return;
 			}
+			perf.measure("event", () => {
+				if (type === "session.created") {
+					const info = props.info as { id?: string } | undefined;
+					if (info?.id) {
+						currentSessionId = info.id;
+						// BUG-011 — a fresh session must not inherit the
+						// previous session's derived query (the global may
+						// still hold it if no idle fired).
+						lastUserQueryBySession.delete(info.id);
+						// v0.4.0 (K4-017) — plan §5.1 rule 3: the per-session
+						// seen-set resets when a session is created.
+						injector.onSessionCreated(info.id);
+						// v1.0.0 (K10-013 / plan §5.3, D10-08) — deferred
+						// dispose settlement. The previous session recorded
+						// work but the process never came back through
+						// `dispose` (crash or hard kill): settle it HERE,
+						// at the start of the next session, because dispose
+						// cannot be settled within the session that observes
+						// it. One settlement per work marker; a first-ever
+						// run has no marker and never reports dead. The
+						// threshold semantics stay with expect(): unknown
+						// until expected_count crosses the threshold.
+						try {
+							const marker = memoryService.getSetting(
+								"last_session_recorded_work",
+								"",
+							);
+							if (marker !== "") {
+								let fired = true;
+								try {
+									const row = store
+										.prepare(
+											"SELECT last_seen_at FROM hook_liveness WHERE hook = 'dispose'",
+										)
+										.get() as { last_seen_at: string | null } | undefined;
+									const last = row?.last_seen_at ?? null;
+									fired = last !== null && last > marker;
+								} catch {
+									// pre-010 DB without hook_liveness: treat as
+									// no evidence of a fire, same as a crash.
+									fired = false;
+								}
+								if (!fired) {
+									liveness.expect("dispose", `miss:${marker}`);
+									store
+										.prepare(
+											"UPDATE kevin_metrics SET value = value + 1 WHERE key = 'dispose_misses_total'",
+										)
+										.run();
+								}
+								store
+									.prepare(
+										"UPDATE kevin_settings SET value = '' WHERE key = 'last_session_recorded_work'",
+									)
+									.run();
+							}
+						} catch {
+							// best-effort: settlement must not break session start
+						}
+					}
+				} else if (type === "session.next.tool.failed") {
+					const callID = props.callID as string | undefined;
+					const sessionID = props.sessionID as string | undefined;
+					const error = props.error as { message?: string } | undefined;
+					if (callID && sessionID && error?.message) {
+						handleToolFailed(callID, sessionID, error.message);
+					}
+				} else if (type === "session.next.tool.success") {
+					const callID = props.callID as string | undefined;
+					if (callID) toolCache.delete(callID);
+				}
+			});
 		},
 
 		dispose: async () => {
-			await Promise.allSettled([...pending]);
-			liveness.flush();
-			metrics.close();
-			store.close();
+			// v1.0.0 (K10-013 / plan §5.3) — the seventh instrumented hook.
+			// HookLiveness.wrap (outside) records the fire only if the
+			// delegate completes; Perf.measureAsync (inside) times it even
+			// on throw.
+			try {
+				await perf.measureAsync("dispose", async () => {
+					try {
+						await Promise.allSettled([...pending]);
+					} finally {
+						// v1.0.0 (K10-013) — record the fire and persist it now:
+						// this is the last write of the process.
+						liveness.recordDispose();
+						// v1.0.0 (K10-013) — record the successful fire and
+						// disarm any pending deferred-settlement marker: a
+						// clean dispose is exactly what the next session's
+						// settlement check looks for.
+						store
+							.prepare(
+								"UPDATE kevin_metrics SET value = value + 1 WHERE key = 'dispose_fires_total'",
+							)
+							.run();
+						try {
+							store
+								.prepare(
+									"UPDATE kevin_settings SET value = '' WHERE key = 'last_session_recorded_work'",
+								)
+								.run();
+						} catch {
+							// best-effort: legacy DBs without kevin_settings
+						}
+					}
+				});
+			} finally {
+				// v1.0.0 review fix — persist the final period (including this
+				// dispose sample, recorded by measureAsync above) BEFORE the
+				// closes; otherwise the dispose budget could never be verified
+				// by bench:check because its samples died with the ring.
+				try {
+					perf.flush(store);
+				} catch {
+					// best-effort: pre-011 DBs have no perf_samples table
+				}
+				metrics.close();
+				store.close();
+			}
 		},
 	} as Hooks);
 };

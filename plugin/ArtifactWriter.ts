@@ -10,6 +10,11 @@ import {
 } from "node:fs";
 import type { Store } from "./Store.js";
 import { unifiedDiff } from "./diff.js";
+import {
+	escapeForFence,
+	escapeForMarkerBlock,
+	escapeForOkfLine,
+} from "./escape.js";
 import type { Metrics } from "./metrics.js";
 import { uuidv7 } from "./uuid.js";
 
@@ -81,39 +86,55 @@ function normalizeEol(body: string, eol: "\r\n" | "\n"): string {
 }
 
 /**
- * Rule 9, layer (a) — the escaping discipline of `plugin/memory-format.ts`
- * (`&`, `<`, `>`) made idempotent: an ampersand that already heads a known
- * entity (`&amp;`, `&lt;`, `&gt;`, `&#NNN;`) is left alone, so sanitizing
- * sanitized output is a fixed point. The round-trip property of the marker
- * block depends on this: a non-idempotent escape would grow `&amp;lt;` on
- * every regeneration (K6-009 / plan §5.1 rule 9).
+ * Rule 9, layer (a) — superseded in v1.0.0 by `escapeForMarkerBlock`
+ * in `plugin/escape.ts` (K10-027), which carries the same idempotent
+ * entity discipline.
  */
-function escapeIdempotent(text: string): string {
-	return text
-		.replace(/&(?!(amp|lt|gt|#\d+);)/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
-}
 
 /**
- * Rule 9 (K6-009 / plan §5.1, D6-02) — three layers applied to the body
- * before splicing:
- *   (a) the escaping discipline of `plugin/memory-format.ts`;
- *   (b) strip any line containing `kevin:begin` or `kevin:end`, in any
- *       casing, anywhere in the line;
- *   (c) strip HTML comment terminators (`-->`).
- * Without this, a memory containing a literal `<!-- kevin:end -->` line would
- * close the marker comment early and let subsequent content escape the
- * curated region on the next regeneration — a marker-injection variant of the
- * v0.1.5 prompt-injection defect (plan §3.5).
+ * v1.0.0 (K10-027 / plan §5.7) — the boundary functions now live in
+ * `plugin/escape.ts`; this composer applies them in fence-then-marker
+ * order. Layer (b) — strip any line containing `kevin:begin` or
+ * `kevin:end`, in any casing — is a filter rather than an escape and
+ * stays here. Without layer (b), a memory containing a literal
+ * `<!-- kevin:end -->` line would close the marker comment early and
+ * let subsequent content escape the curated region on the next
+ * regeneration — a marker-injection variant of the v0.1.5
+ * prompt-injection defect (plan §3.5). The trailing `-->` strip is kept
+ * as defence in depth although `escapeForMarkerBlock` already escapes
+ * every `>` that could form one.
  */
 export function sanitizeArtifactBody(body: string): string {
-	const escaped = escapeIdempotent(body);
+	const escaped = escapeForMarkerBlock(escapeForFence(body));
 	const kept = escaped
 		.split("\n")
 		.filter((line) => !/kevin:begin|kevin:end/i.test(line))
 		.join("\n");
 	return kept.replace(/-->/g, "");
+}
+
+/**
+ * v1.0.0 (K10-027 / plan §5.7, rule 2) — whole-file writes escape by
+ * container. Only `.okf` files are line-oriented JSON: each line gets
+ * `escapeForOkfLine`, which is the identity on a well-formed OKF line
+ * (canonical JSON never contains raw control characters) and therefore
+ * preserves the re-render `noop`. Kevin-owned markdown paths keep their
+ * bytes — fences there are legitimate content.
+ */
+export function escapeForContainer(path: string, content: string): string {
+	if (!path.endsWith(".okf")) return content;
+	return content
+		.split("\n")
+		.map((line) => {
+			// A CRLF file (healHeader preserves the original EOL) leaves a
+			// trailing \r on each line after the split — it is line-ending
+			// bytes, not statement content, so it must survive untouched.
+			if (line.endsWith("\r")) {
+				return `${escapeForOkfLine(line.slice(0, -1))}\r`;
+			}
+			return escapeForOkfLine(line);
+		})
+		.join("\n");
 }
 
 /**
@@ -174,7 +195,9 @@ export class ArtifactWriter {
 			// like any other refusal: after = before, both hashes recorded.
 			const refusal = request.refusal;
 			const refused = refusal !== undefined;
-			const after = refused ? before : content;
+			// K10-027 — the container boundary: OKF lines are escaped at the
+			// single write path, never by callers.
+			const after = refused ? before : escapeForContainer(path, content);
 			return {
 				path,
 				before,

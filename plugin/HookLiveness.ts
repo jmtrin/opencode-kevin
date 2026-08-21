@@ -286,6 +286,11 @@ export class HookLiveness {
 		delegate: (...a: unknown[]) => unknown,
 	): (...a: unknown[]) => Promise<unknown> {
 		const record = (): void => {
+			// v1.0.0 (K10-013) — dispose is recorded inside its own delegate
+			// (via recordDispose()) rather than here: the wrapper's post-return
+			// record would land after the store is closed and could never be
+			// persisted — the event being detected is the process ending.
+			if (key === "dispose") return;
 			if (HOOK_NAMES.includes(key as HookName)) {
 				this.recordSuccess(key as HookName);
 			}
@@ -328,6 +333,16 @@ export class HookLiveness {
 				return recordError(e);
 			}
 		};
+	}
+
+	/**
+	 * v1.0.0 (K10-013 / plan §5.3) — records the `dispose` fire and
+	 * flushes immediately, from inside the dispose delegate: this is the
+	 * last write of the process, and nothing after it can persist.
+	 */
+	recordDispose(): void {
+		this.recordSuccess("dispose");
+		this.flush();
 	}
 
 	private recordSuccess(hook: HookName): void {

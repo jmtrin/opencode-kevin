@@ -4,6 +4,33 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-08-21
+
+### Added — Proven
+
+- **The public contract, as data** (`plugin/contract.ts`, K10-006…K10-009): nine clauses C-01…C-09 (markers, OKF v2 wire format, tool names, setting keys, metric keys, package entry points, schema forward-only, filesystem locations, behavioural invariants) derived from live source, with an `fnv1a64` `contractDigest()` and `diffContract()` semantics — `removed`/`changed` are fatal in 1.x, additions are permitted only with `since`. The frozen surface is append-only at `tests/fixtures/contract/v1.json`, enforced by test against both the live contract and `docs/CONTRACT.md` (which documents the deprecation policy and, since K10-027, the §5.7 threat model beside C-09).
+- **Latency measurement** (`plugin/perf.ts`, K10-010…K10-013): a pre-allocated `Float64Array` ring per scope, `measure()`/`measureAsync()` that never throw and never swallow, nearest-rank p50/p95/max, and declared budgets per scope (e.g. `tool.execute.before` p95 2 ms, `chat.system.transform` p95 15 ms, `session.idle` p95 150 ms) enforced by `npm run bench:check`. All six host hooks plus Kevin's own `dispose` event are instrumented — eight scopes, flushed at idle behind `perf_flush_on_idle`.
+- **`dispose` as the seventh hook** (K10-013): `hook_liveness` gains the row; because a post-return record could never persist, settlement is deferred (D10-08) — a session that recorded work but whose process never came back through `dispose` is marked at the start of the next session, with `dispose_fires_total`/`dispose_misses_total` metrics and a `last_session_recorded_work` marker disarmed on clean dispose.
+- **A reproducible value benchmark** (K10-014…K10-017): a committed synthetic corpus (`bench/corpus/`, 400 memories / 120 queries, xorshift32 seed `1262835273`, mechanical labelling rule, corpus digest `adecbdf4c7af82e2`) and a four-arm harness (`npm run bench`): control (`none`), baselines (`recent-k`, `random-k`), and the real retrieval path. Measured result — kevin precision@5 **0.95**, recall@5 0.546, MRR 1.0 vs ~0.05 precision for both baselines; retrieval numbers are exactly reproducible (asserted in-process) and every run persists one `bench_runs` row per arm plus a JSON file under `bench/results/`.
+- **Two new tools** (K10-018/K10-019, ladder 23 → 25): `kevin_contract` inspects the live contract, its digest and any clause's full frozen value at runtime; `kevin_bench` reports what `npm run bench` recorded (`status`/`last`) — it never runs the benchmark from inside a session. Both join C-03 as sanctioned additions carrying `since: "1.0.0"`.
+- **Audit and doctor blocks** (K10-020/K10-021): `kevin_audit` gains a `perf` block (per-scope stored aggregates vs budget, never re-aggregated) and a `contract` block (version, digest, deprecated count); `kevin_doctor` gains the `dispose` row and degrades its verdict to `degraded` naming any scope over budget — a slow plugin is not healthy even when every hook is live.
+- **The untrusted-input boundary** (K10-027): `plugin/escape.ts` — three pure, total, idempotent escapers (marker block, fenced delimiters, OKF line terminators) applied only at the single write path (`ArtifactWriter`, D6-01); sharing still requires human approval with exactly one `applyExport()` call site. C-09 extends as an addition carrying `since: "1.0.0"`.
+- **Migration `011_v10_proven.sql`**: `perf_samples`, `bench_runs`, six metric keys, four settings (`perf_enabled '1'`, `perf_ring_capacity '512'`, `perf_flush_on_idle '1'`, `contract_report_enabled '1'`). Settings 27 → 31, metrics 45 → 51, schema_version `'011'`.
+- **Packaging verification** (K10-003, K10-022): `npm run verify:pack` asserts seven properties against the *packed* tarball (exports resolve, types-first, no maps, no compiled tests/scripts, migrations parity, runtime idempotence, entry-path layout); the Bun smoke is wired into `npm run verify` for the first time and deleting a migration fails the install check loudly.
+
+### Changed
+
+- **The published manifest is corrected** (K10-001/K10-002): version `1.0.0`, `exports["."]` lists `types` first, `files` ships `dist/` only (no duplicate `migrations`), split build config (`tsconfig.build.json`) produces a pinned output layout with no source maps and no compiled tests/scripts.
+- The v0.9.0-era drift tests were updated to the shipped surface: 31 settings / 51 metric keys / 11 migrations / 25 tools, and the v0.8.0 regression guard now intersects the diff with files that existed at v0.8.0 (its documented intent).
+
+### Fixed
+
+- **Stale perf samples leaked across periods** (review): `Perf.reset()` cleared cursors and counts but not the rings, so the next period's statistics mixed pre-reset samples with fresh ones whenever fewer than `capacity` samples had been recorded. Rings are zeroed on reset.
+- **`bench:check` picked the "most recent" sample by p50** (review): ordering on a value column let an old slow period shadow the latest good sample and produce false breaches. Selection is now by insertion id.
+- **Dispose latency was unmeasurable** (review): the only `perf.flush()` ran at idle, before `dispose` recorded its sample and immediately before the store closed — the dispose budget could never be verified by `bench:check`. Dispose now persists its final period before closing.
+- **In-code setting fallbacks disagreed with the declared defaults** (review): missing rows silently disabled measurement although migration 011 seeds `perf_enabled`/`perf_flush_on_idle` to `'1'`; the fallbacks match the seeds and both flush sites are best-effort.
+- **`diffContract` missed changed addition objects at member granularity** (review): an edited `since` inside an addition fell through to the coarser clause-level check; it is now reported as a member-level `changed`.
+
 ## [0.9.0] - 2026-08-21
 
 ### Changed — dependency reduction 2 → 1

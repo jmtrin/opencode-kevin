@@ -221,7 +221,7 @@ begin until the previous one's exit criterion is met.
 | **v0.6.0** | **Pull** | Distribution: AGENTS.md, Skills, References. Demote push. | A user can turn a memory into a git-committed AGENTS.md line in one approval; the default pre-prompt budget is ≤400 tokens and measurably beaten by the pull channels. |
 | **v0.7.0** | **Project Truth** | Centre of gravity moves from `error` to `decision`/`rule` | ≥50% of *injected* memories in a mature DB are non-error types; repo reality contradicts and de-ranks stale memories; conflicts are surfaced, never auto-resolved. |
 | **v0.8.0** | **Team** | Git-native, mergeable, repo-local knowledge | Two developers on the same repo converge on the same knowledge set through git, with conflicts visible in a normal PR diff. |
-| **v0.9.0** | **Native** | v2 plugin API, TUI curation panel | Kevin runs on `define()`/domains with a v1 fallback shim, hot-reloads without leaking state, and exposes review/approve/trace in a TUI panel. |
+| **v0.9.0** | **Native** | Observe the host, attach additively where it helps | `kevin_doctor` reports `healthy`/`degraded`/`unknown` from persisted hook liveness; `skill.transform`/`reference.transform` attach via `define()` behind a frozen capability probe (D9-01); runtime dependencies drop 2 → 1. |
 | **v1.0.0** | **Proven** | Frozen API, published benchmark, honest numbers | A reproducible benchmark is published — including its negative results — and the tool surface, schema, OKF format and config keys are frozen under a written compatibility policy. |
 
 **Global principle numbering** continues from v0.4's 11–14: v0.5 adds 15–18, v0.6 adds 19+,
@@ -244,9 +244,14 @@ Every release on the ladder has a Plan (architecture, evidence, decisions) and a
 | v0.9.0 | [Plan](./Kevin_v0.9.0_Plan.md) | [Tasks](./Kevin_v0.9.0_Task.md) | 24 | `010` | 31–34 | `D9-01…14` |
 | v1.0.0 | [Plan](./Kevin_v1.0.0_Plan.md) | [Tasks](./Kevin_v1.0.0_Task.md) | 28 | `011` | 35–38 | `D10-01…16` |
 
-Supporting documents: [`Kevin_v0.4.0_Bugs.md`](./Kevin_v0.4.0_Bugs.md), the defect audit the ladder
-was built on. `docs/CONTRACT.md` — the frozen public surface — does not exist yet; it is created by
-v1.0.0 `K10-009` and is the document this whole ladder terminates in.
+Supporting documents: [`Kevin_Plan.md`](./Kevin_Plan.md) and [`Kevin_Task.md`](./Kevin_Task.md)
+(the original v0.1 thesis), [`Kevin_Fix_v0.1.4.md`](./Kevin_Fix_v0.1.4.md),
+[`Kevin_new_v0.2.0.md`](./Kevin_new_v0.2.0.md), and
+[`Kevin_v0.4.0_Bugs.md`](./Kevin_v0.4.0_Bugs.md) — the defect audit the ladder was built on.
+[`docs/CONTRACT.md`](./CONTRACT.md) — the frozen public surface — was created by v1.0.0 `K10-009`
+and is the document this whole ladder terminates in. The ladder is **complete through v1.0.0**:
+principles 11 → 38 with no gap or repeat, migrations `001` → `011`, tools 25, metric keys 51,
+setting keys 31.
 
 **Cumulative ladders**, verified monotone across all six releases: tools 10 → 13 → 16 → 18 → 21 →
 23 → 25; metric keys 13 → 22 → 28 → 33 → 39 → 45 → 51; setting keys 6 → 9 → 14 → 18 → 23 → 27 → 31;
@@ -460,28 +465,45 @@ counts the sessions lost; and the v0.8.0 suite passes unchanged on both `1.17.6`
 
 > A 1.0 is a promise. Only make promises you have measured.
 
-**Scope.**
+**Scope — as delivered** (reconciled by `K10-024`; see `Kevin_v1.0.0_Plan.md` §10 for what was
+deliberately left out):
 
-1. **Published benchmark.** The replay harness from v0.5.0, run over a real recorded corpus,
-   with results published in-repo — **including the negative results**. The honest statement
-   "Kevin helps in cases A and B, does not help in C, and costs X tokens" is more valuable than
-   any inflated aggregate, and it is the thing that earns the project credibility.
-2. **Frozen public API.** Tool names and argument schemas, `kevin_settings` keys, the OKF
-   format, the AGENTS.md marker contract, and the DB schema. Written compatibility and
-   deprecation policy: what may change in a minor, what requires a major, what the migration
-   guarantee is.
-3. **Migration guarantees.** Any v0.x database upgrades to v1.0 in one `Migrate.run()`, tested
-   from every prior schema version.
-4. **Performance SLOs.** Stated and enforced: hook overhead budget per call, plugin init
-   budget, DB growth policy with archival and vacuum.
-5. **Security review.** Redaction coverage, prompt-injection escaping on every generated
-   artifact, the write boundary for repo files, and an explicit threat model for
-   attacker-influenced tool output becoming stored memory.
-6. **Documentation rewrite.** README that leads with the measured result, not the promise.
-   `Kevin_Token_Impact.md` replaced by measurements, or deleted.
+1. **Published benchmark, synthetic and reproducible.** The first draft said "the replay harness,
+   run over a real recorded corpus". The delivered scope is honest about why that changed: a real
+   corpus is data Kevin is not allowed to collect. What shipped is a committed seeded corpus
+   (`bench/corpus/`, 400 memories, 120 queries, mechanical labelling), a four-arm harness
+   (`none` / `recent-k` / `random-k` / `kevin`) with precision@5, recall@5 and MRR, an in-process
+   determinism test, results persisted to `bench_runs` and committed under `bench/results/` —
+   including both stated limits of the measurement.
+2. **Frozen public API as data.** `plugin/contract.ts` expresses nine clauses (`C-01`…`C-09`)
+   with stability and `since`, enforced against an append-only golden file;
+   `docs/CONTRACT.md` carries the written compatibility and deprecation policy; `kevin_contract`
+   makes the frozen surface inspectable at runtime.
+3. **Migration guarantees.** Any prior database upgrades in one `Migrate.run()`; migration 011
+   adds only tables, columns and rows; forward-only schema policy frozen as `C-07`.
+4. **Performance SLOs.** Eight instrumented scopes with declared p95/max budgets
+   (`plugin/perf.ts`), a ring buffer that never touches the hot path's database, persisted samples
+   gated by `bench:check`, and budget breaches degrading `kevin_doctor`'s verdict.
+5. **Untrusted-input boundary.** Stated in `C-09`, applied at the single write path, threat model
+   documented beside it.
+6. **Documentation rewrite.** README leads with the supported matrix and the measured benchmark
+   result; `Kevin_Token_Impact.md` is superseded by the measured results.
 
 **Exit criterion.** A stranger can read the benchmark, reproduce it, and decide for themselves
 whether to install Kevin. That is what a 1.0 means.
+
+### 5.7 After 1.0
+
+Everything earlier releases deferred past the ladder, collected in one place:
+
+| Item | Deferred by |
+|---|---|
+| TUI panels for curation, conflict review, contract and perf | v0.9.0 §4, v1.0.0 §10 — the plugin TUI surface is not on the host's `latest` tag |
+| Real-corpus retrieval evaluation | v1.0.0 §10 — requires data Kevin must not collect |
+| OKF schema v3 | v0.8.0 §10 — premature below the 2000-entry cap |
+| Multi-file / per-directory OKF corpora | v0.8.0 §10 — same cap argument |
+| Continuous cross-release benchmark tracking | v1.0.0 §10 → targeted at 1.1.0; needs more than one published result to be meaningful |
+| Adopting `tool.definition`, `chat.params`, `permission.ask` and other unused host hooks | v0.9.0 §4 — each is a feature in its own right |
 
 ---
 

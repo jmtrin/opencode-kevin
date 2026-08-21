@@ -1,0 +1,242 @@
+// v1.0.0 (K10-008) — append-only. A mismatch means either a mistake or a 2.0.0. Regenerating to make the suite pass silently breaks every installed copy.
+{
+	"contractVersion": 1,
+	"clauses": [
+		{
+			"id": "C-01",
+			"title": "AGENTS.md marker pair",
+			"stability": "frozen",
+			"since": "0.6.0",
+			"value": {
+				"markers": [
+					"<!-- kevin:begin — curated by opencode-kevin, safe to edit -->",
+					"<!-- kevin:end -->"
+				],
+				"splice_rule": "bytes outside markers preserved verbatim"
+			}
+		},
+		{
+			"id": "C-02",
+			"title": "OKF v2 wire format",
+			"stability": "frozen",
+			"since": "0.8.0",
+			"value": {
+				"header_lines": 3,
+				"field_order": [
+					"entry_id",
+					"type",
+					"content",
+					"scope",
+					"created_at"
+				],
+				"entry_id_derivation": "fnv1a64 over canonical field ordering",
+				"eol": "LF",
+				"integers_only": true,
+				"sort_order": "entry_id ascending",
+				"max_line_bytes": 4096,
+				"max_entries": 2000
+			}
+		},
+		{
+			"id": "C-03",
+			"title": "Tool names and argument shapes",
+			"stability": "frozen",
+			"since": "0.2.0",
+			"value": {
+				"tools": [
+					"kevin_approve",
+					"kevin_audit",
+					"kevin_config",
+					"kevin_conflicts",
+					"kevin_doctor",
+					"kevin_export",
+					"kevin_facts",
+					"kevin_feedback",
+					"kevin_get",
+					"kevin_import",
+					"kevin_native",
+					"kevin_project",
+					"kevin_propose",
+					"kevin_publish",
+					"kevin_query",
+					"kevin_recall",
+					"kevin_retrospective",
+					"kevin_save",
+					"kevin_share",
+					"kevin_status",
+					"kevin_sync",
+					"kevin_trace",
+					"kevin_why",
+					{
+						"name": "kevin_bench",
+						"since": "1.0.0"
+					},
+					{
+						"name": "kevin_contract",
+						"since": "1.0.0"
+					}
+				]
+			}
+		},
+		{
+			"id": "C-04",
+			"title": "Setting keys, types and defaults",
+			"stability": "frozen",
+			"since": "0.2.0",
+			"value": {
+				"keys": [
+					"agents_md_path",
+					"archive_after_days",
+					"author_identity_mode",
+					"conflict_detection_enabled",
+					"contract_report_enabled",
+					"convention_mining_enabled",
+					"cross_project_enabled",
+					"curation_enabled",
+					"dead_hook_report_threshold",
+					"deterministic_retrieval",
+					"error_lesson_mode",
+					"hook_liveness_enabled",
+					"host_probe_history_enabled",
+					"injection_confidence_floor",
+					"lesson_snippet_injection",
+					"llm_reflection_enabled",
+					"native_registration_enabled",
+					"okf_path",
+					"patternminer_enabled",
+					"perf_enabled",
+					"perf_flush_on_idle",
+					"perf_ring_capacity",
+					"pre_prompt_budget_tokens",
+					"quality_gate_enabled",
+					"reference_emission_enabled",
+					"repo_truth_enabled",
+					"share_requires_approval",
+					"shared_confidence_floor",
+					"shared_layer_enabled",
+					"skill_emission_enabled",
+					"tool_calls_dedup_enabled"
+				]
+			}
+		},
+		{
+			"id": "C-05",
+			"title": "Metric key names",
+			"stability": "frozen",
+			"since": "0.2.0",
+			"value": {
+				"keys": [
+					"artifact_writes_noop",
+					"artifact_writes_total",
+					"bench_runs_total",
+					"causal_links",
+					"conflicts_detected",
+					"contract_digest_changes",
+					"conventions_mined",
+					"dispose_fires_total",
+					"dispose_misses_total",
+					"duplicate_suppressions",
+					"error_lessons_suppressed",
+					"feedback_negative_total",
+					"feedback_positive_total",
+					"hook_errors_total",
+					"hook_fires_total",
+					"hooks_dead_total",
+					"injections_blocked_confidence",
+					"injections_blocked_ignored",
+					"injections_blocked_recurrence",
+					"injections_blocked_seen",
+					"injections_blocked_stale",
+					"injections_blocked_weak",
+					"injections_effective",
+					"injections_from_shared",
+					"injections_inconclusive",
+					"injections_ineffective",
+					"injections_suppressed_dead_hook",
+					"injections_total",
+					"memories_archived",
+					"memories_contradicted",
+					"memories_superseded",
+					"native_registration_failures",
+					"native_registrations_total",
+					"okf_merge_folds",
+					"patterns_causal",
+					"patterns_mined",
+					"patterns_promoted_new",
+					"perf_budget_breaches",
+					"perf_samples_recorded",
+					"proposals_approved",
+					"proposals_created",
+					"proposals_rejected",
+					"reflections_throttled",
+					"rekey_events",
+					"repo_facts_scanned",
+					"shared_entries_exported",
+					"shared_entries_imported",
+					"shared_entries_total",
+					"tokens_injected_compacting",
+					"tokens_injected_pre_prompt",
+					"tool_calls_deduped"
+				]
+			}
+		},
+		{
+			"id": "C-06",
+			"title": "Package entry points",
+			"stability": "frozen",
+			"since": "0.1.0",
+			"value": {
+				"name": "@jmtrin/opencode-kevin",
+				"main": "dist/plugin/index.js",
+				"types": "dist/plugin/index.d.ts",
+				"exports_order": [
+					"types",
+					"import"
+				],
+				"engines": ">=22.5.0"
+			}
+		},
+		{
+			"id": "C-07",
+			"title": "Database schema",
+			"stability": "forward-only",
+			"since": "0.1.0",
+			"value": {
+				"schema_version": "011",
+				"migrations_forward_only": true
+			}
+		},
+		{
+			"id": "C-08",
+			"title": "Filesystem locations",
+			"stability": "frozen",
+			"since": "0.2.0",
+			"value": {
+				"db": "~/.opencode-kevin/kevin.db",
+				"refs": "refs/",
+				"skills": "skills/",
+				"okf": ".kevin/knowledge.okf"
+			}
+		},
+		{
+			"id": "C-09",
+			"title": "Behavioural invariants",
+			"stability": "frozen",
+			"since": "0.8.0",
+			"value": {
+				"invariants": [
+					"zero process spawns",
+					"zero network calls",
+					"no raw author email written",
+					"single write path: ArtifactWriter is the only artifact writer"
+				],
+				"boundary": [
+					{
+						"name": "untrusted-input escaping at the single write path",
+						"since": "1.0.0"
+					}
+				]
+			}
+		}
+	]
+}

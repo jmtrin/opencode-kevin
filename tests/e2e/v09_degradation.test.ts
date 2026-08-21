@@ -134,6 +134,21 @@ function metricValue(key: string): number {
 
 const now = () => new Date().toISOString();
 
+// v1.0.0 (K10-021) — `dispose` is the seventh instrumented hook and is
+// seeded at boot; fixtures that declare every hook healthy must include
+// it or the verdict correctly reports an unknown checkpoint.
+const DISPOSE_LIVE = {
+	hook: "dispose",
+	experimental: 0,
+	fire_count: 2,
+	error_count: 0,
+	expected_count: 2,
+	first_seen_at: now(),
+	last_seen_at: now(),
+	dead_since: null,
+	plugin_version: "1.18.18",
+};
+
 const HOOKS_HEALTHY = [
 	{
 		hook: "tool.execute.before",
@@ -201,6 +216,7 @@ const HOOKS_HEALTHY = [
 		dead_since: null,
 		plugin_version: "1.18.18",
 	},
+	DISPOSE_LIVE,
 ];
 
 const HOOKS_DEAD = [
@@ -339,6 +355,7 @@ const HOOKS_RECOVERED = [
 		dead_since: null,
 		plugin_version: "1.18.18",
 	},
+	DISPOSE_LIVE,
 ];
 
 describe("K9-022 — End-to-end degradation drill (plan \u00A7\u20099, exit criterion)", () => {

@@ -1,0 +1,400 @@
+{"id":"m0001","statement":"Solution: pinned versions resolved the lockfile regression in the release pipeline.","type":"solution","scope":"project","evidence":2,"recurrence":0,"ageDays":26}
+{"id":"m0002","statement":"Rule: never merge while lockfile checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":3,"recurrence":4,"ageDays":18}
+{"id":"m0003","statement":"Context: lockfile configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":114}
+{"id":"m0004","statement":"Rule: never merge while lockfile checks are failing during nightly runs.","type":"rule","scope":"session","evidence":6,"recurrence":0,"ageDays":39}
+{"id":"m0005","statement":"Decision: standardize on migration handling across services in cold-start paths.","type":"decision","scope":"project","evidence":2,"recurrence":1,"ageDays":12}
+{"id":"m0006","statement":"Decision: standardize on migration handling across services on the staging cluster.","type":"decision","scope":"project","evidence":2,"recurrence":1,"ageDays":72}
+{"id":"m0007","statement":"Pattern: incidents cluster around migration after dependency bumps across worker restarts.","type":"pattern","scope":"session","evidence":1,"recurrence":0,"ageDays":38}
+{"id":"m0008","statement":"Pattern: incidents cluster around migration after dependency bumps under sustained load.","type":"pattern","scope":"session","evidence":2,"recurrence":0,"ageDays":3}
+{"id":"m0009","statement":"Context: timeout configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":63}
+{"id":"m0010","statement":"Pattern: incidents cluster around timeout after dependency bumps across worker restarts.","type":"pattern","scope":"project","evidence":2,"recurrence":3,"ageDays":32}
+{"id":"m0011","statement":"Rule: never merge while timeout checks are failing in cold-start paths.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":12}
+{"id":"m0012","statement":"Rule: never merge while timeout checks are failing in the release pipeline.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":1}
+{"id":"m0013","statement":"Solution: pinned versions resolved the retry regression across worker restarts.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":136}
+{"id":"m0014","statement":"Pattern: incidents cluster around retry after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":3,"recurrence":0,"ageDays":1}
+{"id":"m0015","statement":"Context: retry configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":2}
+{"id":"m0016","statement":"Pattern: incidents cluster around retry after dependency bumps under sustained load.","type":"pattern","scope":"session","evidence":0,"recurrence":1,"ageDays":2}
+{"id":"m0017","statement":"Solution: pinned versions resolved the auth regression when the cache is empty.","type":"solution","scope":"project","evidence":2,"recurrence":0,"ageDays":0}
+{"id":"m0018","statement":"Rule: never merge while auth checks are failing when the cache is empty.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":29}
+{"id":"m0019","statement":"Pattern: incidents cluster around auth after dependency bumps across worker restarts.","type":"pattern","scope":"session","evidence":0,"recurrence":0,"ageDays":5}
+{"id":"m0020","statement":"Pattern: incidents cluster around auth after dependency bumps on the staging cluster.","type":"pattern","scope":"session","evidence":3,"recurrence":0,"ageDays":3}
+{"id":"m0021","statement":"Context: regex configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"project","evidence":1,"recurrence":3,"ageDays":6}
+{"id":"m0022","statement":"Context: regex configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":8}
+{"id":"m0023","statement":"Pattern: incidents cluster around regex after dependency bumps during nightly runs.","type":"pattern","scope":"session","evidence":2,"recurrence":1,"ageDays":101}
+{"id":"m0024","statement":"Rule: never merge while regex checks are failing on the staging cluster.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":42}
+{"id":"m0025","statement":"Pattern: incidents cluster around encoding after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":158}
+{"id":"m0026","statement":"Rule: never merge while encoding checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":64}
+{"id":"m0027","statement":"Pattern: incidents cluster around encoding after dependency bumps under sustained load.","type":"pattern","scope":"session","evidence":0,"recurrence":0,"ageDays":37}
+{"id":"m0028","statement":"Decision: standardize on encoding handling across services on the staging cluster.","type":"decision","scope":"session","evidence":0,"recurrence":0,"ageDays":15}
+{"id":"m0029","statement":"Context: coverage configuration lives beside the deploy scripts during nightly runs.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":5}
+{"id":"m0030","statement":"Rule: never merge while coverage checks are failing under sustained load.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":22}
+{"id":"m0031","statement":"Solution: pinned versions resolved the coverage regression on the staging cluster.","type":"solution","scope":"session","evidence":0,"recurrence":0,"ageDays":15}
+{"id":"m0032","statement":"Decision: standardize on coverage handling across services during nightly runs.","type":"decision","scope":"session","evidence":1,"recurrence":0,"ageDays":40}
+{"id":"m0033","statement":"Decision: standardize on fixtures handling across services in cold-start paths.","type":"decision","scope":"project","evidence":5,"recurrence":0,"ageDays":39}
+{"id":"m0034","statement":"Solution: pinned versions resolved the fixtures regression during nightly runs.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":13}
+{"id":"m0035","statement":"Rule: never merge while fixtures checks are failing in the release pipeline.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":55}
+{"id":"m0036","statement":"Solution: pinned versions resolved the fixtures regression on the staging cluster.","type":"solution","scope":"session","evidence":2,"recurrence":0,"ageDays":3}
+{"id":"m0037","statement":"Pattern: incidents cluster around snapshot after dependency bumps across worker restarts.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":2}
+{"id":"m0038","statement":"Rule: never merge while snapshot checks are failing under sustained load.","type":"rule","scope":"project","evidence":2,"recurrence":1,"ageDays":26}
+{"id":"m0039","statement":"Pattern: incidents cluster around snapshot after dependency bumps under sustained load.","type":"pattern","scope":"session","evidence":2,"recurrence":0,"ageDays":1}
+{"id":"m0040","statement":"Rule: never merge while snapshot checks are failing after the last upgrade.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":40}
+{"id":"m0041","statement":"Solution: pinned versions resolved the mocks regression in cold-start paths.","type":"solution","scope":"project","evidence":3,"recurrence":0,"ageDays":59}
+{"id":"m0042","statement":"Pattern: incidents cluster around mocks after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":5,"recurrence":4,"ageDays":25}
+{"id":"m0043","statement":"Rule: never merge while mocks checks are failing during nightly runs.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":44}
+{"id":"m0044","statement":"Rule: never merge while mocks checks are failing in the release pipeline.","type":"rule","scope":"session","evidence":1,"recurrence":4,"ageDays":1}
+{"id":"m0045","statement":"Solution: pinned versions resolved the teardown regression under sustained load.","type":"solution","scope":"project","evidence":2,"recurrence":0,"ageDays":64}
+{"id":"m0046","statement":"Rule: never merge while teardown checks are failing in cold-start paths.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":135}
+{"id":"m0047","statement":"Solution: pinned versions resolved the teardown regression under sustained load.","type":"solution","scope":"session","evidence":0,"recurrence":0,"ageDays":59}
+{"id":"m0048","statement":"Context: teardown configuration lives beside the deploy scripts during nightly runs.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":34}
+{"id":"m0049","statement":"Decision: standardize on pool handling across services on the staging cluster.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":0}
+{"id":"m0050","statement":"Pattern: incidents cluster around pool after dependency bumps during nightly runs.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":48}
+{"id":"m0051","statement":"Decision: standardize on pool handling across services on the staging cluster.","type":"decision","scope":"session","evidence":0,"recurrence":0,"ageDays":34}
+{"id":"m0052","statement":"Pattern: incidents cluster around pool after dependency bumps on the staging cluster.","type":"pattern","scope":"session","evidence":0,"recurrence":0,"ageDays":76}
+{"id":"m0053","statement":"Rule: never merge while backfill checks are failing in the release pipeline.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":88}
+{"id":"m0054","statement":"Decision: standardize on backfill handling across services in the release pipeline.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":142}
+{"id":"m0055","statement":"Pattern: incidents cluster around backfill after dependency bumps after the last upgrade.","type":"pattern","scope":"session","evidence":1,"recurrence":0,"ageDays":12}
+{"id":"m0056","statement":"Decision: standardize on backfill handling across services across worker restarts.","type":"decision","scope":"session","evidence":2,"recurrence":0,"ageDays":6}
+{"id":"m0057","statement":"Solution: pinned versions resolved the schema regression across worker restarts.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":9}
+{"id":"m0058","statement":"Context: schema configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":83}
+{"id":"m0059","statement":"Pattern: incidents cluster around schema after dependency bumps in cold-start paths.","type":"pattern","scope":"session","evidence":0,"recurrence":0,"ageDays":169}
+{"id":"m0060","statement":"Solution: pinned versions resolved the schema regression under sustained load.","type":"solution","scope":"session","evidence":2,"recurrence":0,"ageDays":164}
+{"id":"m0061","statement":"Solution: pinned versions resolved the cursor regression in the release pipeline.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":31}
+{"id":"m0062","statement":"Solution: pinned versions resolved the cursor regression in the release pipeline.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":0}
+{"id":"m0063","statement":"Pattern: incidents cluster around cursor after dependency bumps when the cache is empty.","type":"pattern","scope":"session","evidence":3,"recurrence":0,"ageDays":59}
+{"id":"m0064","statement":"Decision: standardize on cursor handling across services after the last upgrade.","type":"decision","scope":"session","evidence":1,"recurrence":0,"ageDays":82}
+{"id":"m0065","statement":"Solution: pinned versions resolved the pagination regression after the last upgrade.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":100}
+{"id":"m0066","statement":"Decision: standardize on pagination handling across services when the cache is empty.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":94}
+{"id":"m0067","statement":"Context: pagination configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"session","evidence":1,"recurrence":0,"ageDays":13}
+{"id":"m0068","statement":"Decision: standardize on pagination handling across services across worker restarts.","type":"decision","scope":"session","evidence":1,"recurrence":0,"ageDays":17}
+{"id":"m0069","statement":"Pattern: incidents cluster around webhook after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":114}
+{"id":"m0070","statement":"Solution: pinned versions resolved the webhook regression on the staging cluster.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":33}
+{"id":"m0071","statement":"Context: webhook configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":158}
+{"id":"m0072","statement":"Context: webhook configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"session","evidence":1,"recurrence":0,"ageDays":62}
+{"id":"m0073","statement":"Pattern: incidents cluster around circuit after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":0}
+{"id":"m0074","statement":"Decision: standardize on circuit handling across services under sustained load.","type":"decision","scope":"project","evidence":5,"recurrence":0,"ageDays":6}
+{"id":"m0075","statement":"Rule: never merge while circuit checks are failing in cold-start paths.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":5}
+{"id":"m0076","statement":"Context: circuit configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"session","evidence":1,"recurrence":3,"ageDays":66}
+{"id":"m0077","statement":"Solution: pinned versions resolved the idempotency regression across worker restarts.","type":"solution","scope":"project","evidence":2,"recurrence":4,"ageDays":3}
+{"id":"m0078","statement":"Rule: never merge while idempotency checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":1}
+{"id":"m0079","statement":"Pattern: incidents cluster around idempotency after dependency bumps in the release pipeline.","type":"pattern","scope":"session","evidence":3,"recurrence":0,"ageDays":6}
+{"id":"m0080","statement":"Context: idempotency configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"session","evidence":1,"recurrence":1,"ageDays":11}
+{"id":"m0081","statement":"Pattern: incidents cluster around lockfile after dependency bumps when the cache is empty.","type":"pattern","scope":"session","evidence":1,"recurrence":2,"ageDays":8}
+{"id":"m0082","statement":"Solution: pinned versions resolved the migration regression in the release pipeline.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":173}
+{"id":"m0083","statement":"Context: timeout configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":29}
+{"id":"m0084","statement":"Pattern: incidents cluster around retry after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":70}
+{"id":"m0085","statement":"Context: auth configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":4,"recurrence":0,"ageDays":5}
+{"id":"m0086","statement":"Rule: never merge while regex checks are failing when the cache is empty.","type":"rule","scope":"project","evidence":1,"recurrence":0,"ageDays":31}
+{"id":"m0087","statement":"Context: encoding configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":80}
+{"id":"m0088","statement":"Context: coverage configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":8}
+{"id":"m0089","statement":"Pattern: incidents cluster around fixtures after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":66}
+{"id":"m0090","statement":"Rule: never merge while snapshot checks are failing across worker restarts.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":5}
+{"id":"m0091","statement":"Context: mocks configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":55}
+{"id":"m0092","statement":"Decision: standardize on teardown handling across services across worker restarts.","type":"decision","scope":"session","evidence":1,"recurrence":4,"ageDays":3}
+{"id":"m0093","statement":"Decision: standardize on pool handling across services after the last upgrade.","type":"decision","scope":"project","evidence":2,"recurrence":3,"ageDays":56}
+{"id":"m0094","statement":"Solution: pinned versions resolved the backfill regression under sustained load.","type":"solution","scope":"session","evidence":5,"recurrence":0,"ageDays":78}
+{"id":"m0095","statement":"Context: schema configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":90}
+{"id":"m0096","statement":"Pattern: incidents cluster around cursor after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":1,"recurrence":3,"ageDays":37}
+{"id":"m0097","statement":"Decision: standardize on pagination handling across services in cold-start paths.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":20}
+{"id":"m0098","statement":"Context: webhook configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":68}
+{"id":"m0099","statement":"Solution: pinned versions resolved the circuit regression during nightly runs.","type":"solution","scope":"session","evidence":5,"recurrence":0,"ageDays":76}
+{"id":"m0100","statement":"Pattern: incidents cluster around idempotency after dependency bumps after the last upgrade.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":86}
+{"id":"m0101","statement":"Rule: never merge while lockfile checks are failing across worker restarts.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":32}
+{"id":"m0102","statement":"Decision: standardize on migration handling across services under sustained load.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":58}
+{"id":"m0103","statement":"Rule: never merge while timeout checks are failing on the staging cluster.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":17}
+{"id":"m0104","statement":"Decision: standardize on retry handling across services after the last upgrade.","type":"decision","scope":"project","evidence":4,"recurrence":0,"ageDays":47}
+{"id":"m0105","statement":"Pattern: incidents cluster around auth after dependency bumps across worker restarts.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":16}
+{"id":"m0106","statement":"Decision: standardize on regex handling across services when the cache is empty.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":7}
+{"id":"m0107","statement":"Solution: pinned versions resolved the encoding regression during nightly runs.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":53}
+{"id":"m0108","statement":"Context: coverage configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":3}
+{"id":"m0109","statement":"Rule: never merge while fixtures checks are failing across worker restarts.","type":"rule","scope":"project","evidence":1,"recurrence":0,"ageDays":27}
+{"id":"m0110","statement":"Decision: standardize on snapshot handling across services after the last upgrade.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":85}
+{"id":"m0111","statement":"Rule: never merge while mocks checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":0,"recurrence":2,"ageDays":58}
+{"id":"m0112","statement":"Rule: never merge while teardown checks are failing when the cache is empty.","type":"rule","scope":"project","evidence":0,"recurrence":3,"ageDays":0}
+{"id":"m0113","statement":"Decision: standardize on pool handling across services in the release pipeline.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":8}
+{"id":"m0114","statement":"Context: backfill configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"session","evidence":0,"recurrence":4,"ageDays":17}
+{"id":"m0115","statement":"Decision: standardize on schema handling across services when the cache is empty.","type":"decision","scope":"session","evidence":2,"recurrence":2,"ageDays":44}
+{"id":"m0116","statement":"Decision: standardize on cursor handling across services during nightly runs.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":14}
+{"id":"m0117","statement":"Context: pagination configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":1}
+{"id":"m0118","statement":"Rule: never merge while webhook checks are failing under sustained load.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":78}
+{"id":"m0119","statement":"Decision: standardize on circuit handling across services on the staging cluster.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":139}
+{"id":"m0120","statement":"Pattern: incidents cluster around idempotency after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":0}
+{"id":"m0121","statement":"Solution: pinned versions resolved the lockfile regression on the staging cluster.","type":"solution","scope":"project","evidence":2,"recurrence":0,"ageDays":157}
+{"id":"m0122","statement":"Solution: pinned versions resolved the migration regression during nightly runs.","type":"solution","scope":"project","evidence":3,"recurrence":0,"ageDays":58}
+{"id":"m0123","statement":"Decision: standardize on timeout handling across services on the staging cluster.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":29}
+{"id":"m0124","statement":"Context: retry configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"session","evidence":1,"recurrence":0,"ageDays":7}
+{"id":"m0125","statement":"Context: auth configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":60}
+{"id":"m0126","statement":"Pattern: incidents cluster around regex after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":1}
+{"id":"m0127","statement":"Context: encoding configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":12}
+{"id":"m0128","statement":"Pattern: incidents cluster around coverage after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":1,"recurrence":3,"ageDays":152}
+{"id":"m0129","statement":"Pattern: incidents cluster around fixtures after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":64}
+{"id":"m0130","statement":"Rule: never merge while snapshot checks are failing after the last upgrade.","type":"rule","scope":"session","evidence":2,"recurrence":0,"ageDays":19}
+{"id":"m0131","statement":"Rule: never merge while mocks checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":1,"recurrence":0,"ageDays":34}
+{"id":"m0132","statement":"Solution: pinned versions resolved the teardown regression during nightly runs.","type":"solution","scope":"project","evidence":0,"recurrence":1,"ageDays":13}
+{"id":"m0133","statement":"Solution: pinned versions resolved the pool regression when the cache is empty.","type":"solution","scope":"project","evidence":0,"recurrence":3,"ageDays":6}
+{"id":"m0134","statement":"Solution: pinned versions resolved the backfill regression on the staging cluster.","type":"solution","scope":"session","evidence":0,"recurrence":0,"ageDays":20}
+{"id":"m0135","statement":"Pattern: incidents cluster around schema after dependency bumps in the release pipeline.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":33}
+{"id":"m0136","statement":"Pattern: incidents cluster around cursor after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":67}
+{"id":"m0137","statement":"Context: pagination configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"session","evidence":0,"recurrence":1,"ageDays":3}
+{"id":"m0138","statement":"Context: webhook configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"session","evidence":0,"recurrence":4,"ageDays":97}
+{"id":"m0139","statement":"Rule: never merge while circuit checks are failing in the release pipeline.","type":"rule","scope":"project","evidence":4,"recurrence":0,"ageDays":160}
+{"id":"m0140","statement":"Rule: never merge while idempotency checks are failing during nightly runs.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":3}
+{"id":"m0141","statement":"Context: lockfile configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"session","evidence":0,"recurrence":0,"ageDays":28}
+{"id":"m0142","statement":"Decision: standardize on migration handling across services in cold-start paths.","type":"decision","scope":"session","evidence":0,"recurrence":0,"ageDays":86}
+{"id":"m0143","statement":"Rule: never merge while timeout checks are failing after the last upgrade.","type":"rule","scope":"session","evidence":4,"recurrence":1,"ageDays":70}
+{"id":"m0144","statement":"Rule: never merge while retry checks are failing under sustained load.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":27}
+{"id":"m0145","statement":"Solution: pinned versions resolved the auth regression during nightly runs.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":84}
+{"id":"m0146","statement":"Pattern: incidents cluster around regex after dependency bumps across worker restarts.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":26}
+{"id":"m0147","statement":"Pattern: incidents cluster around encoding after dependency bumps in the release pipeline.","type":"pattern","scope":"project","evidence":0,"recurrence":1,"ageDays":28}
+{"id":"m0148","statement":"Decision: standardize on coverage handling across services in the release pipeline.","type":"decision","scope":"project","evidence":1,"recurrence":3,"ageDays":89}
+{"id":"m0149","statement":"Context: fixtures configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"session","evidence":6,"recurrence":0,"ageDays":39}
+{"id":"m0150","statement":"Solution: pinned versions resolved the snapshot regression under sustained load.","type":"solution","scope":"session","evidence":5,"recurrence":2,"ageDays":55}
+{"id":"m0151","statement":"Pattern: incidents cluster around mocks after dependency bumps during nightly runs.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":45}
+{"id":"m0152","statement":"Pattern: incidents cluster around teardown after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":6,"recurrence":0,"ageDays":104}
+{"id":"m0153","statement":"Rule: never merge while pool checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":3}
+{"id":"m0154","statement":"Context: backfill configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":4,"recurrence":0,"ageDays":24}
+{"id":"m0155","statement":"Rule: never merge while schema checks are failing during nightly runs.","type":"rule","scope":"session","evidence":2,"recurrence":0,"ageDays":51}
+{"id":"m0156","statement":"Pattern: incidents cluster around cursor after dependency bumps after the last upgrade.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":142}
+{"id":"m0157","statement":"Solution: pinned versions resolved the pagination regression across worker restarts.","type":"solution","scope":"project","evidence":0,"recurrence":4,"ageDays":77}
+{"id":"m0158","statement":"Pattern: incidents cluster around webhook after dependency bumps across worker restarts.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":8}
+{"id":"m0159","statement":"Context: circuit configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":17}
+{"id":"m0160","statement":"Solution: pinned versions resolved the idempotency regression in the release pipeline.","type":"solution","scope":"session","evidence":0,"recurrence":0,"ageDays":155}
+{"id":"m0161","statement":"Solution: pinned versions resolved the lockfile regression under sustained load.","type":"solution","scope":"project","evidence":3,"recurrence":0,"ageDays":14}
+{"id":"m0162","statement":"Context: migration configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":94}
+{"id":"m0163","statement":"Solution: pinned versions resolved the timeout regression in the release pipeline.","type":"solution","scope":"project","evidence":1,"recurrence":2,"ageDays":9}
+{"id":"m0164","statement":"Rule: never merge while retry checks are failing in the release pipeline.","type":"rule","scope":"session","evidence":2,"recurrence":0,"ageDays":53}
+{"id":"m0165","statement":"Decision: standardize on auth handling across services on the staging cluster.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":56}
+{"id":"m0166","statement":"Rule: never merge while regex checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":16}
+{"id":"m0167","statement":"Rule: never merge while encoding checks are failing across worker restarts.","type":"rule","scope":"project","evidence":1,"recurrence":0,"ageDays":28}
+{"id":"m0168","statement":"Context: coverage configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":7}
+{"id":"m0169","statement":"Rule: never merge while fixtures checks are failing across worker restarts.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":17}
+{"id":"m0170","statement":"Decision: standardize on snapshot handling across services after the last upgrade.","type":"decision","scope":"project","evidence":5,"recurrence":0,"ageDays":25}
+{"id":"m0171","statement":"Solution: pinned versions resolved the mocks regression in the release pipeline.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":60}
+{"id":"m0172","statement":"Decision: standardize on teardown handling across services under sustained load.","type":"decision","scope":"project","evidence":2,"recurrence":4,"ageDays":67}
+{"id":"m0173","statement":"Rule: never merge while pool checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":18}
+{"id":"m0174","statement":"Rule: never merge while backfill checks are failing across worker restarts.","type":"rule","scope":"session","evidence":1,"recurrence":0,"ageDays":27}
+{"id":"m0175","statement":"Decision: standardize on schema handling across services in the release pipeline.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":28}
+{"id":"m0176","statement":"Rule: never merge while cursor checks are failing on the staging cluster.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":3}
+{"id":"m0177","statement":"Solution: pinned versions resolved the pagination regression in the release pipeline.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":121}
+{"id":"m0178","statement":"Decision: standardize on webhook handling across services under sustained load.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":43}
+{"id":"m0179","statement":"Context: circuit configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":9}
+{"id":"m0180","statement":"Rule: never merge while idempotency checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":113}
+{"id":"m0181","statement":"Context: lockfile configuration lives beside the deploy scripts during nightly runs.","type":"context","scope":"project","evidence":5,"recurrence":0,"ageDays":67}
+{"id":"m0182","statement":"Rule: never merge while migration checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":1,"recurrence":0,"ageDays":58}
+{"id":"m0183","statement":"Pattern: incidents cluster around timeout after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":1,"recurrence":1,"ageDays":48}
+{"id":"m0184","statement":"Rule: never merge while retry checks are failing in the release pipeline.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":33}
+{"id":"m0185","statement":"Pattern: incidents cluster around auth after dependency bumps in the release pipeline.","type":"pattern","scope":"session","evidence":1,"recurrence":0,"ageDays":17}
+{"id":"m0186","statement":"Rule: never merge while regex checks are failing across worker restarts.","type":"rule","scope":"session","evidence":0,"recurrence":4,"ageDays":12}
+{"id":"m0187","statement":"Rule: never merge while encoding checks are failing when the cache is empty.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":19}
+{"id":"m0188","statement":"Rule: never merge while coverage checks are failing under sustained load.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":9}
+{"id":"m0189","statement":"Solution: pinned versions resolved the fixtures regression across worker restarts.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":93}
+{"id":"m0190","statement":"Decision: standardize on snapshot handling across services in the release pipeline.","type":"decision","scope":"session","evidence":0,"recurrence":0,"ageDays":0}
+{"id":"m0191","statement":"Pattern: incidents cluster around mocks after dependency bumps in cold-start paths.","type":"pattern","scope":"session","evidence":2,"recurrence":0,"ageDays":157}
+{"id":"m0192","statement":"Rule: never merge while teardown checks are failing on the staging cluster.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":53}
+{"id":"m0193","statement":"Pattern: incidents cluster around pool after dependency bumps in the release pipeline.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":145}
+{"id":"m0194","statement":"Solution: pinned versions resolved the backfill regression in the release pipeline.","type":"solution","scope":"session","evidence":0,"recurrence":3,"ageDays":30}
+{"id":"m0195","statement":"Context: schema configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":37}
+{"id":"m0196","statement":"Decision: standardize on cursor handling across services when the cache is empty.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":102}
+{"id":"m0197","statement":"Rule: never merge while pagination checks are failing under sustained load.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":45}
+{"id":"m0198","statement":"Decision: standardize on webhook handling across services during nightly runs.","type":"decision","scope":"session","evidence":2,"recurrence":2,"ageDays":60}
+{"id":"m0199","statement":"Decision: standardize on circuit handling across services on the staging cluster.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":0}
+{"id":"m0200","statement":"Rule: never merge while idempotency checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":76}
+{"id":"m0201","statement":"Decision: standardize on lockfile handling across services in cold-start paths.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":54}
+{"id":"m0202","statement":"Solution: pinned versions resolved the migration regression in cold-start paths.","type":"solution","scope":"session","evidence":0,"recurrence":0,"ageDays":94}
+{"id":"m0203","statement":"Context: timeout configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"session","evidence":0,"recurrence":0,"ageDays":0}
+{"id":"m0204","statement":"Pattern: incidents cluster around retry after dependency bumps during nightly runs.","type":"pattern","scope":"project","evidence":2,"recurrence":2,"ageDays":0}
+{"id":"m0205","statement":"Solution: pinned versions resolved the auth regression on the staging cluster.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":93}
+{"id":"m0206","statement":"Context: regex configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"session","evidence":5,"recurrence":0,"ageDays":11}
+{"id":"m0207","statement":"Decision: standardize on encoding handling across services in the release pipeline.","type":"decision","scope":"project","evidence":4,"recurrence":0,"ageDays":4}
+{"id":"m0208","statement":"Decision: standardize on coverage handling across services during nightly runs.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":10}
+{"id":"m0209","statement":"Context: fixtures configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":6}
+{"id":"m0210","statement":"Rule: never merge while snapshot checks are failing when the cache is empty.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":19}
+{"id":"m0211","statement":"Rule: never merge while mocks checks are failing after the last upgrade.","type":"rule","scope":"session","evidence":6,"recurrence":0,"ageDays":37}
+{"id":"m0212","statement":"Solution: pinned versions resolved the teardown regression in the release pipeline.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":77}
+{"id":"m0213","statement":"Context: pool configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"project","evidence":1,"recurrence":2,"ageDays":145}
+{"id":"m0214","statement":"Solution: pinned versions resolved the backfill regression during nightly runs.","type":"solution","scope":"project","evidence":0,"recurrence":3,"ageDays":62}
+{"id":"m0215","statement":"Solution: pinned versions resolved the schema regression across worker restarts.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":10}
+{"id":"m0216","statement":"Solution: pinned versions resolved the cursor regression in the release pipeline.","type":"solution","scope":"project","evidence":0,"recurrence":4,"ageDays":105}
+{"id":"m0217","statement":"Pattern: incidents cluster around pagination after dependency bumps during nightly runs.","type":"pattern","scope":"session","evidence":1,"recurrence":0,"ageDays":58}
+{"id":"m0218","statement":"Pattern: incidents cluster around webhook after dependency bumps on the staging cluster.","type":"pattern","scope":"session","evidence":0,"recurrence":0,"ageDays":0}
+{"id":"m0219","statement":"Context: circuit configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":33}
+{"id":"m0220","statement":"Solution: pinned versions resolved the idempotency regression on the staging cluster.","type":"solution","scope":"project","evidence":2,"recurrence":0,"ageDays":22}
+{"id":"m0221","statement":"Solution: pinned versions resolved the lockfile regression across worker restarts.","type":"solution","scope":"project","evidence":2,"recurrence":1,"ageDays":6}
+{"id":"m0222","statement":"Pattern: incidents cluster around migration after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":9}
+{"id":"m0223","statement":"Decision: standardize on timeout handling across services in the release pipeline.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":76}
+{"id":"m0224","statement":"Pattern: incidents cluster around retry after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":40}
+{"id":"m0225","statement":"Context: auth configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":18}
+{"id":"m0226","statement":"Rule: never merge while regex checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":6,"recurrence":0,"ageDays":4}
+{"id":"m0227","statement":"Rule: never merge while encoding checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":5,"recurrence":0,"ageDays":12}
+{"id":"m0228","statement":"Solution: pinned versions resolved the coverage regression in cold-start paths.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":0}
+{"id":"m0229","statement":"Rule: never merge while fixtures checks are failing across worker restarts.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":92}
+{"id":"m0230","statement":"Pattern: incidents cluster around snapshot after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":0}
+{"id":"m0231","statement":"Decision: standardize on mocks handling across services in cold-start paths.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":51}
+{"id":"m0232","statement":"Decision: standardize on teardown handling across services across worker restarts.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":38}
+{"id":"m0233","statement":"Rule: never merge while pool checks are failing across worker restarts.","type":"rule","scope":"project","evidence":1,"recurrence":0,"ageDays":16}
+{"id":"m0234","statement":"Pattern: incidents cluster around backfill after dependency bumps during nightly runs.","type":"pattern","scope":"project","evidence":4,"recurrence":0,"ageDays":6}
+{"id":"m0235","statement":"Decision: standardize on schema handling across services under sustained load.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":111}
+{"id":"m0236","statement":"Solution: pinned versions resolved the cursor regression across worker restarts.","type":"solution","scope":"project","evidence":2,"recurrence":2,"ageDays":6}
+{"id":"m0237","statement":"Decision: standardize on pagination handling across services when the cache is empty.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":11}
+{"id":"m0238","statement":"Pattern: incidents cluster around webhook after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":0,"recurrence":1,"ageDays":66}
+{"id":"m0239","statement":"Decision: standardize on circuit handling across services during nightly runs.","type":"decision","scope":"session","evidence":4,"recurrence":3,"ageDays":62}
+{"id":"m0240","statement":"Decision: standardize on idempotency handling across services during nightly runs.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":0}
+{"id":"m0241","statement":"Rule: never merge while lockfile checks are failing when the cache is empty.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":119}
+{"id":"m0242","statement":"Rule: never merge while migration checks are failing across worker restarts.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":1}
+{"id":"m0243","statement":"Pattern: incidents cluster around timeout after dependency bumps after the last upgrade.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":15}
+{"id":"m0244","statement":"Pattern: incidents cluster around retry after dependency bumps on the staging cluster.","type":"pattern","scope":"project","evidence":3,"recurrence":0,"ageDays":69}
+{"id":"m0245","statement":"Pattern: incidents cluster around auth after dependency bumps in the release pipeline.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":2}
+{"id":"m0246","statement":"Solution: pinned versions resolved the regex regression across worker restarts.","type":"solution","scope":"session","evidence":0,"recurrence":0,"ageDays":30}
+{"id":"m0247","statement":"Context: encoding configuration lives beside the deploy scripts during nightly runs.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":21}
+{"id":"m0248","statement":"Pattern: incidents cluster around coverage after dependency bumps during nightly runs.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":35}
+{"id":"m0249","statement":"Decision: standardize on fixtures handling across services under sustained load.","type":"decision","scope":"project","evidence":2,"recurrence":4,"ageDays":135}
+{"id":"m0250","statement":"Context: snapshot configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"session","evidence":5,"recurrence":0,"ageDays":0}
+{"id":"m0251","statement":"Solution: pinned versions resolved the mocks regression across worker restarts.","type":"solution","scope":"session","evidence":1,"recurrence":4,"ageDays":48}
+{"id":"m0252","statement":"Decision: standardize on teardown handling across services in cold-start paths.","type":"decision","scope":"session","evidence":0,"recurrence":2,"ageDays":42}
+{"id":"m0253","statement":"Context: pool configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":17}
+{"id":"m0254","statement":"Rule: never merge while backfill checks are failing in the release pipeline.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":15}
+{"id":"m0255","statement":"Decision: standardize on schema handling across services during nightly runs.","type":"decision","scope":"project","evidence":2,"recurrence":3,"ageDays":109}
+{"id":"m0256","statement":"Rule: never merge while cursor checks are failing across worker restarts.","type":"rule","scope":"session","evidence":2,"recurrence":0,"ageDays":49}
+{"id":"m0257","statement":"Pattern: incidents cluster around pagination after dependency bumps after the last upgrade.","type":"pattern","scope":"project","evidence":1,"recurrence":4,"ageDays":45}
+{"id":"m0258","statement":"Decision: standardize on webhook handling across services during nightly runs.","type":"decision","scope":"project","evidence":3,"recurrence":0,"ageDays":40}
+{"id":"m0259","statement":"Solution: pinned versions resolved the circuit regression in cold-start paths.","type":"solution","scope":"session","evidence":0,"recurrence":4,"ageDays":30}
+{"id":"m0260","statement":"Decision: standardize on idempotency handling across services after the last upgrade.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":73}
+{"id":"m0261","statement":"Solution: pinned versions resolved the lockfile regression in cold-start paths.","type":"solution","scope":"project","evidence":2,"recurrence":0,"ageDays":15}
+{"id":"m0262","statement":"Decision: standardize on migration handling across services under sustained load.","type":"decision","scope":"project","evidence":0,"recurrence":4,"ageDays":144}
+{"id":"m0263","statement":"Context: timeout configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"session","evidence":0,"recurrence":0,"ageDays":12}
+{"id":"m0264","statement":"Context: retry configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":2}
+{"id":"m0265","statement":"Solution: pinned versions resolved the auth regression across worker restarts.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":14}
+{"id":"m0266","statement":"Context: regex configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":30}
+{"id":"m0267","statement":"Pattern: incidents cluster around encoding after dependency bumps during nightly runs.","type":"pattern","scope":"session","evidence":0,"recurrence":2,"ageDays":88}
+{"id":"m0268","statement":"Solution: pinned versions resolved the coverage regression when the cache is empty.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":53}
+{"id":"m0269","statement":"Pattern: incidents cluster around fixtures after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":89}
+{"id":"m0270","statement":"Context: snapshot configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":88}
+{"id":"m0271","statement":"Rule: never merge while mocks checks are failing in the release pipeline.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":138}
+{"id":"m0272","statement":"Pattern: incidents cluster around teardown after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":85}
+{"id":"m0273","statement":"Pattern: incidents cluster around pool after dependency bumps in the release pipeline.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":75}
+{"id":"m0274","statement":"Decision: standardize on backfill handling across services in cold-start paths.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":2}
+{"id":"m0275","statement":"Decision: standardize on schema handling across services across worker restarts.","type":"decision","scope":"session","evidence":2,"recurrence":0,"ageDays":25}
+{"id":"m0276","statement":"Pattern: incidents cluster around cursor after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":5,"recurrence":0,"ageDays":87}
+{"id":"m0277","statement":"Context: pagination configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":23}
+{"id":"m0278","statement":"Solution: pinned versions resolved the webhook regression when the cache is empty.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":10}
+{"id":"m0279","statement":"Context: circuit configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":27}
+{"id":"m0280","statement":"Context: idempotency configuration lives beside the deploy scripts under sustained load.","type":"context","scope":"session","evidence":1,"recurrence":0,"ageDays":9}
+{"id":"m0281","statement":"Solution: pinned versions resolved the lockfile regression on the staging cluster.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":53}
+{"id":"m0282","statement":"Context: migration configuration lives beside the deploy scripts during nightly runs.","type":"context","scope":"project","evidence":5,"recurrence":0,"ageDays":38}
+{"id":"m0283","statement":"Solution: pinned versions resolved the timeout regression under sustained load.","type":"solution","scope":"project","evidence":2,"recurrence":1,"ageDays":57}
+{"id":"m0284","statement":"Decision: standardize on retry handling across services in the release pipeline.","type":"decision","scope":"project","evidence":6,"recurrence":4,"ageDays":57}
+{"id":"m0285","statement":"Context: auth configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":10}
+{"id":"m0286","statement":"Decision: standardize on regex handling across services in cold-start paths.","type":"decision","scope":"project","evidence":1,"recurrence":2,"ageDays":15}
+{"id":"m0287","statement":"Context: encoding configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":46}
+{"id":"m0288","statement":"Decision: standardize on coverage handling across services across worker restarts.","type":"decision","scope":"project","evidence":3,"recurrence":0,"ageDays":98}
+{"id":"m0289","statement":"Rule: never merge while fixtures checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":48}
+{"id":"m0290","statement":"Decision: standardize on snapshot handling across services after the last upgrade.","type":"decision","scope":"session","evidence":0,"recurrence":0,"ageDays":65}
+{"id":"m0291","statement":"Decision: standardize on mocks handling across services during nightly runs.","type":"decision","scope":"session","evidence":0,"recurrence":4,"ageDays":99}
+{"id":"m0292","statement":"Decision: standardize on teardown handling across services across worker restarts.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":61}
+{"id":"m0293","statement":"Pattern: incidents cluster around pool after dependency bumps after the last upgrade.","type":"pattern","scope":"session","evidence":0,"recurrence":0,"ageDays":89}
+{"id":"m0294","statement":"Context: backfill configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":29}
+{"id":"m0295","statement":"Rule: never merge while schema checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":3,"recurrence":3,"ageDays":29}
+{"id":"m0296","statement":"Solution: pinned versions resolved the cursor regression in the release pipeline.","type":"solution","scope":"project","evidence":2,"recurrence":0,"ageDays":35}
+{"id":"m0297","statement":"Context: pagination configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":35}
+{"id":"m0298","statement":"Context: webhook configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":3,"recurrence":0,"ageDays":105}
+{"id":"m0299","statement":"Solution: pinned versions resolved the circuit regression in the release pipeline.","type":"solution","scope":"project","evidence":1,"recurrence":4,"ageDays":30}
+{"id":"m0300","statement":"Rule: never merge while idempotency checks are failing in cold-start paths.","type":"rule","scope":"project","evidence":6,"recurrence":0,"ageDays":2}
+{"id":"m0301","statement":"Decision: standardize on lockfile handling across services in cold-start paths.","type":"decision","scope":"project","evidence":2,"recurrence":2,"ageDays":62}
+{"id":"m0302","statement":"Rule: never merge while migration checks are failing in cold-start paths.","type":"rule","scope":"project","evidence":2,"recurrence":2,"ageDays":66}
+{"id":"m0303","statement":"Pattern: incidents cluster around timeout after dependency bumps when the cache is empty.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":2}
+{"id":"m0304","statement":"Rule: never merge while retry checks are failing under sustained load.","type":"rule","scope":"project","evidence":2,"recurrence":3,"ageDays":169}
+{"id":"m0305","statement":"Rule: never merge while auth checks are failing across worker restarts.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":89}
+{"id":"m0306","statement":"Context: regex configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":22}
+{"id":"m0307","statement":"Context: encoding configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":99}
+{"id":"m0308","statement":"Rule: never merge while coverage checks are failing in cold-start paths.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":78}
+{"id":"m0309","statement":"Solution: pinned versions resolved the fixtures regression under sustained load.","type":"solution","scope":"project","evidence":2,"recurrence":2,"ageDays":27}
+{"id":"m0310","statement":"Solution: pinned versions resolved the snapshot regression on the staging cluster.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":44}
+{"id":"m0311","statement":"Pattern: incidents cluster around mocks after dependency bumps during nightly runs.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":73}
+{"id":"m0312","statement":"Pattern: incidents cluster around teardown after dependency bumps when the cache is empty.","type":"pattern","scope":"session","evidence":1,"recurrence":1,"ageDays":99}
+{"id":"m0313","statement":"Rule: never merge while pool checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":0,"recurrence":3,"ageDays":40}
+{"id":"m0314","statement":"Pattern: incidents cluster around backfill after dependency bumps in cold-start paths.","type":"pattern","scope":"session","evidence":2,"recurrence":0,"ageDays":9}
+{"id":"m0315","statement":"Solution: pinned versions resolved the schema regression after the last upgrade.","type":"solution","scope":"session","evidence":2,"recurrence":3,"ageDays":46}
+{"id":"m0316","statement":"Rule: never merge while cursor checks are failing in the release pipeline.","type":"rule","scope":"project","evidence":0,"recurrence":2,"ageDays":68}
+{"id":"m0317","statement":"Rule: never merge while pagination checks are failing after the last upgrade.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":86}
+{"id":"m0318","statement":"Context: webhook configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":88}
+{"id":"m0319","statement":"Pattern: incidents cluster around circuit after dependency bumps in cold-start paths.","type":"pattern","scope":"session","evidence":4,"recurrence":0,"ageDays":3}
+{"id":"m0320","statement":"Rule: never merge while idempotency checks are failing during nightly runs.","type":"rule","scope":"project","evidence":5,"recurrence":1,"ageDays":134}
+{"id":"m0321","statement":"Decision: standardize on lockfile handling across services in cold-start paths.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":13}
+{"id":"m0322","statement":"Pattern: incidents cluster around migration after dependency bumps on the staging cluster.","type":"pattern","scope":"session","evidence":2,"recurrence":0,"ageDays":30}
+{"id":"m0323","statement":"Decision: standardize on timeout handling across services under sustained load.","type":"decision","scope":"project","evidence":0,"recurrence":3,"ageDays":60}
+{"id":"m0324","statement":"Solution: pinned versions resolved the retry regression in cold-start paths.","type":"solution","scope":"session","evidence":0,"recurrence":0,"ageDays":13}
+{"id":"m0325","statement":"Pattern: incidents cluster around auth after dependency bumps on the staging cluster.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":6}
+{"id":"m0326","statement":"Pattern: incidents cluster around regex after dependency bumps across worker restarts.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":14}
+{"id":"m0327","statement":"Pattern: incidents cluster around encoding after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":5}
+{"id":"m0328","statement":"Pattern: incidents cluster around coverage after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":4}
+{"id":"m0329","statement":"Solution: pinned versions resolved the fixtures regression on the staging cluster.","type":"solution","scope":"session","evidence":2,"recurrence":0,"ageDays":52}
+{"id":"m0330","statement":"Context: snapshot configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":19}
+{"id":"m0331","statement":"Decision: standardize on mocks handling across services in the release pipeline.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":75}
+{"id":"m0332","statement":"Decision: standardize on teardown handling across services in cold-start paths.","type":"decision","scope":"project","evidence":2,"recurrence":3,"ageDays":21}
+{"id":"m0333","statement":"Decision: standardize on pool handling across services under sustained load.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":15}
+{"id":"m0334","statement":"Decision: standardize on backfill handling across services in the release pipeline.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":64}
+{"id":"m0335","statement":"Context: schema configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":101}
+{"id":"m0336","statement":"Decision: standardize on cursor handling across services under sustained load.","type":"decision","scope":"session","evidence":1,"recurrence":0,"ageDays":83}
+{"id":"m0337","statement":"Context: pagination configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":53}
+{"id":"m0338","statement":"Pattern: incidents cluster around webhook after dependency bumps after the last upgrade.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":156}
+{"id":"m0339","statement":"Decision: standardize on circuit handling across services under sustained load.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":89}
+{"id":"m0340","statement":"Solution: pinned versions resolved the idempotency regression across worker restarts.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":24}
+{"id":"m0341","statement":"Context: lockfile configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":44}
+{"id":"m0342","statement":"Decision: standardize on migration handling across services in the release pipeline.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":31}
+{"id":"m0343","statement":"Context: timeout configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":1}
+{"id":"m0344","statement":"Decision: standardize on retry handling across services during nightly runs.","type":"decision","scope":"project","evidence":2,"recurrence":4,"ageDays":56}
+{"id":"m0345","statement":"Pattern: incidents cluster around auth after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":9}
+{"id":"m0346","statement":"Context: regex configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"session","evidence":1,"recurrence":0,"ageDays":23}
+{"id":"m0347","statement":"Pattern: incidents cluster around encoding after dependency bumps under sustained load.","type":"pattern","scope":"session","evidence":1,"recurrence":2,"ageDays":49}
+{"id":"m0348","statement":"Decision: standardize on coverage handling across services when the cache is empty.","type":"decision","scope":"session","evidence":2,"recurrence":0,"ageDays":59}
+{"id":"m0349","statement":"Rule: never merge while fixtures checks are failing during nightly runs.","type":"rule","scope":"session","evidence":0,"recurrence":0,"ageDays":13}
+{"id":"m0350","statement":"Context: snapshot configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":61}
+{"id":"m0351","statement":"Decision: standardize on mocks handling across services under sustained load.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":145}
+{"id":"m0352","statement":"Pattern: incidents cluster around teardown after dependency bumps in the release pipeline.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":48}
+{"id":"m0353","statement":"Pattern: incidents cluster around pool after dependency bumps during nightly runs.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":2}
+{"id":"m0354","statement":"Context: backfill configuration lives beside the deploy scripts during nightly runs.","type":"context","scope":"project","evidence":6,"recurrence":0,"ageDays":12}
+{"id":"m0355","statement":"Decision: standardize on schema handling across services in cold-start paths.","type":"decision","scope":"project","evidence":1,"recurrence":0,"ageDays":57}
+{"id":"m0356","statement":"Pattern: incidents cluster around cursor after dependency bumps on the staging cluster.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":40}
+{"id":"m0357","statement":"Context: pagination configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"project","evidence":0,"recurrence":1,"ageDays":24}
+{"id":"m0358","statement":"Context: webhook configuration lives beside the deploy scripts when the cache is empty.","type":"context","scope":"project","evidence":5,"recurrence":2,"ageDays":129}
+{"id":"m0359","statement":"Context: circuit configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":25}
+{"id":"m0360","statement":"Decision: standardize on idempotency handling across services on the staging cluster.","type":"decision","scope":"session","evidence":1,"recurrence":4,"ageDays":56}
+{"id":"m0361","statement":"Pattern: incidents cluster around lockfile after dependency bumps in cold-start paths.","type":"pattern","scope":"project","evidence":1,"recurrence":0,"ageDays":50}
+{"id":"m0362","statement":"Solution: pinned versions resolved the migration regression across worker restarts.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":70}
+{"id":"m0363","statement":"Rule: never merge while timeout checks are failing under sustained load.","type":"rule","scope":"project","evidence":2,"recurrence":0,"ageDays":106}
+{"id":"m0364","statement":"Context: retry configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":4}
+{"id":"m0365","statement":"Context: auth configuration lives beside the deploy scripts across worker restarts.","type":"context","scope":"project","evidence":2,"recurrence":0,"ageDays":7}
+{"id":"m0366","statement":"Rule: never merge while regex checks are failing across worker restarts.","type":"rule","scope":"project","evidence":5,"recurrence":0,"ageDays":163}
+{"id":"m0367","statement":"Pattern: incidents cluster around encoding after dependency bumps during nightly runs.","type":"pattern","scope":"session","evidence":2,"recurrence":0,"ageDays":17}
+{"id":"m0368","statement":"Solution: pinned versions resolved the coverage regression when the cache is empty.","type":"solution","scope":"project","evidence":0,"recurrence":0,"ageDays":48}
+{"id":"m0369","statement":"Pattern: incidents cluster around fixtures after dependency bumps after the last upgrade.","type":"pattern","scope":"project","evidence":5,"recurrence":0,"ageDays":63}
+{"id":"m0370","statement":"Solution: pinned versions resolved the snapshot regression in the release pipeline.","type":"solution","scope":"session","evidence":2,"recurrence":0,"ageDays":61}
+{"id":"m0371","statement":"Context: mocks configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":93}
+{"id":"m0372","statement":"Rule: never merge while teardown checks are failing on the staging cluster.","type":"rule","scope":"project","evidence":0,"recurrence":0,"ageDays":69}
+{"id":"m0373","statement":"Context: pool configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"project","evidence":1,"recurrence":4,"ageDays":14}
+{"id":"m0374","statement":"Context: backfill configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"session","evidence":1,"recurrence":0,"ageDays":17}
+{"id":"m0375","statement":"Pattern: incidents cluster around schema after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":30}
+{"id":"m0376","statement":"Context: cursor configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":3,"recurrence":0,"ageDays":8}
+{"id":"m0377","statement":"Decision: standardize on pagination handling across services on the staging cluster.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":13}
+{"id":"m0378","statement":"Solution: pinned versions resolved the webhook regression after the last upgrade.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":13}
+{"id":"m0379","statement":"Decision: standardize on circuit handling across services across worker restarts.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":66}
+{"id":"m0380","statement":"Pattern: incidents cluster around idempotency after dependency bumps on the staging cluster.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":2}
+{"id":"m0381","statement":"Decision: standardize on lockfile handling across services during nightly runs.","type":"decision","scope":"session","evidence":2,"recurrence":0,"ageDays":84}
+{"id":"m0382","statement":"Context: migration configuration lives beside the deploy scripts in cold-start paths.","type":"context","scope":"session","evidence":2,"recurrence":0,"ageDays":15}
+{"id":"m0383","statement":"Context: timeout configuration lives beside the deploy scripts on the staging cluster.","type":"context","scope":"project","evidence":0,"recurrence":0,"ageDays":25}
+{"id":"m0384","statement":"Context: retry configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"session","evidence":6,"recurrence":2,"ageDays":34}
+{"id":"m0385","statement":"Context: auth configuration lives beside the deploy scripts in the release pipeline.","type":"context","scope":"project","evidence":1,"recurrence":4,"ageDays":28}
+{"id":"m0386","statement":"Pattern: incidents cluster around regex after dependency bumps under sustained load.","type":"pattern","scope":"session","evidence":0,"recurrence":0,"ageDays":1}
+{"id":"m0387","statement":"Rule: never merge while encoding checks are failing under sustained load.","type":"rule","scope":"session","evidence":0,"recurrence":4,"ageDays":2}
+{"id":"m0388","statement":"Solution: pinned versions resolved the coverage regression when the cache is empty.","type":"solution","scope":"session","evidence":0,"recurrence":3,"ageDays":7}
+{"id":"m0389","statement":"Solution: pinned versions resolved the fixtures regression under sustained load.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":16}
+{"id":"m0390","statement":"Pattern: incidents cluster around snapshot after dependency bumps in the release pipeline.","type":"pattern","scope":"session","evidence":1,"recurrence":0,"ageDays":17}
+{"id":"m0391","statement":"Decision: standardize on mocks handling across services when the cache is empty.","type":"decision","scope":"project","evidence":0,"recurrence":1,"ageDays":27}
+{"id":"m0392","statement":"Pattern: incidents cluster around teardown after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":2,"recurrence":0,"ageDays":1}
+{"id":"m0393","statement":"Pattern: incidents cluster around pool after dependency bumps in the release pipeline.","type":"pattern","scope":"session","evidence":1,"recurrence":0,"ageDays":8}
+{"id":"m0394","statement":"Context: backfill configuration lives beside the deploy scripts after the last upgrade.","type":"context","scope":"project","evidence":1,"recurrence":0,"ageDays":4}
+{"id":"m0395","statement":"Pattern: incidents cluster around schema after dependency bumps under sustained load.","type":"pattern","scope":"project","evidence":0,"recurrence":0,"ageDays":30}
+{"id":"m0396","statement":"Pattern: incidents cluster around cursor after dependency bumps during nightly runs.","type":"pattern","scope":"session","evidence":1,"recurrence":0,"ageDays":0}
+{"id":"m0397","statement":"Solution: pinned versions resolved the pagination regression on the staging cluster.","type":"solution","scope":"session","evidence":1,"recurrence":0,"ageDays":12}
+{"id":"m0398","statement":"Decision: standardize on webhook handling across services after the last upgrade.","type":"decision","scope":"project","evidence":2,"recurrence":0,"ageDays":71}
+{"id":"m0399","statement":"Decision: standardize on circuit handling across services when the cache is empty.","type":"decision","scope":"project","evidence":0,"recurrence":0,"ageDays":116}
+{"id":"m0400","statement":"Solution: pinned versions resolved the idempotency regression across worker restarts.","type":"solution","scope":"project","evidence":1,"recurrence":0,"ageDays":17}

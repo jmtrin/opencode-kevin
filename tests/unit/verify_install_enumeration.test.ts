@@ -65,7 +65,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		copyRealMigrations(migrationsDir);
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
-		expect(stdout).toContain("10 migraciones copiadas");
+		expect(stdout).toContain("11 migraciones copiadas");
 	});
 
 	it("floor check fails when fewer than 6 migration files", async () => {
@@ -85,6 +85,18 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		expect(stdout).toContain("Floor check failed");
 	});
 
+	// v1.0.0 (K10-022) — deleting a migration fails loudly: 002_indexes.sql
+	// was absent from hard-coded lists for six releases, so its presence is
+	// asserted explicitly.
+	it("fails loudly when 002_indexes.sql is missing", async () => {
+		copyRealMigrations(migrationsDir);
+		const { rmSync: rm } = await import("node:fs");
+		rm(join(migrationsDir, "002_indexes.sql"), { force: true });
+		const { stdout, exitCode } = await runVerify(migrationsDir);
+		expect(exitCode).toBe(1);
+		expect(stdout).toContain("002_indexes.sql is missing");
+	});
+
 	it("copies exactly the *.sql files found, no more no less", async () => {
 		copyRealMigrations(migrationsDir);
 		writeFileSync(join(migrationsDir, "README.md"), "# not a sql file");
@@ -92,7 +104,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
-		expect(stdout).toContain("10 migraciones copiadas");
+		expect(stdout).toContain("11 migraciones copiadas");
 	});
 
 	it("sorts files lexicographically so 010 comes after 009", async () => {
@@ -100,7 +112,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
-		expect(stdout).toContain("10 migraciones copiadas");
+		expect(stdout).toContain("11 migraciones copiadas");
 	});
 
 	it("matches the actual migrations/ directory floor on disk (6)", () => {
@@ -108,6 +120,6 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 			f.endsWith(".sql"),
 		).length;
 		expect(actualMigrations).toBeGreaterThanOrEqual(6);
-		expect(actualMigrations).toBe(10); // current state of repo
+		expect(actualMigrations).toBe(11); // current state of repo (011_v10_proven since v1.0.0)
 	});
 });

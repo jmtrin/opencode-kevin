@@ -2,7 +2,9 @@ import { effectivePrePromptCap } from "./ContextInjector.js";
 import { hasRepoIdColumn } from "./MemoryService.js";
 import type { Store } from "./Store.js";
 import type { Capabilities } from "./capabilities.js";
+import { contractDigest, describeContract } from "./contract.js";
 import type { Metrics } from "./metrics.js";
+import { BUDGETS } from "./perf.js";
 
 /**
  * v0.5.0 (K5-016 / plan §5.7) — `kevin_audit`.
@@ -122,6 +124,40 @@ export interface AuditReport {
 			by_surface: Record<string, { registered: number; verified: number }>;
 		};
 		verdict: "healthy" | "degraded" | "unknown";
+	};
+	/**
+	 * v1.0.0 (K10-020 / plan §5.6) — the perf block: per scope, the most
+	 * recent `perf_samples` aggregate row (count/p50/p95/max) plus the
+	 * stored budget and verdict. The stored aggregates are used DIRECTLY —
+	 * re-aggregating aggregates would produce a number with no meaning
+	 * (plan anti-pattern 42), and using the most recent row per scope is
+	 * exactly what `bench:check` does, so `within_budget` agrees with it
+	 * on the same data. Omitted (not zero-valued) on a pre-011 database,
+	 * following the host precedent.
+	 */
+	perf?: {
+		scopes: Record<
+			string,
+			{
+				count: number;
+				p50: number;
+				p95: number;
+				max: number;
+				budget_p95: number;
+				within_budget: boolean;
+			}
+		>;
+	};
+	/**
+	 * v1.0.0 (K10-020 / plan §5.6) — the contract block: the live contract's
+	 * identity, computed from source rather than the database, so it is
+	 * present even on a pre-011 database.
+	 */
+	contract?: {
+		contract_version: number;
+		digest: string;
+		clause_count: number;
+		deprecated_count: number;
 	};
 	partial: boolean;
 }
@@ -782,6 +818,75 @@ export function buildAudit(
 	// channels/curation which are the v0.6.0 scoreboard. Existing
 	// v0.8.0-era tests run on 007/008 stores and expect partial false.
 
+	// v1.0.0 (K10-020 / plan §5.6) — perf block: the most recent aggregate
+	// row per scope, read directly from perf_samples. A scope with no rows
+	// reports count 0, zero timings and within_budget true — never NULL,
+	// never NaN. Omitted on a pre-011 database (host precedent).
+	let perf: AuditReport["perf"];
+	let hasSchema011 = false;
+	try {
+		const row = store
+			.prepare(
+				"SELECT 1 AS n FROM sqlite_master WHERE type='table' AND name='perf_samples'",
+			)
+			.get() as { n: number } | undefined;
+		hasSchema011 = !!row;
+	} catch {
+		hasSchema011 = false;
+	}
+	if (hasSchema011) {
+		try {
+			const scopes: NonNullable<AuditReport["perf"]>["scopes"] = {};
+			const latest = store.prepare(
+				`SELECT sample_count AS count, p50_ms AS p50, p95_ms AS p95,
+						max_ms AS max, budget_p95_ms AS budget_p95, within_budget
+					 FROM perf_samples WHERE scope = ? ORDER BY id DESC LIMIT 1`,
+			);
+			for (const budget of BUDGETS) {
+				const row = latest.get(budget.scope) as
+					| {
+							count: number;
+							p50: number;
+							p95: number;
+							max: number;
+							budget_p95: number;
+							within_budget: number;
+					  }
+					| undefined;
+				scopes[budget.scope] = row
+					? {
+							count: row.count,
+							p50: row.p50,
+							p95: row.p95,
+							max: row.max,
+							budget_p95: row.budget_p95,
+							within_budget: row.within_budget === 1,
+						}
+					: {
+							count: 0,
+							p50: 0,
+							p95: 0,
+							max: 0,
+							budget_p95: budget.p95Ms,
+							within_budget: true,
+						};
+			}
+			perf = { scopes };
+		} catch {
+			perf = undefined;
+		}
+	}
+
+	// v1.0.0 (K10-020 / plan §5.6) — contract block: pure function of the
+	// source, no database involvement.
+	const liveContract = describeContract();
+	const contract = {
+		contract_version: liveContract.contractVersion,
+		digest: contractDigest(liveContract),
+		clause_count: liveContract.clauses.length,
+		deprecated_count: liveContract.clauses.filter((c) => c.deprecated).length,
+	};
+
 	return {
 		memories,
 		injections,
@@ -796,6 +901,8 @@ export function buildAudit(
 		curation,
 		team,
 		host,
+		perf,
+		contract,
 		partial,
 	};
 }

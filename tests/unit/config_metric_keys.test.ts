@@ -44,6 +44,16 @@ function seededKeys(sql: string, table: string): string[] {
 		const m = line.match(/^\s*\('([^']+)'/);
 		if (m) keys.push(m[1]);
 	}
+	// v1.0.0: migration 011 also uses one-statement-per-row seeds
+	// (`INSERT ... VALUES ('k', v);` on a single line), invisible to the
+	// block parser above.
+	const single = new RegExp(
+		`INSERT OR IGNORE INTO ${table} \\(key, value\\) VALUES \\('([^']+)'`,
+		"g",
+	);
+	for (const m of sql.matchAll(single)) {
+		if (!keys.includes(m[1])) keys.push(m[1]);
+	}
 	return keys;
 }
 
@@ -101,9 +111,11 @@ describe("K9-003 — derived registration coverage (Native)", () => {
 			"native_registration_failures",
 			"native_registrations_total",
 		]);
-		// 23 -> 27 settings, 39 -> 45 metric labels
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(27);
-		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(45);
+		// 23 -> 27 settings, 39 -> 45 metric labels (v0.9.0)
+		// v1.0.0 (K10-005 / plan §5.2): 27 -> 31 settings, 45 -> 51 metric
+		// labels with the perf/contract surface seeded by migration 011.
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(31);
+		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(51);
 	});
 
 	it("fails if a future migration seeds a key that is not registered", () => {

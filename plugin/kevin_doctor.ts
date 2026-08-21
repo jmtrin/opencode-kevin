@@ -51,6 +51,9 @@ export interface DoctorReport {
 		};
 		readonly verified: { readonly skill: boolean; readonly reference: boolean };
 	};
+	/** v1.0.0 (K10-021) — scopes whose most recent sample exceeded their
+	 * p95 budget. Omitted entirely on pre-011 databases (no table). */
+	readonly perf?: { readonly scopes_over_budget: readonly string[] };
 	readonly verdict: "healthy" | "degraded" | "unknown";
 	readonly reason: string;
 	readonly partial: boolean;
@@ -182,6 +185,24 @@ interface NativeRow {
 	verified: number;
 }
 
+/** v1.0.0 (K10-021) — scopes whose most recent perf sample breached the
+ * p95 budget. The within_budget flag is materialized by Perf.flush()
+ * against the frozen BUDGETS; this block reads that persisted verdict
+ * and never re-aggregates. A missing table (pre-011 DB) yields no
+ * block rather than an empty one, matching the hooks precedent. */
+function perfOverBudget(store: Store): string[] | null {
+	try {
+		const rows = store
+			.prepare(
+				"SELECT DISTINCT scope FROM perf_samples WHERE within_budget = 0 ORDER BY scope",
+			)
+			.all() as { scope: string }[];
+		return rows.map((r) => r.scope);
+	} catch {
+		return null;
+	}
+}
+
 function lastRegistration(
 	store: Store,
 	surface: "skill" | "reference",
@@ -214,7 +235,7 @@ export function buildDoctor(
 	// construction — kevin_doctor never re-probes (K9-004: probe once,
 	// freeze, reuse).
 	const hooks = hooksBlock(store);
-	const verdict = reduceVerdict(
+	let verdict = reduceVerdict(
 		hooks.hooks.map((h) => ({
 			hook: h.hook as HookName,
 			experimental: h.experimental,
@@ -226,6 +247,20 @@ export function buildDoctor(
 			deadSince: h.since ?? null,
 		})),
 	);
+	// v1.0.0 (K10-021) — a slow plugin is not healthy even when every
+	// hook is live. A budget breach degrades the verdict and names the
+	// scope; a dead hook keeps its reason; `unknown` is never rounded up.
+	const breaches = perfOverBudget(store);
+	if (
+		breaches !== null &&
+		breaches.length > 0 &&
+		verdict.verdict !== "degraded"
+	) {
+		verdict = {
+			verdict: "degraded",
+			reason: `perf budget exceeded: ${breaches.join(", ")}`,
+		};
+	}
 	const zod = countZodCopies(options.zodRoot ?? process.cwd());
 	const enabled =
 		settings.getSetting("native_registration_enabled", "0") === "1";
@@ -255,6 +290,7 @@ export function buildDoctor(
 		},
 		verdict: verdict.verdict,
 		reason: verdict.reason,
+		...(breaches !== null ? { perf: { scopes_over_budget: breaches } } : {}),
 		partial: hooks.partial,
 	};
 }

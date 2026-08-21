@@ -1,3 +1,4 @@
+// v1.0.0 (K10-002 / plan §3.1e) — editor and `typecheck` config spanning tests/scripts/plugin deliberately; narrowing `include` would relocate the published entry point.
 {
 	"compilerOptions": {
 		"target": "ES2022",
