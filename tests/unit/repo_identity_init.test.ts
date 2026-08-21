@@ -45,6 +45,9 @@ describe("K8-006 — resolve() runs exactly once at plugin init", () => {
 			retrospectivesDir: join(tmpRoot, "retrospectives"),
 		});
 		expect(spy).toHaveBeenCalledTimes(1);
-		expect(spy).toHaveBeenCalledWith(process.cwd());
+		// v0.9.0 (K9-006 / plan §5.1-5.2, D9-13): the host surface is now
+		// passed alongside the cwd so the host worktree can be the third
+		// identity source; the cwd argument is unchanged.
+		expect(spy).toHaveBeenCalledWith(process.cwd(), expect.anything());
 	});
 });

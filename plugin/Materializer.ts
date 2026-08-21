@@ -39,6 +39,12 @@ export interface BundleTarget {
 
 export const SKILL_TOPIC = "project-knowledge";
 
+/**
+ * v0.9.0 (K9-016 / plan §5.4, D9-10) — the native registration surfaces.
+ * Registration replaces emission; they are never both active.
+ */
+export type NativeSurface = "skill" | "reference";
+
 /** Hash-like noise: FNV-1a output is 16 lowercase hex chars; an 8+ hex
  * token is indistinguishable from a fingerprint prefix and must never
  * become a topic (D6-14). */
@@ -190,11 +196,33 @@ export class Materializer {
 	/** `root` is injectable for tests; production defaults to ~/.opencode-kevin. */
 	private readonly root: string;
 
+	/**
+	 * v0.9.0 (K9-016 / plan §5.4, D9-10) — the mutual-exclusion guard.
+	 * A surface `attachNative()` registered is skipped by `materialize()`
+	 * for that surface only; the other surface keeps emitting.
+	 */
+	private readonly nativeRegistered = new Set<NativeSurface>();
+
 	constructor(
 		private readonly store: Store,
 		options: { root?: string } = {},
 	) {
 		this.root = options.root ?? join(homedir(), ".opencode-kevin");
+	}
+
+	/**
+	 * v0.9.0 (K9-016 / plan §5.4, D9-10) — record whether the surface was
+	 * registered natively. Called at attach time (index.ts wiring, K9-018)
+	 * with each `NativeRegistration.registered` flag.
+	 */
+	markNativeRegistered(surface: NativeSurface, registered: boolean): void {
+		if (registered) this.nativeRegistered.add(surface);
+		else this.nativeRegistered.delete(surface);
+	}
+
+	/** v0.9.0 (K9-016 / plan §5.4, D9-10) — is the surface registered natively? */
+	hasNativeRegistration(surface: NativeSurface): boolean {
+		return this.nativeRegistered.has(surface);
 	}
 
 	/** The curated, active memories — the knowledge the pull channels publish. */
@@ -262,26 +290,34 @@ export class Materializer {
 	 * a call site of `write()` — the single write FUNCTION with two
 	 * constrained targets: `kevin_approve` reaches `agents_md_path`, this
 	 * module reaches `~/.opencode-kevin` only (D6-07; enforced by K6-020).
+	 *
+	 * v0.9.0 (K9-016 / plan §5.4, D9-10) — the guard: a surface registered
+	 * natively by `attachNative()` is skipped here for that surface only.
+	 * Both active would put the curated skill in front of the model twice
+	 * from two sources that can disagree; neither active would silently
+	 * remove the feature on hosts that gained the subpath.
 	 */
 	materialize(writer: ArtifactWriter): MaterializedBundle[] {
 		const pending: { topic: string; path: string; body: string }[] = [];
 		const rows = this.curatedRows();
 		const skillBody = renderRows(rows);
-		if (skillBody !== "") {
+		if (skillBody !== "" && !this.nativeRegistered.has("skill")) {
 			pending.push({
 				topic: SKILL_TOPIC,
 				path: join(this.root, "skills", "project-knowledge.md"),
 				body: skillBody,
 			});
 		}
-		for (const group of this.groupByTopic(rows)) {
-			const body = renderRows(group.rows);
-			if (body === "") continue;
-			pending.push({
-				topic: group.topic,
-				path: join(this.root, "refs", `${group.topic}.md`),
-				body,
-			});
+		if (!this.nativeRegistered.has("reference")) {
+			for (const group of this.groupByTopic(rows)) {
+				const body = renderRows(group.rows);
+				if (body === "") continue;
+				pending.push({
+					topic: group.topic,
+					path: join(this.root, "refs", `${group.topic}.md`),
+					body,
+				});
+			}
 		}
 		return pending.map((bundle) => ({
 			topic: bundle.topic,

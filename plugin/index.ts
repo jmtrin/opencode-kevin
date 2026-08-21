@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Hooks, Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
 import { Archiver } from "./Archiver.js";
 import { ArtifactWriter } from "./ArtifactWriter.js";
@@ -12,6 +12,7 @@ import { type ChatMessage, ContextInjector } from "./ContextInjector.js";
 import { ConventionMiner } from "./ConventionMiner.js";
 import { Curator } from "./Curator.js";
 import { Feedback } from "./Feedback.js";
+import { HookLiveness } from "./HookLiveness.js";
 import { InjectionLedger } from "./InjectionLedger.js";
 import { Materializer, SKILL_TOPIC } from "./Materializer.js";
 import {
@@ -34,17 +35,22 @@ import { ToolCallObserver } from "./ToolCallObserver.js";
 import { probe } from "./capabilities.js";
 import { computeConfidence } from "./confidence.js";
 import { fingerprint } from "./fingerprint.js";
+import { probeHost, summarize } from "./host.js";
 import { kevinApprove } from "./kevin_approve.js";
 import { buildAudit } from "./kevin_audit.js";
 import { executeKevinConflicts } from "./kevin_conflicts.js";
+import { buildDoctor } from "./kevin_doctor.js";
 import { buildKevinFacts } from "./kevin_facts.js";
+import { handleNative } from "./kevin_native.js";
 import { kevinPropose } from "./kevin_propose.js";
 import { kevinPublish } from "./kevin_publish.js";
 import { kevinWhy } from "./kevin_why.js";
 import type { WhyResult } from "./kevin_why.js";
 import { Metrics } from "./metrics.js";
+import { attachNative } from "./native.js";
 import { exportMarkdown, exportOkf } from "./okf-export.js";
 import { importOkf } from "./okf-import.js";
+import { uuidv7 } from "./uuid.js";
 
 export interface KevinPluginOptions {
 	dbPath?: string;
@@ -109,6 +115,17 @@ export const KEVIN_CONFIG_KEYS = [
 	"share_requires_approval",
 	"author_identity_mode",
 	"shared_confidence_floor",
+	// v0.9.0 (K9-003 / plan §8.10) — the four keys seeded by migration 010
+	// section 5. Omitting these makes `kevin_config set` return
+	// { error: "unknown_key" } while `kevin_config list` still shows them.
+	// hook_liveness_enabled and the two registration/history flags must be
+	// compared with === "1" (they are TEXT, and '0' is truthy);
+	// dead_hook_report_threshold is a string read with Number.parseInt and
+	// clamped to [1, 1000], NaN defaulting to 3 (conventions, §2; D9-09).
+	"hook_liveness_enabled",
+	"native_registration_enabled",
+	"host_probe_history_enabled",
+	"dead_hook_report_threshold",
 ] as const;
 
 // v0.7.0 (K7-003 / plan §5.6, D7-12) — the explicit VALUE domain for
@@ -120,7 +137,7 @@ export const KEVIN_CONFIG_KEYS = [
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
 
 /** Plugin release version — stamped into generated files (K8-021/027). */
-export const KEVIN_VERSION = "0.8.0";
+export const KEVIN_VERSION = "0.9.0";
 
 function resolveMigrationsDir(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
@@ -322,7 +339,12 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// (plan §5.7 fallback; D2-11 project scoping wired into the live path).
 	// v0.8.0 (K8-006 / plan §5.1): the repository identity resolves once at
 	// init, next to the project id, and never on a hot path.
-	const identity = RepoIdentity.resolve(process.cwd());
+	// v0.9.0 (K9-004/K9-006 / plan §5.1-5.2, D9-12/D9-13): the host surface
+	// is probed once at construction — frozen, never re-probed — and feeds
+	// the identity chain as the third source, above `path` and below
+	// `declared`/`remote`.
+	const host = await probeHost(input);
+	const identity = RepoIdentity.resolve(process.cwd(), host);
 	const projectId = identity.projectId;
 	const repoId = identity.repoId;
 	const identitySource = identity.source;
@@ -336,6 +358,37 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// not what the session is scoped on.
 	let sessionIdentity: ResolvedIdentity = identity;
 	const memoryService = new MemoryService(store, metrics, repoId);
+	// v0.9.0 (K9-008 / plan §5.1, D9-08) — host probe history: one
+	// host_probes row per construction when host_probe_history_enabled
+	// is explicitly '1' (TEXT comparison — truthiness would fire on
+	// '0'). Append-only and unbounded by design: off by default, one
+	// row per process start, no retention policy.
+	if (memoryService.getSetting("host_probe_history_enabled", "0") === "1") {
+		store
+			.prepare(
+				`INSERT INTO host_probes
+				 (id, plugin_version, flavour, has_shell, v2_skill, v2_reference, notes)
+				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.run(
+				uuidv7(),
+				host.pluginVersion,
+				host.flavour,
+				host.hasShell ? 1 : 0,
+				host.v2.skill ? 1 : 0,
+				host.v2.reference ? 1 : 0,
+				host.notes.join("\n"),
+			);
+	}
+	// v0.9.0 (K9-009 / plan §5.3, D9-07/D9-08) — hook liveness. Wraps every
+	// hook with a success-path recorder; counters persist on the
+	// metrics.flush() cadence. Explicit === "1" TEXT comparison
+	// (kevin_settings.value is TEXT).
+	const liveness = new HookLiveness(store, {
+		enabled: memoryService.getSetting("hook_liveness_enabled", "1") === "1",
+		thresholdText: memoryService.getSetting("dead_hook_report_threshold", "3"),
+		pluginVersion: host.pluginVersion,
+	});
 	// v0.7.0 (K7-009 / plan §5.1, D7-13) — the repository truth scanner reads
 	// the JSON project files. Runs once at init, gated by repo_truth_enabled.
 	const projectRoot = opts.projectRoot ?? process.cwd();
@@ -446,6 +499,26 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	mkdirSync(join(materializerRoot, "refs"), { recursive: true });
 	const capabilities = probe(input);
 	const materializer = new Materializer(store, { root: materializerRoot });
+	// v0.9.0 (K9-016 / plan §5.4, D9-10) — native registration replaces
+	// file emission. When attachNative returns a registration for a
+	// surface, the corresponding *_emission_enabled path is skipped for
+	// that surface only. The guard lives in Materializer.
+	try {
+		const nativeReg = await attachNative(host, {
+			materializer,
+			settings: memoryService,
+			store,
+		});
+		if (nativeReg) {
+			materializer.markNativeRegistered("skill", nativeReg.registered.skill);
+			materializer.markNativeRegistered(
+				"reference",
+				nativeReg.registered.reference,
+			);
+		}
+	} catch {
+		// attachNative never throws (D9-12) — guard against unexpected rejection.
+	}
 	// v0.6.0 (K6-018 / plan §8.14, D6-13) — skill emission at session
 	// start, behind the capability probe AND `skill_emission_enabled`
 	// (default '0'). Both no-op paths are silent: "unavailable" (v1 host)
@@ -580,7 +653,11 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		);
 	}
 
-	return {
+	// v0.9.0 (K9-009 / plan §5.3) — the hooks object is wrapped here at the
+	// point of return: transparent (identical keys/arity/returns/errors),
+	// recording fires on the success path only. With hook_liveness_enabled
+	// '0' the wrapper returns this same object untouched.
+	return liveness.wrap({
 		tool: {
 			kevin_save: tool({
 				description:
@@ -988,8 +1065,8 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							// monotone across releases; K6-024 extends this
 							// block with the remaining v0.6 fields. v0.8.0
 							// (K8-025) — 18 v0.7 + kevin_project +
-							// kevin_share + kevin_sync = 21.
-							tool_count: 21,
+							// kevin_native = 23.
+							tool_count: 23,
 							v07,
 							memories_reflector: memoriesReflector,
 							memories_agent: memoriesAgent,
@@ -1024,6 +1101,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							v06,
 							// v0.8.0 (K8-025) — omitted on pre-009 DBs.
 							v08,
+							// v0.9.0 (K9-008 / plan §5.1) — one-line host
+							// summary: version, flavour, shell, v2 flags;
+							// no paths, no ids (charset-safe for log lines).
+							host_summary: summarize(host),
 						}),
 					};
 				},
@@ -1053,7 +1134,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 											path: res.path,
 											id: res.id,
 											created_at: res.createdAt,
-											generator: "opencode-kevin/0.8.0",
+											generator: "opencode-kevin/0.9.0",
 										}
 									: {
 											action: "init",
@@ -1216,6 +1297,50 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					return {
 						title: "Auditoria de Kevin",
 						output: JSON.stringify(payload),
+					};
+				},
+			}),
+			// v0.9.0 (K9-018 / plan §5.5, D9-09) — kevin_doctor: pure
+			// reads, no writes, no probe re-run, no model call. The host
+			// block comes from the frozen init-time probe, hooks from the
+			// persisted hook_liveness table, native from the last
+			// registration per surface, verdict from reduceVerdict.
+			kevin_doctor: tool({
+				description:
+					"Doctor de Kevin (v0.9.0): salud del host, hooks, dependencias y registros nativos. Solo lectura, sin LLM ni writes, invocable en cualquier momento. Devuelve host (version, flavour, shell, v2), hooks ordenados dead primero, dependencies (zod_copies), native (enabled, registered/verified por surface), verdict (healthy|degraded|unknown) y reason. Output pensado para pegar en un issue: sin filesystem paths ni session ids.",
+				args: {},
+				async execute() {
+					const report = buildDoctor(store, host, memoryService);
+					return {
+						title: "Doctor de Kevin",
+						output: JSON.stringify(report),
+					};
+				},
+			}),
+			// v0.9.0 (K9-019 / plan §5.5, D9-12) — kevin_native: inspect
+			// and toggle native_registration_enabled. enable/disable write
+			// kevin_settings only and never re-attach — the probe is
+			// frozen for the process lifetime, so a restart is the
+			// requirement for the change to take effect. `enable` on a
+			// host without the v2 subpath succeeds and reports the
+			// registration as inert: the setting is a statement of intent.
+			kevin_native: tool({
+				description:
+					"Registros nativos v2 (v0.9.0): show reporta el setting native_registration_enabled, si el host resuelto expone el subpath v2 (effective) y las ultimas filas de native_registrations por surface; enable/disable escriben el setting ('1'/'0' TEXT) y NO re-adjuntan — el probe es frozen para la vida del proceso, un restart del host es el requisito para que el cambio tenga efecto; enable en un host sin subpath v2 exito con registration inert.",
+				args: {
+					action: tool.schema
+						.enum(["show", "enable", "disable"])
+						.default("show"),
+				},
+				async execute(args) {
+					const report = handleNative(args.action, {
+						host,
+						store,
+						settings: memoryService,
+					});
+					return {
+						title: "Kevin native",
+						output: JSON.stringify(report),
 					};
 				},
 			}),
@@ -1751,6 +1876,16 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		},
 
 		"tool.execute.after": async (hookInput, output) => {
+			// v0.9.0 (K9-010 / plan §5.3) — checkpoint: the session reached a
+			// model turn, so the system prompt was assembled and
+			// `experimental.chat.system.transform` MUST have been offered.
+			// Deduped per session inside HookLiveness.expect.
+			if (hookInput.sessionID) {
+				liveness.expect(
+					"experimental.chat.system.transform",
+					hookInput.sessionID,
+				);
+			}
 			const meta = (output.metadata ?? {}) as Record<string, unknown>;
 			const outputText = String(output.output ?? "");
 			const stderr = String(meta.stderr ?? "");
@@ -1866,7 +2001,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			);
 		},
 
-		event: async ({ event }) => {
+		event: async ({ event }: { event: unknown }) => {
 			const type = (event as { type?: string }).type;
 			const props =
 				(event as { properties?: Record<string, unknown> }).properties ?? {};
@@ -1991,6 +2126,9 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					}
 				}
 				metrics.flush();
+				// v0.9.0 (K9-009 / plan §5.3) — liveness counters persist on
+				// the same cadence as the metrics.
+				liveness.flush();
 			} else if (type === "session.next.tool.failed") {
 				const callID = props.callID as string | undefined;
 				const sessionID = props.sessionID as string | undefined;
@@ -2006,10 +2144,11 @@ export const KevinPlugin: Plugin = async (input, options) => {
 
 		dispose: async () => {
 			await Promise.allSettled([...pending]);
+			liveness.flush();
 			metrics.close();
 			store.close();
 		},
-	};
+	} as Hooks);
 };
 
 export default KevinPlugin;

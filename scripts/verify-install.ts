@@ -1,7 +1,6 @@
 import { execSync } from "node:child_process";
 import {
 	copyFileSync,
-	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
@@ -60,50 +59,31 @@ async function main(): Promise<void> {
 	const tmp = mkdtempSync(join(tmpdir(), "kevin-verify-"));
 	const migrationsDir = join(tmp, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
-	const sqlSrc = join(process.cwd(), "migrations", "001_initial.sql");
-	const sql003Src = join(process.cwd(), "migrations", "003_v02_signal.sql");
-	const sql004Src = join(process.cwd(), "migrations", "004_v03_knowledge.sql");
-	const sql005Src = join(process.cwd(), "migrations", "005_v04_signal.sql");
-	const sql006Src = join(process.cwd(), "migrations", "006_v05_glassbox.sql");
-	const sql007Src = join(process.cwd(), "migrations", "007_v06_pull.sql");
-	const sql008Src = join(process.cwd(), "migrations", "008_v07_truth.sql");
-	const sql009Src = join(process.cwd(), "migrations", "009_v08_team.sql");
-	if (!existsSync(sqlSrc)) {
-		console.log("\u2717 No existe migrations/001_initial.sql");
-		failed++;
+
+	// v0.9.0 (K9-021 / plan §8.11) — read migrations/ dynamically, no
+	// hard-coded list; floor = 6 migrations as of this release.
+	const srcMigrations = process.env.MIGRATIONS_DIR
+		? join(process.env.MIGRATIONS_DIR)
+		: join(process.cwd(), "migrations");
+	let sqlFiles: string[];
+	try {
+		sqlFiles = readdirSync(srcMigrations)
+			.filter((f) => f.endsWith(".sql"))
+			.sort();
+	} catch {
+		console.error(
+			"Floor check failed: migrations directory not found or unreadable",
+		);
 		process.exit(1);
 	}
-	copyFileSync(sqlSrc, join(migrationsDir, "001_initial.sql"));
-	const sql002Src = join(process.cwd(), "migrations", "002_indexes.sql");
-	if (existsSync(sql002Src)) {
-		copyFileSync(sql002Src, join(migrationsDir, "002_indexes.sql"));
+	if (sqlFiles.length < 6) {
+		console.error(
+			`Floor check failed: expected at least 6 migration files, found ${sqlFiles.length}`,
+		);
+		process.exit(1);
 	}
-	if (existsSync(sql003Src)) {
-		copyFileSync(sql003Src, join(migrationsDir, "003_v02_signal.sql"));
-	}
-	if (existsSync(sql004Src)) {
-		copyFileSync(sql004Src, join(migrationsDir, "004_v03_knowledge.sql"));
-	}
-	if (existsSync(sql005Src)) {
-		copyFileSync(sql005Src, join(migrationsDir, "005_v04_signal.sql"));
-	}
-	if (existsSync(sql006Src)) {
-		copyFileSync(sql006Src, join(migrationsDir, "006_v05_glassbox.sql"));
-	}
-	// v0.6.0 (K6-003 / plan §8.15) — without this entry `npm run verify`
-	// silently never exercises migration 007.
-	if (existsSync(sql007Src)) {
-		copyFileSync(sql007Src, join(migrationsDir, "007_v06_pull.sql"));
-	}
-	// v0.7.0 (K7-003 / plan §8.11) — without this entry `npm run verify`
-	// silently never exercises migration 008.
-	if (existsSync(sql008Src)) {
-		copyFileSync(sql008Src, join(migrationsDir, "008_v07_truth.sql"));
-	}
-	// v0.8.0 (K8-004 / plan §8.11) — without this entry `npm run verify`
-	// silently never exercises migration 009.
-	if (existsSync(sql009Src)) {
-		copyFileSync(sql009Src, join(migrationsDir, "009_v08_team.sql"));
+	for (const f of sqlFiles) {
+		copyFileSync(join(srcMigrations, f), join(migrationsDir, f));
 	}
 
 	const store = new Store({ path: ":memory:" });
@@ -112,48 +92,18 @@ async function main(): Promise<void> {
 			store.prepare("SELECT 1").get();
 		});
 
-		// v0.8.0 (K8-004 / plan §8.11) — the expected count is derived from
-		// the source directory, not hard-coded: the second acceptance
-		// criterion requires that deleting a migration from `migrations/`
-		// degrades to a silently weaker verification (the guard holds) rather
-		// than a failure. Forgetting the copy line while the file exists
-		// still fails, because the copied count then no longer matches.
-		const expectedSqlCount = readdirSync(
-			join(process.cwd(), "migrations"),
-		).filter((f) => f.endsWith(".sql")).length;
-		check(`${expectedSqlCount} migraciones copiadas`, () => {
+		// v0.9.0 (K9-021) — count check uses the dynamic list; no explicit
+		// per-migration checks since the dynamic copy covers all.
+		check(`${sqlFiles.length} migraciones copiadas`, () => {
 			const files = readdirSync(migrationsDir).filter((f) =>
 				f.endsWith(".sql"),
 			);
-			if (files.length !== expectedSqlCount) {
+			if (files.length !== sqlFiles.length) {
 				throw new Error(
-					`esperadas ${expectedSqlCount} migraciones, encontradas ${files.length}: ${files.join(", ")}`,
+					`esperadas ${sqlFiles.length} migraciones, encontradas ${files.length}: ${files.join(", ")}`,
 				);
 			}
 		});
-
-		// v0.7.0 (K7-003 / plan §8.11) — name the migration explicitly so the
-		// release gate output proves 008 was exercised, not just counted.
-		check("008_v07_truth.sql presente", () => {
-			if (!existsSync(join(migrationsDir, "008_v07_truth.sql"))) {
-				throw new Error("falta migrations/008_v07_truth.sql");
-			}
-		});
-
-		// v0.8.0 (K8-004 / plan §8.11) — name the migration explicitly so the
-		// release gate output proves 009 was exercised, not just counted. The
-		// check lives under the same `existsSync` guard as the copy, so a
-		// missing source file makes the line disappear from the output
-		// instead of failing the run (acceptance criterion 2); the derived
-		// count check above still fails when the copy line is forgotten while
-		// the file exists.
-		if (existsSync(sql009Src)) {
-			check("009_v08_team.sql presente", () => {
-				if (!existsSync(join(migrationsDir, "009_v08_team.sql"))) {
-					throw new Error("falta migrations/009_v08_team.sql");
-				}
-			});
-		}
 
 		await checkAsync("Migracion 001 aplica", async () => {
 			await new Migrate(store, migrationsDir).run();
@@ -234,7 +184,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log(`\n${passed} pasaron, ${failed} fallaron.`);
-	if (failed > 0) process.exit(1);
+	if (failed > 0) throw new Error("verification failed");
 }
 
 await main();

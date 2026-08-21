@@ -10,6 +10,20 @@ export interface MigrateResult {
 
 export type PostApplyHook = (store: Store) => void;
 
+// v0.9.0 (K9-001 / plan §5.3, D9-08) — the six hooks Kevin registers, in
+// hook-object order. Canonical list: the "010" post-apply hook seeds
+// hook_liveness from it, and HookLiveness (K9-009) wraps exactly these
+// names, so a future hook added here is visible in the table on the next
+// migration run.
+export const HOOK_NAMES = [
+	"tool.execute.before",
+	"tool.execute.after",
+	"chat.message",
+	"experimental.chat.system.transform",
+	"experimental.session.compacting",
+	"event",
+] as const;
+
 // Built-in post-apply hooks, keyed by migration version. Each hook runs inside
 // the same transaction as the migration's DDL, so a hook failure rolls back the
 // whole migration. Hooks run when their version is applied. Migration 008's
@@ -169,6 +183,37 @@ const DEFAULT_POST_APPLY_HOOKS: Record<string, PostApplyHook> = {
 			)
 			.run();
 	},
+	// v0.9.0 (K9-001 / plan §6.1, D9-08) — Native: three operations, all
+	// idempotent by design.
+	// 1. Seed one hook_liveness row per name in HOOK_NAMES, with the
+	//    experimental flag derived from the hook's own `experimental.`
+	//    prefix and every counter at zero. Seeding eagerly (INSERT OR
+	//    IGNORE) makes a hook that has never fired a visible row with
+	//    fire_count = 0, not an absent row indistinguishable from a hook
+	//    Kevin does not register.
+	// 2. Re-derive hooks_dead_total from hook_liveness state rather than
+	//    trusting an incremented value (same discipline as "006"-"009").
+	// 3. Normalize any experimental flag that disagrees with its own
+	//    hook column's prefix — cheap, and it repairs a row hand-edited
+	//    during debugging.
+	"010": (store) => {
+		const seed = store.prepare(
+			"INSERT OR IGNORE INTO hook_liveness (hook, experimental) VALUES (?, ?)",
+		);
+		for (const name of HOOK_NAMES) {
+			seed.run(name, name.startsWith("experimental.") ? 1 : 0);
+		}
+		store
+			.prepare(
+				"UPDATE kevin_metrics SET value = (SELECT COUNT(*) FROM hook_liveness WHERE dead_since IS NOT NULL) WHERE key = 'hooks_dead_total'",
+			)
+			.run();
+		store
+			.prepare(
+				"UPDATE hook_liveness SET experimental = CASE WHEN hook LIKE 'experimental.%' THEN 1 ELSE 0 END",
+			)
+			.run();
+	},
 };
 
 export class Migrate {
@@ -212,11 +257,14 @@ export class Migrate {
 			// v0.7.0 (K7-002) — heal drift in the 008 counters on a no-op
 			// startup while preserving `applied: []` idempotency. v0.8.0
 			// (K8-002 / plan §6.1) extends the same repair to the 009
-			// back-fill and the shared_entries_total re-derivation: both
-			// hooks are idempotent by guarded updates and re-derivation,
-			// so a no-op startup can heal a crash that landed between the
-			// ALTER and the hook without re-applying DDL.
-			if (from === "008" || from === "009") {
+			// back-fill and the shared_entries_total re-derivation, and
+			// v0.9.0 (K9-001 / plan §6.1) to the 010 seeding,
+			// hooks_dead_total re-derivation and experimental
+			// normalization: all three hooks are idempotent by guarded
+			// updates and re-derivation, so a no-op startup can heal a
+			// crash that landed between the DDL and the hook without
+			// re-applying DDL.
+			if (from === "008" || from === "009" || from === "010") {
 				const repairHook = this.postApplyHooks.get(from);
 				if (repairHook) this.store.transaction(() => repairHook(this.store));
 			}

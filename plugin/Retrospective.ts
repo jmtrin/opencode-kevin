@@ -94,6 +94,15 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	okf_merge_folds: "Fusiones OKF (folds)",
 	rekey_events: "Re-keys de repositorio",
 	injections_from_shared: "Inyecciones desde la capa compartida",
+	// v0.9.0 (K9-003 / plan §8.16) — the K9 metric keys need their own
+	// Spanish labels; the audit regression forbids raw-key fallback for any
+	// key in METRIC_KEYS.
+	hook_fires_total: "Disparos de hooks (totales)",
+	hook_errors_total: "Errores de hooks",
+	hooks_dead_total: "Hooks muertos",
+	injections_suppressed_dead_hook: "Inyecciones suprimidas (hook muerto)",
+	native_registrations_total: "Registros nativos (totales)",
+	native_registration_failures: "Fallos de registro nativo",
 };
 
 function originLabel(

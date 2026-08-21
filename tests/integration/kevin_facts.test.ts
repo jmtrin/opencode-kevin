@@ -93,14 +93,14 @@ async function runFacts(
 }
 
 describe("K7-009 — kevin_facts tool", () => {
-	it("registers the tool and the ladder is at 21 tools (v0.8.0 adds kevin_project, kevin_share, kevin_sync)", async () => {
+	it("registers the tool and the ladder is at 23 tools (v0.9.0 adds kevin_doctor, kevin_native)", async () => {
 		const projectRoot = mkdtempSync(join(tmpRoot, "proj"));
 		drops.push(projectRoot);
 		const hooks = await boot(projectRoot);
 		expect(hooks.tool?.kevin_facts).toBeDefined();
 		const toolNames = Object.keys(hooks.tool ?? {});
 		expect(toolNames).toContain("kevin_facts");
-		expect(toolNames).toHaveLength(21);
+		expect(toolNames).toHaveLength(23);
 	});
 
 	it("default invocation reads stored facts and performs no JSON.parse; refresh:true re-scans", async () => {

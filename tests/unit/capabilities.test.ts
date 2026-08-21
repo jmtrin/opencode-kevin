@@ -68,10 +68,12 @@ describe("K6-016 — capabilities probe (plan §5.7, D6-13)", () => {
 		});
 	});
 
-	it("package.json still pins @opencode-ai/plugin ^1.17.6", () => {
+	// v0.9.0 (K9-007 / plan §3.4, D9-03): the pin rose to ^1.18.16 on the
+	// byte-level proof that dist/index.d.ts is SHA-256-identical to 1.17.6's.
+	it("package.json still pins @opencode-ai/plugin ^1.18.16", () => {
 		const pkg = JSON.parse(
 			readFileSync(join(process.cwd(), "package.json"), "utf8"),
 		) as { dependencies: Record<string, string> };
-		expect(pkg.dependencies["@opencode-ai/plugin"]).toBe("^1.17.6");
+		expect(pkg.dependencies["@opencode-ai/plugin"]).toBe("^1.18.16");
 	});
 });

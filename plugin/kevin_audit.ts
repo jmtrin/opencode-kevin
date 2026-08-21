@@ -97,6 +97,32 @@ export interface AuditReport {
 		precision_local?: number;
 		reason?: "immature_db";
 	};
+	/**
+	 * v0.9.0 (K9-020 / plan §5.5) — the host block, alongside the v0.7.0
+	 * `mix` and v0.8.0 `team` blocks. Pure SQL: hook states in aggregate
+	 * (live/dead/unknown counts, fires and errors totals), the resolved
+	 * plugin version, native registration outcomes per surface, and the
+	 * verdict derivable from the database alone. On a pre-010 database
+	 * the block is omitted (not zero-valued) and `"partial": true` set,
+	 * following the channels/curation precedent.
+	 */
+	host?: {
+		plugin_version: string | null;
+		hooks: {
+			live: number;
+			dead: number;
+			unknown: number;
+			fires_total: number;
+			errors_total: number;
+		};
+		native: {
+			total: number;
+			verified: number;
+			failures: number;
+			by_surface: Record<string, { registered: number; verified: number }>;
+		};
+		verdict: "healthy" | "degraded" | "unknown";
+	};
 	partial: boolean;
 }
 
@@ -653,6 +679,109 @@ export function buildAudit(
 		partial = true;
 	}
 
+	// v0.9.0 (K9-020 / plan §5.5) — the host block, mirroring the
+	// channels/curation precedent: gated on migration 010's schema, pure
+	// SQL, omitted (not zero-valued) on a pre-010 database with
+	// `partial` set. The verdict is derived entirely in SQL: degraded
+	// when any hook is dead, unknown when no hook has been observed at
+	// all (never rounded to healthy), healthy otherwise.
+	let host: AuditReport["host"];
+	let hasSchema010 = false;
+	try {
+		const row = store
+			.prepare(
+				"SELECT 1 AS n FROM sqlite_master WHERE type='table' AND name='hook_liveness'",
+			)
+			.get() as { n: number } | undefined;
+		hasSchema010 = !!row;
+	} catch {
+		hasSchema010 = false;
+	}
+	if (hasSchema010) {
+		try {
+			const hookRow = store
+				.prepare(
+					`SELECT
+					 COUNT(*) AS total,
+					 SUM(CASE WHEN dead_since IS NOT NULL THEN 1 ELSE 0 END) AS dead,
+					 SUM(CASE WHEN fire_count > 0 THEN 1 ELSE 0 END) AS live,
+					 SUM(fire_count) AS fires_total,
+					 SUM(error_count) AS errors_total
+					 FROM hook_liveness`,
+				)
+				.get() as {
+				total: number;
+				dead: number;
+				live: number;
+				fires_total: number | null;
+				errors_total: number | null;
+			};
+			const dead = hookRow.dead ?? 0;
+			const live = hookRow.live ?? 0;
+			const unknown = hookRow.total - dead - live;
+			const versionRow = store
+				.prepare(
+					`SELECT plugin_version FROM host_probes
+					 ORDER BY probed_at DESC, id DESC LIMIT 1`,
+				)
+				.get() as { plugin_version: string | null } | undefined;
+			const regRows = store
+				.prepare(
+					`SELECT surface, registered, verified, COUNT(*) AS n
+					 FROM native_registrations
+					 GROUP BY surface, registered, verified`,
+				)
+				.all() as {
+				surface: string;
+				registered: number;
+				verified: number;
+				n: number;
+			}[];
+			const bySurface: Record<
+				string,
+				{ registered: number; verified: number }
+			> = {};
+			let total = 0;
+			let verified = 0;
+			let failures = 0;
+			for (const row of regRows) {
+				total += row.n;
+				if (row.verified === 1) verified += row.n;
+				if (row.registered === 1 && row.verified === 0) failures += row.n;
+				const acc = bySurface[row.surface] ?? { registered: 0, verified: 0 };
+				acc.registered += row.registered === 1 ? row.n : 0;
+				acc.verified += row.verified === 1 ? row.n : 0;
+				bySurface[row.surface] = acc;
+			}
+			host = {
+				plugin_version: versionRow?.plugin_version ?? null,
+				hooks: {
+					live,
+					dead,
+					unknown: unknown < 0 ? 0 : unknown,
+					fires_total: hookRow.fires_total ?? 0,
+					errors_total: hookRow.errors_total ?? 0,
+				},
+				native: { total, verified, failures, by_surface: bySurface },
+				verdict:
+					dead > 0
+						? "degraded"
+						: hookRow.total === 0
+							? "unknown"
+							: unknown > 0
+								? "unknown"
+								: "healthy",
+			};
+		} catch {
+			partial = true;
+			host = undefined;
+		}
+	}
+	// v0.9.0 (K9-020): pre-010 databases simply omit `host` without
+	// marking the report partial — the host block is additive, unlike
+	// channels/curation which are the v0.6.0 scoreboard. Existing
+	// v0.8.0-era tests run on 007/008 stores and expect partial false.
+
 	return {
 		memories,
 		injections,
@@ -666,6 +795,7 @@ export function buildAudit(
 		channels,
 		curation,
 		team,
+		host,
 		partial,
 	};
 }

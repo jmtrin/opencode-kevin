@@ -51,7 +51,7 @@ For a **single project**, put the same `plugin` array in `./opencode.json` or `.
 
 ### 2. Restart OpenCode
 
-Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, Kevin exposes 21 tools, including `kevin_facts`, `kevin_conflicts`, `kevin_project`, `kevin_share` and `kevin_sync`.
+Config is loaded once at startup and is **not hot-reloaded** — quit and reopen OpenCode after editing. On start, Kevin exposes 23 tools, including `kevin_facts`, `kevin_conflicts`, `kevin_project`, `kevin_share`, `kevin_sync`, `kevin_doctor` and `kevin_native`.
 
 Contradictions de-rank memories and surface conflicts. They never delete, stale, archive, or auto-resolve a memory.
 
@@ -156,7 +156,7 @@ Since v0.8.0, memories live in one of two layers: **local** (private to this ins
 
 ## Tools
 
-Kevin exposes 21 tools callable by the agent.
+Kevin exposes 23 tools callable by the agent.
 
 ### `kevin_save`
 
@@ -210,8 +210,8 @@ Global counts and metrics: memory census, the precision block, the six blocked-g
 ```
 kevin_status({})
 // → { "memories": 42, "memories_reflector": 12, "memories_agent": 30,
-//      "memories_pattern": 0, "memories_causal": 1, "tool_calls": 318,
-//      "retrospectives": 7, "tool_count": 21,
+ //      "memories_pattern": 0, "memories_causal": 1, "tool_calls": 318,
+ //      "retrospectives": 7, "tool_count": 23,
 //      "metrics": { "tokens_injected_pre_prompt": 51, "tokens_injected_compacting": 0,
 //                   "reflections_throttled": 3, "duplicate_suppressions": 2,
 //                   "tool_calls_deduped": 0, "patterns_mined": 0,
@@ -384,8 +384,42 @@ Ingests the OKF file (asserts → shared-layer projections; tombstones → archi
 ```
 kevin_sync({})
 // → { "path": ".kevin/knowledge.okf", "fileHash": "3d2f...", "parsed": 1,
-//      "folded": 0, "rejected": 0, "imported": 1, "tombstoned": 0,
-//      "skipped": false }
+ //      "folded": 0, "rejected": 0, "imported": 1, "tombstoned": 0,
+ //      "skipped": false }
+```
+
+### `kevin_doctor`
+
+Read-only health check — no writes, no probe re-run, no model call. Returns `host`, `hooks`, `dependencies`, `native`, `verdict` and `reason`; `hooks` is sorted dead first so the failure is the first thing on screen. Output contains no filesystem paths or session ids — paste it into an issue report.
+
+```
+kevin_doctor({})
+// → { "host": { "plugin_version": "1.18.18", "flavour": "v1+v2", "shell_available": true,
+//                "v2": { "skill": true, "reference": true } },
+//      "hooks": [{ "hook": "experimental.chat.system.transform", "state": "dead",
+//                  "fire_count": 0, "expected_count": 3, "since": "2026-08-20T10:00:00Z" },
+//                { "hook": "tool.execute.after", "state": "live", "fire_count": 42, "expected_count": 42 }],
+//      "dependencies": { "declared": ["@opencode-ai/plugin"], "zod_copies": 1 },
+//      "native": { "enabled": true, "registered": { "skill": true, "reference": true },
+//                  "verified": { "skill": true, "reference": true } },
+//      "verdict": "degraded", "reason": "experimental.chat.system.transform dead since 2026-08-20T10:00:00Z; 1 affected hook(s)", "partial": false }
+```
+
+One dead hook is enough for `degraded`; every hook `live` is `healthy`; otherwise `unknown` — `unknown` is never rounded to `healthy` (D9-09). With no sessions yet, `verdict` is `unknown`.
+
+### `kevin_native`
+
+Controls the additive v2 attachment (D9-01): `show` reports the setting, the frozen probe result and the latest `native_registrations` rows; `enable`/`disable` write `kevin_settings` only and never re-probe — a restart is required for the change to take effect. The value is TEXT `"1"`/`"0"`; `enable` on a host without the v2 subpath succeeds and reports `effective: false` (inert) rather than refusing.
+
+```
+kevin_native({ action: "show" })
+// → { "action": "show", "value": "0", "effective": true,
+//      "registrations": [{ "surface": "skill", "registered": true, "verified": true, "attached_at": "2026-08-20T10:00:00Z" }] }
+
+kevin_native({ action: "enable" })
+// → { "action": "enable", "value": "1", "effective": false,
+//      "reason": "v2 subpath absent from the resolved host package — registration would be inert",
+//      "note": "the probe is frozen for the process lifetime — restart the host for the change to take effect" }
 ```
 
 ---
@@ -645,7 +679,7 @@ KevinPlugin(input, {
 
 ### Settings
 
-Read/write via `kevin_config({ action: "list" | "set", ... })`. All 23 values are TEXT; booleans compare against `"1"`.
+Read/write via `kevin_config({ action: "list" | "set", ... })`. All 27 values are TEXT; booleans compare against `"1"`.
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -672,8 +706,12 @@ Read/write via `kevin_config({ action: "list" | "set", ... })`. All 23 values ar
 | `share_requires_approval` | `"1"` | When `"1"`, `kevin_share` writes only with `confirm: true`; un-curated memories are refused with `not_curated` |
 | `author_identity_mode` | `"hashed"` | Author attribution in exports: `"hashed"` or `"none"` (**string** enum) |
 | `shared_confidence_floor` | `"0.7"` | Gate for `kevin_share` selection and export — a **string**, read with `Number.parseFloat` and clamped to `[0, 1]`. Deliberately stricter than `injection_confidence_floor` (`0.6`): sharing is a commitment, injecting is a suggestion. `parseInt` on this setting would yield `0` and share everything |
+| `hook_liveness_enabled` | `"1"` | Master switch for the liveness instrument. When `"0"`, `HookLiveness.wrap()` returns hooks untouched and no counters are recorded — compare with `=== "1"` |
+| `native_registration_enabled` | `"0"` | Opt-in for the additive v2 attachment (`skill.transform`/`reference.transform` via `define()`). Default `"0"` keeps the release byte-identical to v0.8.0; `kevin_native enable` sets `"1"` (TEXT) but the probe is frozen — restart required (D9-01) |
+| `host_probe_history_enabled` | `"0"` | When `"1"`, one `host_probes` row per construction is appended (version, flavour, v2 flags, notes). Off by default because it is unbounded append-only |
+| `dead_hook_report_threshold` | `"3"` | How many checkpointed sessions without a hook firing before it is `dead`. TEXT holding a number, read with `Number.parseInt(v, 10)`, clamped to `[1, 1000]`, `NaN` → `3` |
 
-All 23 settings are TEXT values; booleans and flags compare against `"1"`; the three v0.8 **string-valued** settings are `okf_path`, `author_identity_mode` and `shared_confidence_floor`.
+All 27 settings are TEXT values; booleans and flags compare against `"1"`; the three v0.8 **string-valued** settings are `okf_path`, `author_identity_mode` and `shared_confidence_floor`, and `dead_hook_report_threshold` is a numeric string.
 
 ---
 
@@ -686,8 +724,23 @@ npm install
 npm run typecheck   # tsc --noEmit (strict)
 npm run lint        # biome check .
 npm test            # vitest run (unit + integration + e2e + replay)
-npm run verify      # post-install verification
+npm run verify      # post-install verification (also checks DB migrations)
 npm run replay      # replay report over tests/replay/fixtures
+```
+
+### Quick diagnostic
+
+```bash
+# One read-only command that tells you whether Kevin is healthy:
+# host surface, every hook's state, dependency check, and native registration.
+kevin_doctor({})
+# → { host: { flavour: "v1+v2", v2: { skill: true, reference: true } },
+#      hooks: [{ hook: "experimental.chat.system.transform", state: "dead", ... }],
+#      verdict: "degraded", reason: "experimental.chat.system.transform dead since ..." }
+
+# Native registration is opt-in (default off). Enable, restart, check again:
+kevin_native({ action: "enable" })   # writes native_registration_enabled="1" (TEXT), no re-probe
+kevin_native({ action: "show" })     # → { effective: false, reason: "v2 subpath absent …" } on 1.17.x
 ```
 
 ### Publishing (maintainer)

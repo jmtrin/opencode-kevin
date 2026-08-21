@@ -2,9 +2,11 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ArtifactWriter } from "./ArtifactWriter.js";
 import { fingerprint, fnv1a64 } from "./fingerprint.js";
+import type { HostSurface } from "./host.js";
 
 // ============================================================
 // Kevin 0.8.0 — RepoIdentity (K8-005/K8-006 / plan §5.1, D8-04)
+// v0.9.0 — host identity source (K9-006 / plan §5.2, D9-13)
 // ============================================================
 // Repository-derived identity that survives a clone. Two clones
 // of the same remote must agree on one `repo_id` even though
@@ -26,9 +28,9 @@ const PROJECT_JSON_PATH = join(".kevin", "project.json");
 const GIT_CONFIG_PATH = join(".git", "config");
 
 /**
- * The three sources `resolve()` tries, in order (plan §5.1).
+ * The four sources `resolve()` tries, in order (plan §5.2, D9-13).
  */
-export type IdentitySource = "declared" | "remote" | "path";
+export type IdentitySource = "declared" | "remote" | "host" | "path";
 
 /**
  * The outcome of resolving a repository identity.
@@ -186,8 +188,8 @@ export function computeRepoId(normalized: string): string {
 }
 
 /**
- * Resolve the repository identity for `cwd`, trying the three
- * sources in order (plan §5.1):
+ * Resolve the repository identity for `cwd`, trying the four
+ * sources in order (plan §5.2, D9-13):
  *
  *   1. `declared` — `.kevin/project.json` → `id` (validated as
  *      exactly 16 lowercase hex characters; anything else is ignored
@@ -196,14 +198,24 @@ export function computeRepoId(normalized: string): string {
  *      onto a typo);
  *   2. `remote` — `.git/config` → `[remote "origin"] url`,
  *      normalized and hashed;
- *   3. `path` — `fingerprint(cwd)`, the v0.7.0 behaviour.
+ *   3. `host` — the value the host resolved for this directory,
+ *      `host.project.worktree` first, `host.project.directory` as
+ *      fallback; both empty or absent falls through to `path`.
+ *      This is strictly better than `process.cwd()` — the host's own
+ *      ToolContext documents "prefer this over `process.cwd()`" —
+ *      but it sits below the explicit sources, because monorepos and
+ *      D8-03's confirmed re-keying depend on `.kevin/project.json`
+ *      winning;
+ *   4. `path` — `fingerprint(cwd)`, the v0.7.0 behaviour, preserved
+ *      exactly when `host` is absent.
  *
  * Never throws: a directory that is not a git repository, an
- * unreadable `.git/config`, and a malformed `project.json` all fall
- * through to source 3. `projectId` is always returned alongside
- * `repoId`, regardless of which source won.
+ * unreadable `.git/config`, a malformed `project.json`, and a host
+ * with no usable project fields all fall through to source 4.
+ * `projectId` is always returned alongside `repoId`, regardless of
+ * which source won.
  */
-export function resolve(cwd: string): ResolvedIdentity {
+export function resolve(cwd: string, host?: HostSurface): ResolvedIdentity {
 	const projectId = fingerprint(cwd);
 
 	// 1. Declared.
@@ -239,7 +251,32 @@ export function resolve(cwd: string): ResolvedIdentity {
 		// Unreadable or missing — fall through.
 	}
 
-	// 3. Path — the v0.7.0 behaviour, preserved exactly.
+	// 3. Host — the value the host already resolved for this
+	//    directory (D9-13), inserted above `path` and below the two
+	//    explicit sources. `worktree` first, `directory` as fallback;
+	//    both empty or absent falls through. The chosen value feeds
+	//    the unchanged `computeRepoId()` — this chain changes which
+	//    string is hashed, never how.
+	const worktree = host?.project?.worktree;
+	if (typeof worktree === "string" && worktree.length > 0) {
+		return {
+			repoId: computeRepoId(worktree),
+			source: "host",
+			evidence: "host:worktree",
+			projectId,
+		};
+	}
+	const directory = host?.project?.directory;
+	if (typeof directory === "string" && directory.length > 0) {
+		return {
+			repoId: computeRepoId(directory),
+			source: "host",
+			evidence: "host:directory",
+			projectId,
+		};
+	}
+
+	// 4. Path — the v0.7.0 behaviour, preserved exactly.
 	return { repoId: projectId, source: "path", evidence: "cwd", projectId };
 }
 
@@ -298,7 +335,7 @@ export function initProjectFile(
 	const createdAt = new Date().toISOString();
 	const payload = `${JSON.stringify({
 		created_at: createdAt,
-		generator: "opencode-kevin/0.8.0",
+		generator: "opencode-kevin/0.9.0",
 		id,
 	})}\n`;
 	try {

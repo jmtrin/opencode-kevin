@@ -252,11 +252,14 @@ v1.0.0 `K10-009` and is the document this whole ladder terminates in.
 23 → 25; metric keys 13 → 22 → 28 → 33 → 39 → 45 → 51; setting keys 6 → 9 → 14 → 18 → 23 → 27 → 31;
 tables → 15 → 18 → 20; principles 11 → 38 with no gap or repeat.
 
-> **Correction pending.** §5.5 below scopes v0.9.0 as a migration to a v2 plugin API. That
-> statement is refuted on primary evidence in `Kevin_v0.9.0_Plan.md` §3.1: no 2.x of
-> `@opencode-ai/plugin` exists, and the `v2/` subpath inside the 1.x package exposes no domain
-> capable of hosting any of Kevin's seven integration points. §5.5 is rewritten by `K9-023`, and
-> §5.6 is reconciled with the delivered v1.0.0 scope by `K10-024`.
+> **Corregido en K9-023 (plan §3.1, D9-01).** §5.5 below previously scoped v0.9.0 as a
+> migration to a v2 plugin API. That statement is refuted on primary evidence in
+> `Kevin_v0.9.0_Plan.md` §3.1: no 2.x of `@opencode-ai/plugin` exists (latest 1.18.16,
+> 0/10 697 match `2.*`), and the `v2/` subpath inside the 1.x package exposes no domain capable
+> of hosting any of Kevin's seven integration points. §5.5 has been rewritten by `K9-023` to the
+> implemented scope — additive attachment of `skill.transform`/`reference.transform`, liveness
+> detection, and the dependency reduction — and cites D9-01. §5.6 is reconciled with the
+> delivered v1.0.0 scope by `K10-024`.
 
 ---
 
@@ -406,26 +409,50 @@ through normal git operations, and a knowledge conflict is visible as an ordinar
 
 ### 5.5 v0.9.0 — "Native"
 
-> Be a first-class citizen of the plugin API, not a guest of its hooks.
+> Observe the host, attach only where it helps, and never migrate what would delete the product.
 
-**Scope.**
+**Scope — as implemented, not as first drafted.** The first draft of this section scoped
+v0.9.0 as a migration to "the v2 `define()` / domain plugin API" with the pin raised above
+`^1.17.6`. The registry disagrees: `latest` is `1.18.16`, zero of 10 697 published versions
+match `2.*`, and `v2/` is a subpath inside the 1.x package (`@opencode-ai/plugin/v2/promise`).
+There is no v2 major to migrate to, and the only v2 domains that exist (`skill`,
+`reference`, `agent`, `command`, `catalog`, `integration`, `aisdk`, `plugin`) do not include
+any of Kevin's seven host integration points (`tool`, `chat`, `session`, `event` and the
+injection hooks). A migration would not degrade Kevin; it would delete it. **Kevin does not
+migrate to the v2 API** (D9-01). The v1 factory remains the sole host integration for
+observation, injection, session lifecycle and tool registration.
 
-1. **v2 `define()` migration** with a capability probe and a v1 fallback shim. Both paths tested.
-   Registrations are disposed correctly; no leaked timers, no leaked prepared statements.
-2. **Hot-reload safety.** All session state moves out of process globals into
-   context-scoped structures. `reload()` must not duplicate registrations or resurrect stale
-   seen-sets. The v0.4 bug audit already flagged process-global session state as a defect class.
-3. **TUI curation panel.** Browse memories, see evidence, approve/reject proposals, submit
-   feedback, run `kevin_trace` interactively. Curation is HITL; HITL needs UI. Use
-   `keymap.registerLayer`, not the deprecated `TuiCommand` API.
-4. **Optional enrichment via `experimental.provider.small_model`.** Strictly off the hot path,
-   strictly opt-in, strictly one call per promotion, sealed with `metadata.enriched` as v0.4
-   already does.
-5. **Dependency currency.** Move the `@opencode-ai/plugin` pin forward deliberately, with the
-   v1/v2 matrix under test.
+What v0.9.0 actually ships is **additive**:
 
-**Exit criterion.** Kevin runs on the v2 API, hot-reloads cleanly in a long session, and every
-curation action is reachable from the TUI without typing a tool call.
+1. **Additive v2 attachment (D9-01, D9-02).** `plugin/native.ts` attaches `skill.transform`
+   and `reference.transform` via `define()` from `@opencode-ai/plugin/v2/promise` — by
+   addition only, behind the capability probe `plugin/host.ts::probeHost()`. The v1 hook set is
+   untouched. When `native_registration_enabled = '0'` (the default) or the host has no v2
+   subpath, the release is byte-identical to v0.8.0. `skill.transform` and `reference.transform`
+   are the only v2 surfaces used — they let Kevin register curated knowledge and read back a
+   confirmation (`draft.list()`), which the v0.6.0 file-emission path could never do.
+2. **Host-surface liveness instrument.** `plugin/HookLiveness.ts` (`wrap`/`expect`/`flush`)
+   records每 hook firing on the success path only, persists `hook_liveness` (machine-scoped,
+   D9-08), and exposes a pure `verdict` reducer (`healthy` / `degraded` / `unknown`). The
+   checkpoint is `tool.execute.after` proving a model turn occurred; `unknown` is never rounded
+   to `healthy` (D9-09). `kevin_doctor` and `kevin_audit`'s new `host` block surface the
+   result.
+3. **Dependency reduction.** `zod` is removed from `dependencies` (K9-005) — `tool.schema` is
+   the host's own zod, so the top-level duplicate was pure cost. The `@opencode-ai/plugin` pin
+   moves `^1.17.6` → `^1.18.16` on byte-level proof: `dist/index.d.ts` is SHA-256 identical
+   (9285 bytes, unchanged across eleven minors), so no hook Kevin registers can behave
+   differently (D9-03). `pin` `^1.18.16` is tested against both `1.17.6` and `^1.18.16`.
+
+Explicitly deferred (see `Kevin_v0.9.0_Plan.md` §3.2, §4.1): TUI curation/conflict-review
+panels (`@opentui/*` peers are optional and moving; the plugin TUI surface ships under
+`tui-v2`/`snapshot-*` tags, not `latest`), hot-reload domain disposal, and
+`experimental.provider.small_model` enrichment — all post-1.0.
+
+**Exit criterion.** `kevin_doctor` reports `healthy` when every registered hook fires,
+`degraded` (naming the dead hook and `dead_since`) when the host stops reading a hook, and
+`unknown` when no session has reached the checkpoint; `injections_suppressed_dead_hook`
+counts the sessions lost; and the v0.8.0 suite passes unchanged on both `1.17.6` and
+`^1.18.16`.
 
 ---
 

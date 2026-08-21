@@ -1,0 +1,80 @@
+{
+	"comment": "K9-006 equivalence corpus (plan §5.2, D9-13). Every repoId marked 'fixed' was computed by the v0.8.0 chain and committed so a future chain regression fails the test instead of silently re-keying the corpus. Derivation entries with cwd/worktree are evaluated at test time against the test's own temporary checkout paths.",
+	"cases": [
+		{
+			"name": "declared",
+			"files": {
+				"project_json_id": "0123456789abcdef",
+				"remote_url": "https://github.com/team/shared.git"
+			},
+			"host": null,
+			"v080": {
+				"repoId": "0123456789abcdef",
+				"source": "declared",
+				"derivation": "declared id"
+			},
+			"v09": { "source": "declared", "derivation": "declared id" }
+		},
+		{
+			"name": "remote-only",
+			"files": { "remote_url": "https://github.com/team/shared.git" },
+			"host": null,
+			"v080": {
+				"repoId": "8af7772d3b7f978a",
+				"source": "remote",
+				"derivation": "computeRepoId(github.com/team/shared)"
+			},
+			"v09": {
+				"source": "remote",
+				"derivation": "computeRepoId(github.com/team/shared)"
+			}
+		},
+		{
+			"name": "remote-scp",
+			"files": { "remote_url": "git@github.com:team/legacy.git" },
+			"host": null,
+			"v080": {
+				"repoId": "ea14120495dab874",
+				"source": "remote",
+				"derivation": "computeRepoId(github.com/team/legacy)"
+			},
+			"v09": {
+				"source": "remote",
+				"derivation": "computeRepoId(github.com/team/legacy)"
+			}
+		},
+		{
+			"name": "neither-no-host",
+			"files": {},
+			"host": null,
+			"v080": {
+				"repoId": null,
+				"source": "path",
+				"derivation": "fingerprint(cwd)"
+			},
+			"v09": { "source": "path", "derivation": "fingerprint(cwd)" }
+		},
+		{
+			"name": "neither-with-host",
+			"files": {},
+			"host": { "worktree": "worktree", "directory": "directory" },
+			"v080": {
+				"repoId": null,
+				"source": "path",
+				"derivation": "fingerprint(cwd)"
+			},
+			"v09": { "source": "host", "derivation": "computeRepoId(cwd/worktree)" }
+		},
+		{
+			"name": "host-directory-fallback",
+			"files": {},
+			"host": { "worktree": null, "directory": "directory" },
+			"v080": {
+				"repoId": null,
+				"source": "path",
+				"derivation": "fingerprint(cwd)"
+			},
+			"v09": { "source": "host", "derivation": "computeRepoId(cwd/directory)" }
+		}
+	]
+}

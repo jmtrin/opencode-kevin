@@ -212,7 +212,7 @@ describe("K8-008 — .kevin/project.json + kevin_project show/init (plan §5.8)"
 		>;
 		expect(out.written).toBe(true);
 		expect(out.id).toBe(before.repoId);
-		expect(out.generator).toBe("opencode-kevin/0.8.0");
+		expect(out.generator).toBe("opencode-kevin/0.9.0");
 
 		const filePath = join(projectRoot, ".kevin", "project.json");
 		const raw = readFileSync(filePath, "utf8");
@@ -221,7 +221,7 @@ describe("K8-008 — .kevin/project.json + kevin_project show/init (plan §5.8)"
 		const parsed = JSON.parse(raw) as Record<string, string>;
 		expect(Object.keys(parsed)).toEqual(["created_at", "generator", "id"]);
 		expect(parsed.id).toBe(before.repoId);
-		expect(parsed.generator).toBe("opencode-kevin/0.8.0");
+		expect(parsed.generator).toBe("opencode-kevin/0.9.0");
 		expect(parsed.created_at).toMatch(
 			/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
 		);
@@ -281,7 +281,7 @@ describe("K8-008 — .kevin/project.json + kevin_project show/init (plan §5.8)"
 		expect(raw).toBe(
 			`${JSON.stringify({
 				created_at: first.createdAt,
-				generator: "opencode-kevin/0.8.0",
+				generator: "opencode-kevin/0.9.0",
 				id: first.id,
 			})}\n`,
 		);

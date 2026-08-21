@@ -4,6 +4,34 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-08-21
+
+### Changed — dependency reduction 2 → 1
+
+- **One production dependency instead of two** — Kevin no longer ships a duplicated `zod` major (K9-005): the host's own `zod` is reused via the host-resolved package, so `npm ls zod` drops from 2 to 1 and the version-skew surface is gone. This is the change users feel without doing anything — no install step, no config change.
+
+### Added — Native
+
+- **Native host registration** (F3, K9-014, K9-015): `plugin/native.ts` attaches `skill.transform`/`reference.transform` via `@opencode-ai/plugin/v2/promise` with a `read-back` verification and mutual exclusion with `Materializer` file emission (K9-016, plan §5.4) — registration replaces emission, never both.
+- **`kevin_doctor` tool** (23rd tool, K9-018): read-only health report `{ host, hooks, dependencies, native, verdict, reason }` ordered `dead → unknown → live`, no writes, no `probeHost` re-run, no filesystem paths or session ids in the serialized output. Example degraded output included in README.
+- **`kevin_native` tool** (K9-019): `show`/`enable`/`disable` for `native_registration_enabled` (`TEXT '1'/'0'`, default `'0'` off — the host probe is frozen for the process lifetime, see D9-01/D9-12). `enable` on a host without the `v2` subpath succeeds with `effective: false` (`inert`), never a refusal.
+- **Host `kevin_audit` block** (K9-020): `host { plugin_version, hooks { live, dead, unknown, fires_total, errors_total }, native { total, verified, failures, by_surface }, verdict }` — pure SQL, omitted with `partial: true` on pre-010 databases, so pre-010 outputs remain a strict prefix of the new output.
+- **Migration `010_v09_native.sql`** (K9-002, K9-003): tables `hook_liveness`/`host_probes`/`native_registrations` (surface `CHECK('skill','reference')`), six metric keys (`hook_fires_total`, `hook_errors_total`, `hooks_dead_total`, `injections_suppressed_dead_hook`, `native_registrations_total`, `native_registration_failures`), four settings (`hook_liveness_enabled '1'`, `native_registration_enabled '0'`, `host_probe_history_enabled '0'`, `dead_hook_report_threshold '3'` — `TEXT '1'/'0'` and `parseInt` clamp `1–1000`, `NaN → 3`), `schema_version '010'`. Tool ladder 21 → 23, settings 23 → 27, plugin files 46 → 51.
+- **`verify-install` enumerates `migrations/`** (K9-021): `scripts/verify-install.ts` now `readdirSync(migrations/)` filters `*.sql` sorted lexicographically with a floor of 6 — a short or empty read is a hard error instead of silently copying nothing.
+
+### Behaviour changes
+
+- Defaults preserve v0.8.0 behaviour exactly: `native_registration_enabled = '0'` (off — additive attachment only, D9-01), `hook_liveness_enabled = '1'`, `host_probe_history_enabled = '0'` (append-only when enabled), `dead_hook_report_threshold = '3'`. Enabling `native` on a host without the `v2` subpath is a statement of intent that becomes effective after the host reaches `1.18.16+` and a restart.
+- `HostSurface` is now `frozen` at init (`probeHost` memoized) and `liveness.expect("experimental.chat.system.transform")` is the liveness checkpoint (K9-012).
+
+### Fixed
+
+- **`docs/Kevin_Roadmap.md` §5.5** (K9-023, plan §3.1, D9-01): the release is **not** a migration to a v2 plugin API — latest is `1.18.16`, `0/10 697` published versions match `2.*`, and `v2` is a subpath inside the `1.x` package. The section is rewritten as additive attachment of `skill.transform`/`reference.transform` plus liveness and the dependency reduction, and now cites D9-01.
+
+### Tests
+
+- K9-001…K9-024 by ID: migration idempotency, host probe memoization, `HookLiveness` dead detection, `reference.transform` registration with read-back, Materializer mutual exclusion with byte-identical v0.8.0 fixtures, `native_registrations` persistence, `kevin_doctor` pure reads, `kevin_native` `TEXT '1'/'0'` and frozen probe, `kevin_audit` host block strict-prefix proof, `verify-install` `readdirSync` enumeration with floor, and the `v09_degradation` e2e drill (healthy → dead with threshold 3 and silence → recovery with `dead_since` retained, plus `unknown` when `expect` is removed).
+
 ## [0.8.0] - 2026-08-18
 
 ### Added - Team
