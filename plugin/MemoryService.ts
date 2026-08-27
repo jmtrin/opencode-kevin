@@ -1,5 +1,13 @@
 import { deterministicFixLine } from "./LessonFixer.js";
 import type { Store } from "./Store.js";
+import {
+	hasCuratedColumn as columnsHasCurated,
+	hasIgnoredColumn as columnsHasIgnored,
+	hasLayerColumn as columnsHasLayer,
+	hasRecurrenceColumn as columnsHasRecurrence,
+	hasRepoIdColumn as columnsHasRepoId,
+	hasTruthColumns as columnsHasTruth,
+} from "./columns.js";
 import { computeConfidence } from "./confidence.js";
 import { fingerprint as computeFingerprint } from "./fingerprint.js";
 import { classify } from "./inferability.js";
@@ -326,100 +334,21 @@ const MEMORY_ROW_SELECT = `id, type, content, scope, relevance_score, source_too
                 project_id, fingerprint, origin,
                 evidence_count, recurrence_count, last_verified_at, status, fix_args`;
 
-/**
- * v0.5.0 (K5-008/009 / plan §5.6) — cached per-store probe for the 006-only
- * `ignored` column (pre-006 DBs must not reference it). Shared by the
- * retrieval filter, the row SELECT, and the save() ignored stamp.
- * v0.6.0 (K6-001a) — positive-only caching: a successful probe is cached,
- * a failed probe is NOT. A Store migrated in place heals on the next call.
- */
-const ignoredColumnCache = new WeakMap<Store, boolean>();
+// v1.1.0 (K11-011 / plan §5.5, D11-06) — probes delegate to columns registry
 function hasIgnoredColumn(store: Store): boolean {
-	const cached = ignoredColumnCache.get(store);
-	if (cached === true) return true;
-	try {
-		store.prepare("SELECT ignored FROM memories LIMIT 1").get();
-		ignoredColumnCache.set(store, true);
-		return true;
-	} catch {
-		return false;
-	}
+	return columnsHasIgnored(store);
 }
-
-/**
- * v0.6.0 (K6-011 / plan §5.4) — cached per-store probe for the 007-only
- * `curated` column (pre-007 DBs must not reference it). Same positive-only
- * caching discipline as `ignored` (K6-001a): a successful probe is cached,
- * a failed probe is NOT.
- */
-const curatedColumnCache = new WeakMap<Store, boolean>();
 function hasCuratedColumn(store: Store): boolean {
-	const cached = curatedColumnCache.get(store);
-	if (cached === true) return true;
-	try {
-		store.prepare("SELECT curated FROM memories LIMIT 1").get();
-		curatedColumnCache.set(store, true);
-		return true;
-	} catch {
-		return false;
-	}
+	return columnsHasCurated(store);
 }
-
-/**
- * v0.7.0 (K7-008 / migration 008) — cached per-store probe for the 008-only
- * `truth_penalty` column (pre-008 DBs must not reference it). Same
- * positive-only caching discipline as `curated` (K6-001a).
- */
-const truthColumnsCache = new WeakMap<Store, boolean>();
 function hasTruthColumns(store: Store): boolean {
-	const cached = truthColumnsCache.get(store);
-	if (cached === true) return true;
-	try {
-		store.prepare("SELECT truth_penalty FROM memories LIMIT 1").get();
-		truthColumnsCache.set(store, true);
-		return true;
-	} catch {
-		return false;
-	}
+	return columnsHasTruth(store);
 }
-
-/**
- * v0.8.0 (K8-007 / plan §5.7) — cached per-store probe for the 009-only
- * `repo_id` column (pre-009 DBs must not reference it). Same positive-only
- * caching discipline as `ignored` (K6-001a): a successful probe is cached,
- * a failed probe is NOT. Exported so `kevin_audit`'s rollups scope on the
- * same column.
- */
-const repoIdColumnCache = new WeakMap<Store, boolean>();
 export function hasRepoIdColumn(store: Store): boolean {
-	const cached = repoIdColumnCache.get(store);
-	if (cached === true) return true;
-	try {
-		store.prepare("SELECT repo_id FROM memories LIMIT 1").get();
-		repoIdColumnCache.set(store, true);
-		return true;
-	} catch {
-		return false;
-	}
+	return columnsHasRepoId(store);
 }
-
-/**
- * v0.8.0 (K8-018 / plan §5.2) — cached per-store probe for the 009-only
- * `layer` column (pre-009 DBs must not reference it). Same positive-only
- * caching discipline: pre-009 databases have no shared layer, so the
- * immutability refusal in `update()` is skipped there entirely.
- */
-const layerColumnCache = new WeakMap<Store, boolean>();
 function hasLayerColumn(store: Store): boolean {
-	const cached = layerColumnCache.get(store);
-	if (cached === true) return true;
-	try {
-		store.prepare("SELECT layer FROM memories LIMIT 1").get();
-		layerColumnCache.set(store, true);
-		return true;
-	} catch {
-		return false;
-	}
+	return columnsHasLayer(store);
 }
 
 /**
@@ -444,7 +373,7 @@ function rowSelect(store: Store): string {
 	return hasLayerColumn(store) ? `${withTruth}, layer` : withTruth;
 }
 
-function mapRow(row: MemoryRow, score?: number): Memory {
+export function mapRow(row: MemoryRow, score?: number): Memory {
 	const mem: Memory = {
 		id: row.id,
 		type: row.type,
@@ -579,20 +508,10 @@ export class MemoryService {
 
 	// v0.4.0 (BUG-008) — cached column probe for pre-005 DBs (which lack
 	// `recurrence_count`); save() must not reference the column there.
+	// v1.1.0 (K11-011) — delegates to columns registry
 	private hasRecurrenceColumn(): boolean {
-		if (this._hasRecurrenceColumn === undefined) {
-			try {
-				this.store
-					.prepare("SELECT recurrence_count FROM memories LIMIT 1")
-					.get();
-				this._hasRecurrenceColumn = true;
-			} catch {
-				this._hasRecurrenceColumn = false;
-			}
-		}
-		return this._hasRecurrenceColumn;
+		return columnsHasRecurrence(this.store);
 	}
-	private _hasRecurrenceColumn: boolean | undefined;
 
 	// v0.5.0 (K5-008 / plan §5.6) — cached column probe for pre-006 DBs
 	// (which lack `ignored`); the retrieval filter must not reference the
@@ -1648,8 +1567,10 @@ function originBoost(mem: Memory): number {
  * (when available) so the feedback loop can exclude the original call
  * from the recurrence count. Returns null when metadata is absent,
  * malformed, or lacks the field.
+ * // v1.1.0 (K11-003 / plan §5.5, D11-05) — single source for origin lookup;
+ * // InjectionLedger reuses this implementation (K11-013).
  */
-function readOriginCallId(metadata: string | null): string | null {
+export function readOriginCallId(metadata: string | null): string | null {
 	if (!metadata) return null;
 	try {
 		const parsed = JSON.parse(metadata) as Record<string, unknown>;

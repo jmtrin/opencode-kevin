@@ -1,4 +1,5 @@
 import type { Store } from "./Store.js";
+import { hasColumn } from "./columns.js";
 import { fingerprint as computeFingerprint } from "./fingerprint.js";
 import type { Metrics } from "./metrics.js";
 import { redactPaths, stripPrivate } from "./redact.js";
@@ -86,25 +87,51 @@ export class ToolCallObserver {
 			}
 		}
 
-		this.store
-			.prepare(
-				`INSERT INTO tool_calls
-				 (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, fingerprint)
-				 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.run(
-				input.callID ?? uuidv7(),
-				sessionId,
-				input.tool,
-				argsSummary,
-				success,
-				durationMs,
-				agent,
-				errorType,
-				metadata,
-				projectId,
-				fp,
-			);
+		// v1.1.0 (K11-002 / plan §5.2, D11-01/D11-07) — dual-write: legacy `ts`
+		// stays (`datetime('now')`), new `ts_ms` holds Date.now() when the
+		// column exists. Probe is cached via columns registry (K11-011).
+		if (hasColumn(this.store, "tool_calls", "ts_ms")) {
+			this.store
+				.prepare(
+					`INSERT INTO tool_calls
+					 (id, session_id, ts, ts_ms, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, fingerprint)
+					 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				)
+				.run(
+					input.callID ?? uuidv7(),
+					sessionId,
+					Date.now(),
+					input.tool,
+					argsSummary,
+					success,
+					durationMs,
+					agent,
+					errorType,
+					metadata,
+					projectId,
+					fp,
+				);
+		} else {
+			this.store
+				.prepare(
+					`INSERT INTO tool_calls
+					 (id, session_id, ts, tool, args_summary, success, duration_ms, agent, error_type, metadata, project_id, fingerprint)
+					 VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				)
+				.run(
+					input.callID ?? uuidv7(),
+					sessionId,
+					input.tool,
+					argsSummary,
+					success,
+					durationMs,
+					agent,
+					errorType,
+					metadata,
+					projectId,
+					fp,
+				);
+		}
 	}
 
 	private isDedupEnabled(): boolean {

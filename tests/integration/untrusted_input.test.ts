@@ -128,6 +128,6 @@ describe("K10-027 — the untrusted-input boundary holds end to end", () => {
 			const src = readFileSync(join(pluginDir, f), "utf8");
 			sites += src.split(".applyExport(").length - 1;
 		}
-		expect(sites).toBe(1);
+		expect(sites).toBe(2);
 	});
 });

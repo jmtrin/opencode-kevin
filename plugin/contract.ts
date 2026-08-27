@@ -69,8 +69,22 @@ export const CONTRACT_TOOL_ADDITIONS: readonly {
 	name: string;
 	since: string;
 }[] = [
-	{ name: "kevin_contract", since: "1.0.0" },
 	{ name: "kevin_bench", since: "1.0.0" },
+	{ name: "kevin_contract", since: "1.0.0" },
+	{ name: "kevin_forget", since: "1.1.0" },
+];
+
+/**
+ * v1.1.0 (K11-007 / plan §5.1, D11-01) — metric keys added after the freeze,
+ * each carrying the `since` the deprecation policy requires (C-05).
+ */
+export const CONTRACT_METRIC_ADDITIONS: readonly {
+	name: string;
+	since: string;
+}[] = [
+	{ name: "bench_regression_failures", since: "1.1.0" },
+	{ name: "forget_requests_total", since: "1.1.0" },
+	{ name: "forget_tombstones_published", since: "1.1.0" },
 ];
 
 /**
@@ -104,14 +118,21 @@ export function describeContract(_input?: ContractInput): PublicContract {
 	// Derive clause values from live source wherever possible (plan §5.1).
 	// C-03 members added after the freeze carry their `since` as objects;
 	// the original frozen set stays plain strings.
-	const additions = [...CONTRACT_TOOL_ADDITIONS].sort((a, b) =>
+	const toolAdditions = [...CONTRACT_TOOL_ADDITIONS].sort((a, b) =>
 		a.name.localeCompare(b.name),
 	);
 	const toolValue = {
-		tools: [[...CONTRACT_TOOL_NAMES].sort(), additions].flat(),
+		tools: [[...CONTRACT_TOOL_NAMES].sort(), toolAdditions].flat(),
 	};
 	const settingValue = { keys: [...KEVIN_CONFIG_KEYS].sort() };
-	const metricValue = { keys: Object.keys(METRIC_KEY_LABELS).sort() };
+	// v1.1.0 — metric keys added after freeze carry `since` (C-05)
+	const metricAdditions = [...CONTRACT_METRIC_ADDITIONS].sort((a, b) =>
+		a.name.localeCompare(b.name),
+	);
+	const baseMetricKeys = Object.keys(METRIC_KEY_LABELS)
+		.filter((k) => !metricAdditions.some((a) => a.name === k))
+		.sort();
+	const metricValue = { keys: [...baseMetricKeys, ...metricAdditions].flat() };
 
 	const clauses: ContractClause[] = [
 		{
@@ -180,7 +201,7 @@ export function describeContract(_input?: ContractInput): PublicContract {
 			stability: "forward-only",
 			since: "0.1.0",
 			value: {
-				schema_version: "011",
+				schema_version: "012",
 				migrations_forward_only: true,
 			},
 		},

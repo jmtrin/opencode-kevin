@@ -42,7 +42,7 @@ describe("K7-021 — kevin_status v0.7", () => {
 			tool_count: number;
 			v07: { schema_version: string; error_lesson_mode: string };
 		};
-		expect(status.tool_count).toBe(23);
+		expect(status.tool_count).toBe(26);
 		expect(status.v07.schema_version).toBe("008");
 		expect(status.v07.error_lesson_mode).toBe("all");
 		await hooks.dispose?.();
@@ -95,7 +95,7 @@ describe("K8-025 — kevin_status v0.8 identity and shared-layer fields", () => 
 				shared_entries: number;
 			};
 		};
-		expect(status.tool_count).toBe(23);
+		expect(status.tool_count).toBe(26);
 		expect(status.v08.repo_id).toMatch(/^[0-9a-f]{16}$/);
 		// The accepted proof of "never a raw remote URL": the fixture origin
 		// must not appear anywhere in the output, only its derived hash.

@@ -29,20 +29,21 @@ const PAIRS: ReadonlyArray<readonly [string, string]> = [
 	["Kevin_v0.8.0_Plan.md", "Kevin_v0.8.0_Task.md"],
 	["Kevin_v0.9.0_Plan.md", "Kevin_v0.9.0_Task.md"],
 	["Kevin_v1.0.0_Plan.md", "Kevin_v1.0.0_Task.md"],
+	["Kevin_v1.1.0_Plan.md", "Kevin_v1.1.0_Task.md"],
 ];
 
-const LADDER_TOOLS = [10, 13, 16, 18, 21, 23, 25];
-const LADDER_METRICS = [13, 22, 28, 33, 39, 45, 51];
+const LADDER_TOOLS = [10, 13, 16, 18, 21, 23, 25, 26];
+const LADDER_METRICS = [13, 22, 28, 33, 39, 45, 51, 54];
 const LADDER_SETTINGS = [6, 9, 14, 18, 23, 27, 31];
 
 describe("K10-025 — cross-version consistency pass", () => {
 	it("the Roadmap cumulative ladders are monotone with the declared values", () => {
-		const t = doc("Kevin_Roadmap.md");
-		const i = t.indexOf("**Cumulative ladders**");
+		const t = doc("Kevin_Roadmap_v2.md");
+		const i = t.indexOf("Cumulative ladders");
 		expect(i).toBeGreaterThan(-1);
-		const block = t.slice(i, i + 600);
+		const block = t.slice(i, i + 800);
 		const grab = (label: string): number[] => {
-			const m = block.match(new RegExp(`${label} ([\\d\\s→]+)`));
+			const m = block.match(new RegExp(`${label}\\s+([\\d\\s→]+)`));
 			expect(m, `ladder for ${label}`).toBeTruthy();
 			return (m?.[1] ?? "")
 				.split("→")
@@ -61,12 +62,12 @@ describe("K10-025 — cross-version consistency pass", () => {
 		expect(monotone(metrics)).toBe(true);
 		expect(monotone(settings)).toBe(true);
 		// The last rung must match the shipped surface, not the prose.
-		expect(tools.at(-1)).toBe(25);
-		expect(metrics.at(-1)).toBe(51);
+		expect(tools.at(-1)).toBe(26);
+		expect(metrics.at(-1)).toBe(54);
 		expect(settings.at(-1)).toBe(31);
 		// Migrations ladder and principles range as declared.
-		expect(t).toMatch(/migrations `00\d` → `011`/);
-		expect(t).toMatch(/principles 1[15] → 38/);
+		expect(t).toMatch(/migrations `00\d` → `012`/);
+		expect(t).toMatch(/principles 39/);
 	});
 
 	it("every DN-NN referenced in a Task exists in its own or an earlier Plan", () => {

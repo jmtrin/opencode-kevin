@@ -83,7 +83,7 @@ describe("K6-024 — kevin_status v0.6 fields", () => {
 	it("on a 007 database: tool_count 23, schema 007, curation on, emissions unavailable on a v1 host, zero pending", async () => {
 		await boot(MIGRATIONS_007, {});
 		const status = await runStatus(makeCtx("s-1"));
-		expect(status.tool_count).toBe(23);
+		expect(status.tool_count).toBe(26);
 		expect(status.v06).toEqual({
 			schema_version: "007",
 			curation_enabled: "1",
@@ -138,7 +138,7 @@ describe("K6-024 — kevin_status v0.6 fields", () => {
 		);
 
 		const status = await runStatus(makeCtx("s-2"));
-		expect(status.tool_count).toBe(23);
+		expect(status.tool_count).toBe(26);
 		expect(status.v06?.schema_version).toBe("007");
 		expect(status.v06?.skill_emission).toBe("on");
 		expect(status.v06?.reference_emission).toBe("on");
@@ -157,7 +157,7 @@ describe("K6-024 — kevin_status v0.6 fields", () => {
 			{},
 		);
 		const status = await runStatus(makeCtx("s-3"));
-		expect(status.tool_count).toBe(23);
+		expect(status.tool_count).toBe(26);
 		expect(status.v06).toBeUndefined();
 	});
 });

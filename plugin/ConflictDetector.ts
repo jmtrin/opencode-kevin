@@ -1,8 +1,10 @@
+import { mapRow } from "./MemoryService.js";
 import type { Memory, MemoryService, MemoryType } from "./MemoryService.js";
 import type { RepoTruth } from "./RepoTruth.js";
 import type { Store } from "./Store.js";
 import { normalize } from "./fingerprint.js";
 import type { Metrics } from "./metrics.js";
+import { STOP_WORDS } from "./query-tokenizer.js";
 import { uuidv7 } from "./uuid.js";
 
 export type ConflictKind = "repo_truth" | "decision_pair" | "temporal";
@@ -58,34 +60,6 @@ const POLARITY_RULES: readonly PolarityRule[] = [
 	{ positive: ["enable"], negative: [["disable"]] },
 	{ positive: ["prefer"], negative: [["avoid"]] },
 ];
-
-const STOP_WORDS = new Set([
-	"a",
-	"an",
-	"and",
-	"are",
-	"as",
-	"at",
-	"be",
-	"by",
-	"for",
-	"from",
-	"in",
-	"is",
-	"it",
-	"of",
-	"on",
-	"or",
-	"that",
-	"the",
-	"this",
-	"to",
-	"with",
-	"we",
-	"when",
-	"where",
-	"you",
-]);
 
 const POLARITY_WORDS = new Set([
 	"use",
@@ -217,17 +191,14 @@ export class ConflictDetector {
 				 truth_penalty, contradicted_at
 				 FROM memories WHERE project_id = ? AND status = 'active'`,
 			)
-			.all(this.projectId) as Array<
-			Record<string, unknown> & {
-				id: string;
-				type: MemoryType;
-				content: string;
-			}
-		>;
+			.all(this.projectId) as Array<Record<string, unknown> & { id: string }>;
 		return rows.flatMap((row) => {
-			const memory = row as unknown as Memory;
+			// v1.1.0 (K11-014) — route through mapRow so metadata is parsed and confidence derived
+			const memory = mapRow(row as unknown as Parameters<typeof mapRow>[0]);
 			const reasons = this.repoTruth?.contradictions(memory) ?? [];
-			return reasons.length > 0 ? [{ memoryId: row.id, reasons }] : [];
+			return reasons.length > 0
+				? [{ memoryId: row.id as string, reasons }]
+				: [];
 		});
 	}
 

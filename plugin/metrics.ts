@@ -59,6 +59,10 @@ export const METRIC_KEYS = [
 	"okf_merge_folds",
 	"rekey_events",
 	"injections_from_shared",
+	// v1.1.0 (K11-001 / plan §4, D11-01) — drift metrics; order matches 012 seed.
+	"bench_regression_failures",
+	"forget_requests_total",
+	"forget_tombstones_published",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

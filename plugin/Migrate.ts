@@ -326,6 +326,11 @@ export class Migrate {
 		};
 	}
 
+	// v1.1.0 (K11-015) — lexicographic ordering is valid through "999" because
+	// versions are zero-padded 3-digit strings ("001" … "999"). Any future
+	// migration beyond 999 must use a 4-digit prefix and this comparison must
+	// become numeric (parseInt). Until then, string > works and keeps the
+	// migration idempotency simple (plan §5.5, D11-??).
 	private listPending(current: string): { version: string; file: string }[] {
 		let files: string[] = [];
 		try {

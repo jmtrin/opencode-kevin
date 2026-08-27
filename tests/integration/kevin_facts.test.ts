@@ -100,7 +100,7 @@ describe("K7-009 — kevin_facts tool", () => {
 		expect(hooks.tool?.kevin_facts).toBeDefined();
 		const toolNames = Object.keys(hooks.tool ?? {});
 		expect(toolNames).toContain("kevin_facts");
-		expect(toolNames).toHaveLength(25);
+		expect(toolNames).toHaveLength(26);
 	});
 
 	it("default invocation reads stored facts and performs no JSON.parse; refresh:true re-scans", async () => {

@@ -110,6 +110,10 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	dispose_misses_total: "Misses de dispose",
 	contract_digest_changes: "Cambios de digest de contrato",
 	bench_runs_total: "Ejecuciones de benchmark (totales)",
+	// v1.1.0 (K11-001 / plan §4) — drift metrics; labels required by BUG-014 regression.
+	bench_regression_failures: "Fallos de regresion de benchmark",
+	forget_requests_total: "Solicitudes de olvido totales",
+	forget_tombstones_published: "Tombstones publicados por olvido",
 };
 
 function originLabel(

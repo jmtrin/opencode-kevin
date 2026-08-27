@@ -26,14 +26,18 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-1.0.0-blue)
+![version](https://img.shields.io/badge/version-1.1.0-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
-![tests](https://img.shields.io/badge/tests-1374%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-1380%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
 ![network](https://img.shields.io/badge/network-zero-black)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
 </div>
+
+<!-- uncomment when docs/demo.gif lands
+![demo](docs/demo.gif)
+-->
 
 > **AI agents are good at solving problems. Kevin makes sure they don't have to solve the same problem twice.**
 
@@ -44,9 +48,10 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 1.1.0](#-whats-new-in-110)
 - [What's new in 1.0.0](#-whats-new-in-100)
 - [How it works](#-how-it-works)
-- [The 25 tools](#-the-25-tools)
+- [The 26 tools](#-the-26-tools)
 - [The benchmark: proven, not promised](#-the-benchmark-proven-not-promised)
 - [Curation: from session noise to AGENTS.md](#-curation-from-session-noise-to-agentsmd)
 - [Team sharing: one file, zero servers](#-team-sharing-one-file-zero-servers)
@@ -136,7 +141,7 @@ npm install @jmtrin/opencode-kevin
 
 ### 2. Restart OpenCode
 
-On first boot Kevin migrates its database to schema version `011` and starts
+On first boot Kevin migrates its database to schema version `012` and starts
 observing. Nothing else is required.
 
 ### 3. Talk to it
@@ -160,6 +165,18 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── AGENTS.md           ← curated knowledge (marker block, human-approved)
 └── knowledge.okf       ← optional team-sharing file (opt-in)
 ```
+
+---
+
+## 🆕 What's new in 1.1.0 — "Drift"
+
+> 1.1.0 protects what 1.0.0 proved: a published number without a regression gate is marketing.
+
+- 🛡️ **Continuous benchmark gate** — `npm run bench:regress` compares the last two `bench/results` against per-metric thresholds (`precision@k` >0.02, `recall` >0.05, `mrr` >0.05 on the `kevin` arm); CI fails when truth drifts.
+- 🗑️ **Lifecycle closure — `kevin_forget`** — dry-run default, `confirm:true` archives locally and publishes a tombstone through the single write path; second identical run is a `noop`.
+- ⏱️ **Millisecond timestamps** — new `_ms` columns with conservative backfill; `settle()` and `CausalChain` now decide sub-second causality.
+- 🧹 **Debt paid** — one `STOP_WORDS` source, one `readOriginCallId`, `ConflictDetector` via `mapRow`, one column-probe registry; every setting has an on-path test.
+- 📜 **Public hygiene** — `LICENSE` (MIT), `homepage` filled, `docs/DISTRIBUTION.md` checklist, `scripts/release-notes.mjs` for `gh release create`, and `<!-- demo -->` slot.
 
 ---
 
@@ -231,7 +248,7 @@ Kevin is an intentionally deterministic pipeline — no LLM in the core loop:
 
 ---
 
-## 🧰 The 25 tools
+## 🧰 The 26 tools
 
 <details open>
 <summary><b>🧠 Core memory</b></summary>
@@ -537,8 +554,8 @@ npm run replay        # replay recorded sessions deterministically
 Project layout:
 
 ```
-plugin/      51 modules — Store, MemoryService, Reflector, Perf, Contract, …
-migrations/  001 → 011 — additive, idempotent, forward-only forever
+plugin/      53 modules — Store, MemoryService, Reflector, Perf, Contract, columns, kevin_forget …
+migrations/  001 → 012 — additive, idempotent, forward-only forever
 scripts/     bench · gen-corpus · verify-pack · verify-install · …
 tests/       unit · integration · e2e · replay fixtures
 bench/       committed corpus + committed results

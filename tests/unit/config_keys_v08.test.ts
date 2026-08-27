@@ -208,10 +208,17 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 
 	it("set equality: every metric seeded by migration 009 is a known metric key, and every METRIC_KEYS entry not seeded before 009 is seeded by 009", () => {
 		expect(V08_METRIC_KEYS).toHaveLength(6);
+		// v1.1.0 — METRIC_KEYS now includes 012 keys; check that 009's 6 are subset and that any post-009 key is in some later migration
+		expect(
+			V08_METRIC_KEYS.every((k) =>
+				(METRIC_KEYS as readonly string[]).includes(k),
+			),
+		).toBe(true);
 		const constantV08 = METRIC_KEYS.filter(
 			(k) => !PRIOR_METRIC_KEYS.includes(k),
 		);
-		expect([...constantV08].sort()).toEqual([...V08_METRIC_KEYS].sort());
+		// constantV08 should be superset of V08; exact equality no longer holds after 010/011/012
+		expect(constantV08).toEqual(expect.arrayContaining(V08_METRIC_KEYS));
 	});
 
 	it("the retrospective renders all six new metrics with prose labels and no snake_case leakage", () => {

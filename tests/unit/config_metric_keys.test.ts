@@ -31,24 +31,33 @@ const MIGRATION_FILES = readdirSync(MIGRATIONS_DIR)
 	.filter((f) => f.endsWith(".sql"))
 	.sort();
 
-// Extract the keys of an `INSERT OR IGNORE INTO <table> (key, value)` block
+// Extract the keys of an `INSERT ... INTO <table> (key, value)` block
 // from a migration's SQL text — derived from the source of truth (plan §8.10).
+// v1.1.0 — 012 uses `INSERT INTO kevin_metrics (key, value, updated_at) VALUES` without OR IGNORE.
 function seededKeys(sql: string, table: string): string[] {
-	const marker = `INSERT OR IGNORE INTO ${table} (key, value) VALUES`;
-	const start = sql.indexOf(marker);
-	if (start === -1) return [];
-	const end = sql.indexOf(");", start);
-	const block = end === -1 ? sql.slice(start) : sql.slice(start, end + 2);
-	const keys: string[] = [];
-	for (const line of block.split("\n")) {
-		const m = line.match(/^\s*\('([^']+)'/);
-		if (m) keys.push(m[1]);
+	const markers = [
+		`INSERT OR IGNORE INTO ${table} (key, value) VALUES`,
+		`INSERT INTO ${table} (key, value, updated_at) VALUES`,
+		`INSERT INTO ${table} (key, value) VALUES`,
+	];
+	let keys: string[] = [];
+	for (const marker of markers) {
+		let start = sql.indexOf(marker);
+		while (start !== -1) {
+			const end = sql.indexOf(");", start);
+			const block = end === -1 ? sql.slice(start) : sql.slice(start, end + 2);
+			for (const line of block.split("\n")) {
+				const m = line.match(/^\s*\('([^']+)'/);
+				if (m && !keys.includes(m[1])) keys.push(m[1]);
+			}
+			start = sql.indexOf(marker, start + marker.length);
+		}
 	}
 	// v1.0.0: migration 011 also uses one-statement-per-row seeds
 	// (`INSERT ... VALUES ('k', v);` on a single line), invisible to the
 	// block parser above.
 	const single = new RegExp(
-		`INSERT OR IGNORE INTO ${table} \\(key, value\\) VALUES \\('([^']+)'`,
+		`INSERT (?:OR IGNORE )?INTO ${table} \\(key, value[^)]*\\) VALUES \\('([^']+)'`,
 		"g",
 	);
 	for (const m of sql.matchAll(single)) {
@@ -115,7 +124,7 @@ describe("K9-003 — derived registration coverage (Native)", () => {
 		// v1.0.0 (K10-005 / plan §5.2): 27 -> 31 settings, 45 -> 51 metric
 		// labels with the perf/contract surface seeded by migration 011.
 		expect(KEVIN_CONFIG_KEYS).toHaveLength(31);
-		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(51);
+		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(54);
 	});
 
 	it("fails if a future migration seeds a key that is not registered", () => {

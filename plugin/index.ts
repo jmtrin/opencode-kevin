@@ -43,6 +43,7 @@ import { executeKevinConflicts } from "./kevin_conflicts.js";
 import { buildKevinContract } from "./kevin_contract.js";
 import { buildDoctor } from "./kevin_doctor.js";
 import { buildKevinFacts } from "./kevin_facts.js";
+import { handleForget } from "./kevin_forget.js";
 import { handleNative } from "./kevin_native.js";
 import { kevinPropose } from "./kevin_propose.js";
 import { kevinPublish } from "./kevin_publish.js";
@@ -137,6 +138,7 @@ export const KEVIN_CONFIG_KEYS = [
 	"perf_flush_on_idle",
 	"contract_report_enabled",
 ] as const;
+// v1.1.0 (K11-007 / D11-08) — no new settings in 1.1.0; thresholds are constants (D11-03)
 
 // v0.7.0 (K7-003 / plan §5.6, D7-12) — the explicit VALUE domain for
 // `error_lesson_mode`. The setting is TEXT and must be compared with
@@ -147,7 +149,7 @@ export const KEVIN_CONFIG_KEYS = [
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
 
 /** Plugin release version — stamped into generated files (K8-021/027). */
-export const KEVIN_VERSION = "1.0.0";
+export const KEVIN_VERSION = "1.1.0";
 
 function resolveMigrationsDir(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
@@ -1088,8 +1090,9 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							// monotone across releases; K6-024 extends this
 							// block with the remaining v0.6 fields. v0.8.0
 							// (K8-025) — 18 v0.7 + kevin_project +
-							// kevin_native = 23.
-							tool_count: 23,
+							// kevin_native = 23. v1.0.0 (K10-018) — +kevin_contract +kevin_bench = 25.
+							// v1.1.0 (K11-007) — +kevin_forget = 26.
+							tool_count: 26,
 							v07,
 							memories_reflector: memoriesReflector,
 							memories_agent: memoriesAgent,
@@ -1768,6 +1771,31 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					});
 					return {
 						title: "Bundles publicados",
+						output: JSON.stringify(result),
+					};
+				},
+			}),
+			// v1.1.0 (K11-007 / plan §5.1, D11-02) — kevin_forget: closes the sharing lifecycle.
+			kevin_forget: tool({
+				description:
+					"Olvida memorias y publica tombstones en la capa compartida (v1.1.0, K11-005/006 / plan §5.1): dry-run por defecto — sin confirm no muta nada y devuelve el plan (archived, tombstone planned); con confirm:true archiva localmente (status='archived') y, cuando la memoria proyecta a la capa compartida (layer='shared' o shared_entry_id), publica un tombstone via el unico write path (SharedLayer.applyExport, D8-08). Segunda invocacion identica reporta noop.",
+				args: {
+					ids: tool.schema.array(tool.schema.string()).min(1),
+					confirm: tool.schema.boolean().optional(),
+				},
+				async execute(args) {
+					const okfPath = join(
+						projectRoot,
+						memoryService.getSetting("okf_path", ".kevin/knowledge.okf"),
+					);
+					const result = handleForget(
+						{ ids: args.ids, confirm: args.confirm },
+						{ store, memoryService, sharedLayer, okfPath, metrics },
+					);
+					return {
+						title: result.dry_run
+							? "Plan de olvido (dry-run)"
+							: "Olvido aplicado",
 						output: JSON.stringify(result),
 					};
 				},

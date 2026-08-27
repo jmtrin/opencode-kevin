@@ -34,7 +34,7 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 23 registered tool names (`kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_project`, `kevin_audit`, `kevin_doctor`, `kevin_native`, `kevin_retrospective`, `kevin_why`, `kevin_feedback`, `kevin_trace`, `kevin_export`, `kevin_import`, `kevin_config`, `kevin_facts`, `kevin_conflicts`, `kevin_propose`, `kevin_publish`, `kevin_approve`, `kevin_share`, `kevin_sync`) and their Zod argument shapes via `tool.schema`.
+- **Covers:** the 26 registered tool names (`kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_project`, `kevin_audit`, `kevin_doctor`, `kevin_native`, `kevin_retrospective`, `kevin_why`, `kevin_feedback`, `kevin_trace`, `kevin_export`, `kevin_import`, `kevin_config`, `kevin_facts`, `kevin_conflicts`, `kevin_propose`, `kevin_publish`, `kevin_approve`, `kevin_share`, `kevin_sync`, `kevin_forget` + `kevin_bench`, `kevin_contract` since 1.0.0) and their Zod argument shapes via `tool.schema`.
 - **Consumer may rely on:** tool names are stable; argument shapes are additive only in 1.x.
 
 ## C-04 — Setting keys, types and defaults
@@ -48,7 +48,7 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 51 `kevin_metrics` keys.
+- **Covers:** the 54 `kevin_metrics` keys (51 at 1.0.0 + `bench_regression_failures`, `forget_requests_total`, `forget_tombstones_published` since 1.1.0).
 - **Consumer may rely on:** counters are monotonic integers; absent keys are zero.
 
 ## C-06 — Package entry points
@@ -62,7 +62,7 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** forward-only
 - **Since:** 0.1.0
-- **Covers:** schema version `011`, migrations are forward-only (`migrations/*.sql` apply in order, never rewritten).
+- **Covers:** schema version `012`, migrations are forward-only (`migrations/*.sql` apply in order, never rewritten).
 - **Consumer may rely on:** forward-only migrations; `Migrate.run()` idempotent.
 
 ## C-08 — Filesystem locations

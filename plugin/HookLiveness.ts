@@ -70,6 +70,8 @@ interface HookLivenessOptions {
  * table carries no project_id or repo_id (D9-08).
  */
 export class HookLiveness {
+	// v1.1.0 (K11-015) — debug counter for excess arity; never logged on hot path
+	public excessArityCount = 0;
 	private readonly counters: Map<HookName, HookCounters>;
 	private readonly seenSessions: Map<HookName, Set<string>>;
 	private readonly suppressedSessions: Set<string> = new Set();
@@ -301,32 +303,16 @@ export class HookLiveness {
 			}
 			throw e;
 		};
-		const n = delegate.length;
-		if (n === 0) {
-			return async () => {
-				try {
-					const result = await delegate();
-					record();
-					return result;
-				} catch (e) {
-					return recordError(e);
-				}
-			};
-		}
-		if (n === 1) {
-			return async (a: unknown) => {
-				try {
-					const result = await delegate(a);
-					record();
-					return result;
-				} catch (e) {
-					return recordError(e);
-				}
-			};
-		}
-		return async (a: unknown, b: unknown) => {
+		// v1.1.0 (K11-015) — arity guard: maximum supported arity is 2 (plan §5.5).
+		// Excess args are sliced and counted via excessArityCount; never logged.
+		return async (...args: unknown[]) => {
+			let callArgs = args;
+			if (args.length > 2) {
+				this.excessArityCount++;
+				callArgs = args.slice(0, 2);
+			}
 			try {
-				const result = await delegate(a, b);
+				const result = await delegate(...callArgs);
 				record();
 				return result;
 			} catch (e) {

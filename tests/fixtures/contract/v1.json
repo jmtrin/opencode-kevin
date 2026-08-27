@@ -74,6 +74,10 @@
 					{
 						"name": "kevin_contract",
 						"since": "1.0.0"
+					},
+					{
+						"name": "kevin_forget",
+						"since": "1.1.0"
 					}
 				]
 			}
@@ -176,7 +180,19 @@
 					"shared_entries_total",
 					"tokens_injected_compacting",
 					"tokens_injected_pre_prompt",
-					"tool_calls_deduped"
+					"tool_calls_deduped",
+					{
+						"name": "bench_regression_failures",
+						"since": "1.1.0"
+					},
+					{
+						"name": "forget_requests_total",
+						"since": "1.1.0"
+					},
+					{
+						"name": "forget_tombstones_published",
+						"since": "1.1.0"
+					}
 				]
 			}
 		},
@@ -202,7 +218,7 @@
 			"stability": "forward-only",
 			"since": "0.1.0",
 			"value": {
-				"schema_version": "011",
+				"schema_version": "012",
 				"migrations_forward_only": true
 			}
 		},

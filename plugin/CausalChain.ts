@@ -5,7 +5,9 @@ import {
 } from "./LessonFixer.js";
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
+import { hasColumn } from "./columns.js";
 import type { Metrics } from "./metrics.js";
+import { toMs } from "./time-ms.js";
 
 /** K3-007 — a success only links to a failure within this many calls. */
 const MAX_LINK_DISTANCE = 10;
@@ -34,14 +36,28 @@ export class CausalChain {
 		_projectId: string | null,
 		sessionId: string,
 	): void {
-		const successRow = this.store
-			.prepare(
-				`SELECT rowid, tool, args_summary FROM tool_calls
-				 WHERE session_id = ? AND success = 1
-				 ORDER BY rowid DESC LIMIT 1`,
-			)
-			.get(sessionId) as
-			| { rowid: number; tool: string; args_summary: string | null }
+		// v1.1.0 (K11-004 / plan §5.2, D11-01/D11-07) — ms-aware window: prefer _ms
+		const hasTsMs = hasColumn(this.store, "tool_calls", "ts_ms");
+		const successRow = (
+			hasTsMs
+				? this.store.prepare(
+						`SELECT rowid, tool, args_summary, ts, ts_ms FROM tool_calls
+						 WHERE session_id = ? AND success = 1
+						 ORDER BY rowid DESC LIMIT 1`,
+					)
+				: this.store.prepare(
+						`SELECT rowid, tool, args_summary, ts FROM tool_calls
+						 WHERE session_id = ? AND success = 1
+						 ORDER BY rowid DESC LIMIT 1`,
+					)
+		).get(sessionId) as
+			| {
+					rowid: number;
+					tool: string;
+					args_summary: string | null;
+					ts: string;
+					ts_ms?: number | null;
+			  }
 			| undefined;
 		if (!successRow) return;
 
@@ -61,24 +77,48 @@ export class CausalChain {
 		// onLinkError) is the SAME identity dimension the error memory
 		// uses; `fingerprint` is the legacy tool|args|success hash and
 		// simply never matches a reflector error memory.
-		const failRows = this.store
-			.prepare(
-				`SELECT rowid, COALESCE(error_fingerprint, fingerprint) AS fp
-				 FROM tool_calls
-				 WHERE session_id = ?
-				   AND success = 0
-				   AND (error_fingerprint IS NOT NULL OR fingerprint IS NOT NULL)
-				 ORDER BY rowid DESC LIMIT ?`,
-			)
-			.all(sessionId, MAX_LINK_DISTANCE) as {
+		const failRows = (
+			hasTsMs
+				? this.store.prepare(
+						`SELECT rowid, COALESCE(error_fingerprint, fingerprint) AS fp, ts, ts_ms
+						 FROM tool_calls
+						 WHERE session_id = ?
+						   AND success = 0
+						   AND (error_fingerprint IS NOT NULL OR fingerprint IS NOT NULL)
+						 ORDER BY rowid DESC LIMIT ?`,
+					)
+				: this.store.prepare(
+						`SELECT rowid, COALESCE(error_fingerprint, fingerprint) AS fp, ts
+						 FROM tool_calls
+						 WHERE session_id = ?
+						   AND success = 0
+						   AND (error_fingerprint IS NOT NULL OR fingerprint IS NOT NULL)
+						 ORDER BY rowid DESC LIMIT ?`,
+					)
+		).all(sessionId, MAX_LINK_DISTANCE) as {
 			rowid: number;
 			fp: string | null;
+			ts: string;
+			ts_ms?: number | null;
 		}[];
 
 		for (const fail of failRows) {
 			if (!fail.fp || linkedFps.has(fail.fp)) continue;
 			const dist = successRow.rowid - fail.rowid;
 			if (dist <= 0 || dist > MAX_LINK_DISTANCE) continue;
+			// v1.1.0 — ≤24h window uses ms when available
+			const successMs = toMs(
+				(successRow as { ts: string }).ts,
+				(successRow as { ts_ms?: number | null }).ts_ms ?? null,
+			);
+			const failMs = toMs(
+				(fail as { ts: string }).ts,
+				(fail as { ts_ms?: number | null }).ts_ms ?? null,
+			);
+			if (successMs !== null && failMs !== null) {
+				const diff = successMs - failMs;
+				if (diff < 0 || diff > 86_400_000) continue;
+			}
 
 			const mem = this.store
 				.prepare(

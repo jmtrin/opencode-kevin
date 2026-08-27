@@ -1,5 +1,6 @@
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
+import { hasArchivedColumn } from "./columns.js";
 import type { Metrics } from "./metrics.js";
 
 /**
@@ -81,22 +82,7 @@ export class Archiver {
 	}
 
 	private hasArchivedColumn(): boolean {
-		return hasArchivedColumnCached(this.store);
-	}
-}
-
-// v0.6.0 (K6-001a) — positive-only caching: a successful probe is cached,
-// a failed probe is NOT. A Store migrated in place heals on the next call.
-const archivedColumnCache = new WeakMap<Store, boolean>();
-function hasArchivedColumnCached(store: Store): boolean {
-	const cached = archivedColumnCache.get(store);
-	if (cached === true) return true;
-	try {
-		store.prepare("SELECT archived_at FROM memories LIMIT 1").get();
-		archivedColumnCache.set(store, true);
-		return true;
-	} catch {
-		return false;
+		return hasArchivedColumn(this.store);
 	}
 }
 

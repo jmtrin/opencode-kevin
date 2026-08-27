@@ -4,6 +4,7 @@ import type { ArtifactWriter, WriteOutcome } from "./ArtifactWriter.js";
 import { firstSentence } from "./Curator.js";
 import type { Store } from "./Store.js";
 import { normalize } from "./fingerprint.js";
+import { STOP_WORDS } from "./query-tokenizer.js";
 
 /**
  * K6-017 — v0.6.0 pull — topic bundles for the pull channels (plan §5.6).
@@ -51,95 +52,6 @@ export type NativeSurface = "skill" | "reference";
 const HEX_LIKE_RE = /^[0-9a-f]{8,}$/;
 
 const TOKEN_RE = /[^a-z0-9]+/;
-
-/** Conservative English function words; code-adjacent meaning-bearing
- * words (npm, ts2304, cargo...) are deliberately NOT stop-words. */
-const STOP_WORDS = new Set([
-	"a",
-	"about",
-	"after",
-	"again",
-	"all",
-	"also",
-	"an",
-	"and",
-	"any",
-	"are",
-	"as",
-	"at",
-	"be",
-	"been",
-	"before",
-	"being",
-	"but",
-	"by",
-	"can",
-	"could",
-	"did",
-	"do",
-	"does",
-	"for",
-	"from",
-	"had",
-	"has",
-	"have",
-	"he",
-	"her",
-	"his",
-	"if",
-	"in",
-	"into",
-	"is",
-	"it",
-	"its",
-	"may",
-	"might",
-	"more",
-	"most",
-	"must",
-	"not",
-	"of",
-	"on",
-	"one",
-	"or",
-	"our",
-	"per",
-	"shall",
-	"she",
-	"so",
-	"than",
-	"that",
-	"the",
-	"their",
-	"them",
-	"then",
-	"there",
-	"these",
-	"they",
-	"this",
-	"those",
-	"through",
-	"to",
-	"too",
-	"under",
-	"up",
-	"us",
-	"via",
-	"was",
-	"we",
-	"were",
-	"what",
-	"when",
-	"where",
-	"which",
-	"while",
-	"who",
-	"will",
-	"with",
-	"would",
-	"you",
-	"your",
-]);
 
 interface CuratedRow {
 	id: string;

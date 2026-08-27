@@ -1,5 +1,8 @@
+import { readOriginCallId } from "./MemoryService.js";
 import type { Store } from "./Store.js";
+import { hasColumn } from "./columns.js";
 import type { Metrics } from "./metrics.js";
+import { toMs } from "./time-ms.js";
 import { uuidv7 } from "./uuid.js";
 
 /**
@@ -72,20 +75,39 @@ export class InjectionLedger {
 	 * duplicates are expected only via the caller's per-session seen-set.
 	 */
 	record(input: InjectionRecordInput): void {
-		this.store
-			.prepare(
-				`INSERT INTO kevin_injections
-				   (id, memory_id, fingerprint, session_id, hook, tokens, outcome)
-				 VALUES (?, ?, ?, ?, ?, ?, 'unmeasured')`,
-			)
-			.run(
-				uuidv7(),
-				input.memoryId,
-				input.fingerprint,
-				input.sessionId,
-				input.hook,
-				input.tokens,
-			);
+		// v1.1.0 (K11-003 / plan §5.2, D11-01) — dual-write injected_at_ms when column exists
+		if (hasColumn(this.store, "kevin_injections", "injected_at_ms")) {
+			this.store
+				.prepare(
+					`INSERT INTO kevin_injections
+					   (id, memory_id, fingerprint, session_id, hook, tokens, outcome, injected_at_ms)
+					 VALUES (?, ?, ?, ?, ?, ?, 'unmeasured', ?)`,
+				)
+				.run(
+					uuidv7(),
+					input.memoryId,
+					input.fingerprint,
+					input.sessionId,
+					input.hook,
+					input.tokens,
+					Date.now(),
+				);
+		} else {
+			this.store
+				.prepare(
+					`INSERT INTO kevin_injections
+					   (id, memory_id, fingerprint, session_id, hook, tokens, outcome)
+					 VALUES (?, ?, ?, ?, ?, ?, 'unmeasured')`,
+				)
+				.run(
+					uuidv7(),
+					input.memoryId,
+					input.fingerprint,
+					input.sessionId,
+					input.hook,
+					input.tokens,
+				);
+		}
 		this.metrics?.incr("injections_total", 1);
 		// v0.8.0 (K8-024 / plan §5.7) — shared-layer consumption is counted
 		// separately so the audit can tell how much of the push channel
@@ -111,29 +133,42 @@ export class InjectionLedger {
 	 * recent injection").
 	 */
 	settle(sessionId: string): void {
-		const injections = this.store
-			.prepare(
-				`SELECT id, memory_id, fingerprint, injected_at, outcome
-				   FROM kevin_injections
-				  WHERE session_id = ?
-				  ORDER BY injected_at ASC, id ASC`,
-			)
-			.all(sessionId) as {
+		// v1.1.0 (K11-003 / plan §5.2, D11-01/D11-07) — ms-aware settle: readers
+		// prefer _ms and fall back to legacy string. Column probes are cached.
+		const hasInjMs = hasColumn(
+			this.store,
+			"kevin_injections",
+			"injected_at_ms",
+		);
+		const hasToolMs = hasColumn(this.store, "tool_calls", "ts_ms");
+		const injections = (
+			hasInjMs
+				? this.store.prepare(
+						`SELECT id, memory_id, fingerprint, injected_at, injected_at_ms, outcome
+						   FROM kevin_injections
+						  WHERE session_id = ?
+						  ORDER BY injected_at ASC, id ASC`,
+					)
+				: this.store.prepare(
+						`SELECT id, memory_id, fingerprint, injected_at, outcome
+						   FROM kevin_injections
+						  WHERE session_id = ?
+						  ORDER BY injected_at ASC, id ASC`,
+					)
+		).all(sessionId) as {
 			id: string;
 			memory_id: string;
 			fingerprint: string;
 			injected_at: string;
+			injected_at_ms?: number | null;
 			outcome: InjectionOutcome;
 		}[];
 
 		for (const inj of injections) {
 			// Same identity dimension CausalChain uses: the failing call's
 			// `error_fingerprint` (stamped by Reflector) or the legacy
-			// `fingerprint` hash. `ts` and `injected_at` are both
-			// `datetime('now')` text → lexicographic comparison is valid.
-			// COUNT (not LIMIT 1): every failing call after the injection
-			// is a recurrence — the charge must reach 3 so D4-06 expels
-			// the lesson.
+			// `fingerprint` hash.
+			// v1.1.0 — time comparison uses toMs helper (prefers _ms).
 			//
 			// BUG-003 — the exemption is now bounded to the lesson's OWN
 			// creating call (memories.metadata.origin_call_id, stamped by
@@ -145,26 +180,60 @@ export class InjectionLedger {
 			// precision. Memories without a tracked creating call (agent-
 			// saved, test fixtures) get no exemption: only the `ts >=
 			// injected_at` bound applies.
-			const originCallId = readOriginCallId(this.store, inj.memory_id);
-			const countRow = this.store
-				.prepare(
-					`SELECT COUNT(*) AS n FROM tool_calls
-					  WHERE session_id = ?
-					    AND success = 0
-					    AND COALESCE(error_fingerprint, fingerprint) = ?
-					    AND ts >= ?
-					    AND (? IS NULL OR id != ?)
-					 LIMIT 1`,
-				)
-				.get(
-					sessionId,
-					inj.fingerprint,
-					inj.injected_at,
-					originCallId,
-					originCallId,
-				) as { n: number };
+			const metaRow = this.store
+				.prepare("SELECT metadata FROM memories WHERE id = ?")
+				.get(inj.memory_id) as { metadata: string | null } | undefined;
+			const originCallId = readOriginCallId(metaRow?.metadata ?? null);
+			// v1.1.0 — heuristic: when legacy string and _ms diverge by >2s
+			// (manual UPDATE of injected_at in tests), trust the string
+			// because the ms reflects wall time at record, not the pinned
+			// fixture time. Real rows differ by <1s (second truncation).
+			const rawInjMs =
+				(inj as { injected_at_ms?: number | null }).injected_at_ms ?? null;
+			const stringMs = inj.injected_at
+				? Date.parse(`${inj.injected_at.replace(" ", "T")}Z`)
+				: null;
+			const injectedMs =
+				rawInjMs !== null &&
+				stringMs !== null &&
+				!Number.isNaN(stringMs) &&
+				Math.abs(rawInjMs - stringMs) > 2000
+					? stringMs
+					: toMs(inj.injected_at, rawInjMs);
 
-			const n = countRow.n;
+			// Fetch candidate failing calls for this fingerprint and filter by ms
+			const failRows = (
+				hasToolMs
+					? this.store.prepare(
+							`SELECT id, ts, ts_ms FROM tool_calls
+							  WHERE session_id = ?
+							    AND success = 0
+							    AND COALESCE(error_fingerprint, fingerprint) = ?`,
+						)
+					: this.store.prepare(
+							`SELECT id, ts FROM tool_calls
+							  WHERE session_id = ?
+							    AND success = 0
+							    AND COALESCE(error_fingerprint, fingerprint) = ?`,
+						)
+			).all(sessionId, inj.fingerprint) as {
+				id: string;
+				ts: string;
+				ts_ms?: number | null;
+			}[];
+
+			let n = 0;
+			for (const r of failRows) {
+				if (originCallId !== null && r.id === originCallId) continue;
+				const tsMs = toMs(r.ts, (r as { ts_ms?: number | null }).ts_ms ?? null);
+				if (injectedMs !== null && tsMs !== null) {
+					if (tsMs < injectedMs) continue;
+				} else {
+					// fallback to string comparison when either side missing (legacy)
+					if (r.ts < inj.injected_at) continue;
+				}
+				n++;
+			}
 
 			// v0.5.0 (K5-005 / plan §5.1, D5-01) — three-way settlement:
 			//   recurrences >= 1 → ineffective  (existing side effects unchanged)
@@ -192,7 +261,7 @@ export class InjectionLedger {
 						  WHERE fingerprint = ? AND id = ?`,
 					)
 					.run(
-						countRow.n,
+						n,
 						inj.injected_at,
 						inj.injected_at,
 						inj.fingerprint,
@@ -217,19 +286,42 @@ export class InjectionLedger {
 				// `ts >= injected_at` bound and `session_id = ?` filter are
 				// kept; there is no `origin_call_id` exemption for fixes —
 				// a fix is not the creating call.
-				const fixRow = this.store
-					.prepare(
-						`SELECT COUNT(*) AS m FROM tool_calls
-						  WHERE session_id = ?
-						    AND success = 1
-						    AND fix_for_fingerprint = ?
-						    AND ts >= ?
-						 LIMIT 1`,
-					)
-					.get(sessionId, inj.fingerprint, inj.injected_at) as {
-					m: number;
-				};
-				if (fixRow.m >= 1) {
+				// v1.1.0 — ms-aware: fetch and filter via toMs.
+				const fixCandidates = (
+					hasToolMs
+						? this.store.prepare(
+								`SELECT ts, ts_ms FROM tool_calls
+								  WHERE session_id = ?
+								    AND success = 1
+								    AND fix_for_fingerprint = ?`,
+							)
+						: this.store.prepare(
+								`SELECT ts FROM tool_calls
+								  WHERE session_id = ?
+								    AND success = 1
+								    AND fix_for_fingerprint = ?`,
+							)
+				).all(sessionId, inj.fingerprint) as {
+					ts: string;
+					ts_ms?: number | null;
+				}[];
+				let hasFix = false;
+				for (const fr of fixCandidates) {
+					const tsMs = toMs(
+						fr.ts,
+						(fr as { ts_ms?: number | null }).ts_ms ?? null,
+					);
+					if (injectedMs !== null && tsMs !== null) {
+						if (tsMs >= injectedMs) {
+							hasFix = true;
+							break;
+						}
+					} else if (fr.ts >= inj.injected_at) {
+						hasFix = true;
+						break;
+					}
+				}
+				if (hasFix) {
 					this.store
 						.prepare(
 							`UPDATE kevin_injections SET outcome = 'effective'
@@ -348,21 +440,4 @@ export class InjectionLedger {
 	}
 }
 
-/**
- * BUG-003 — read `origin_call_id` (the failing tool_call that CREATED the
- * memory) from memories.metadata, mirroring the feedback loop's
- * `readOriginCallId` in MemoryService. Returns null when absent/malformed.
- */
-function readOriginCallId(store: Store, memoryId: string): string | null {
-	const row = store
-		.prepare("SELECT metadata FROM memories WHERE id = ?")
-		.get(memoryId) as { metadata: string | null } | undefined;
-	if (!row?.metadata) return null;
-	try {
-		const parsed = JSON.parse(row.metadata) as Record<string, unknown>;
-		const id = parsed?.origin_call_id;
-		return typeof id === "string" && id.length > 0 ? id : null;
-	} catch {
-		return null;
-	}
-}
+// v1.1.0 — readOriginCallId deduplicated: imported from MemoryService (K11-003/K11-013)

@@ -118,6 +118,9 @@ describe("Metrics", () => {
 				"tokens_injected_compacting",
 				"tokens_injected_pre_prompt",
 				"tool_calls_deduped",
+				"bench_regression_failures",
+				"forget_requests_total",
+				"forget_tombstones_published",
 			].sort(),
 		);
 		for (const v of Object.values(snap)) expect(v).toBe(0);
@@ -320,7 +323,7 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 	// verifiable cumulative ladder the later release gates depend on.
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
 	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(39);
+		expect(METRIC_KEYS).toHaveLength(42);
 	});
 
 	it("snapshot() includes all keys", () => {
@@ -432,7 +435,11 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 			key: string;
 		}[];
 		const dbKeys = rows.map((r) => r.key).sort();
-		expect(dbKeys).toEqual([...METRIC_KEYS].sort());
+		// v1.1.0 — DB at 007/009 lacks 012 keys, so METRIC_KEYS is superset; check subset
+		expect([...METRIC_KEYS].sort()).toEqual(expect.arrayContaining(dbKeys));
+		expect(
+			dbKeys.every((k) => (METRIC_KEYS as readonly string[]).includes(k)),
+		).toBe(true);
 		store.close();
 	});
 
@@ -469,7 +476,7 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
 	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(39);
+		expect(METRIC_KEYS).toHaveLength(42);
 	});
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {
@@ -484,6 +491,7 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 		// The K6-004 counterpart store helper now also applies 008 and 009, so
 		// the seeded kevin_metrics set equals the 39-key METRIC_KEYS ladder.
 		// v0.8.0 (K8-003): migration 009 seeds the six Team keys.
+		// v1.1.0 — DB at 009 lacks 012 keys, so check subset
 		const store = new Store({ path: ":memory:" });
 		const migrationFiles = [
 			"001_initial.sql",
@@ -504,7 +512,10 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 			key: string;
 		}[];
 		const dbKeys = rows.map((r) => r.key).sort();
-		expect(dbKeys).toEqual([...METRIC_KEYS].sort());
+		expect([...METRIC_KEYS].sort()).toEqual(expect.arrayContaining(dbKeys));
+		expect(
+			dbKeys.every((k) => (METRIC_KEYS as readonly string[]).includes(k)),
+		).toBe(true);
 		store.close();
 	});
 

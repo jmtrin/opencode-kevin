@@ -8,7 +8,7 @@
 - `npm run replay` — Replay report over tests/replay/fixtures (v0.5.0)
 
 ## Architecture
-Kevin is 1 plugin with 51 modules (`plugin/*.ts`), built around 9 core
+Kevin is 1 plugin with 53 modules (`plugin/*.ts`), built around 9 core
 components — Store, Migrate, MemoryService, ToolCallObserver, Reflector,
 ContextInjector, Retrospective, Feedback, Archiver — plus the v0.3–v0.6
 components: CausalChain, QualityGate, InjectionLedger, LessonFixer,
@@ -16,9 +16,9 @@ PatternMiner, ConventionMiner, ConflictDetector, Curator, ArtifactWriter, Materi
 kevin_propose/kevin_approve/kevin_audit/kevin_publish, the v0.8 team
 components — RepoIdentity (repo_id: declared → remote → path), SharedLayer
 (OKF v2 plan/apply/tombstone/import), okf (parse/serialize/merge, entry_id),
-kevin_project/kevin_share/kevin_sync — and the pure helpers
+kevin_project/kevin_share/kevin_sync/kevin_forget — and the pure helpers
 (confidence, diff, fingerprint, inferability, query-tokenizer, memory-format,
-redact, uuid, replay, sqlite-adapter, capabilities).
+redact, uuid, replay, sqlite-adapter, capabilities, columns, time-ms, bench-compare).
 
 ## Conventions
 - TypeScript strict, ESM modules

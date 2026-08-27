@@ -4,6 +4,27 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-27
+
+### Added — Drift
+
+- **Continuous benchmark gate** (`scripts/bench-compare.ts` + `scripts/bench-regress.ts`, K11-008/K11-009, D11-03/D11-10): pure `compareResults()` with thresholds `precision@k 0.02` / `recall@k 0.05` / `mrr 0.05` on the `kevin` arm; CLI `bench:regress` loads the two most recent `bench/results/*.json` (sorted by filename), prints a fixed-width table, exits 1 on regression, increments `bench_regression_failures` best-effort when `KEVIN_REGRESS_DB=1`; `bench:regress` is CI-integrable and never mutates the corpus. Self-defense test `bench_regress_gate.test.ts` crafts synthetic prev/curr pairs to prove the gate.
+- **Lifecycle closure — `kevin_forget` (26th tool, K11-005–K11-007, BUG-005, D11-02):** `handleForget({ids, confirm})` — dry-run (`confirm !== true`) mutates nothing, returns `per_id` with `archived` and `tombstone: {entry_id, planned, applied}`; `confirm:true` archives locally (`status='archived'`, `archived_at=datetime('now')`) in ONE transaction and publishes tombstones through `SharedLayer.planTombstone → applyExport` (the single write path, D8-08). Second identical run reports `noop` and `forget_requests_total=2, forget_tombstones_published=1`. Refusals reuse `repo_mismatch`/`unknown_entry` verbatim.
+- **Millisecond timestamps** (`migrations/012_v11_drift.sql`, K11-001–K11-004, D11-01/D11-07): additive `tool_calls.ts_ms` + `kevin_injections.injected_at_ms` (`INTEGER`), conservative backfill (`strftime('%s')*1000`), indexes `idx_tool_calls_ts_ms` / `idx_injections_injected_ms`, three metric seeds; dual-write from 1.1.0 onward, readers prefer `_ms` and fall back to legacy. `InjectionLedger.record` dual-writes, `settle()` uses `toMs()` helper, `CausalChain` 24 h window is ms-aware, determinism preserved via injectable clock.
+- **Debt consolidation** (K11-011–K11-015, D11-05/D11-06): `plugin/columns.ts` single registry for all column probes (one `WeakMap`); `query-tokenizer.ts` becomes the single `STOP_WORDS` source (union of three lists, 111 words); `readOriginCallId` deduplicated to `MemoryService`; `ConflictDetector` routes rows through `mapRow`; `HookLiveness` arity guard (`excessArityCount`, `args.slice(0,2)`); `Migrate.listPending` documents lexicographic validity through `"999"`.
+- **Public hygiene** (K11-016–K11-019, P40/P41): `LICENSE` (MIT), `package.json.homepage` filled, `scripts/release-notes.mjs` prints the current `CHANGELOG` section for `gh release create`, `docs/DISTRIBUTION.md` checklist (6 items with owner + evidence), `README` demo GIF slot (`<!-- uncomment when docs/demo.gif lands -->`), and a 31/31 flag-audit — every setting has an on-path test or a `since`-tagged deprecation (none needed).
+- **Contract C-03 / C-05 / C-07** (K11-007): `kevin_forget` joins C-03 with `since: "1.1.0"`, three metric keys join C-05 with `since: "1.1.0"`, `schema_version` advances to `"012"`; `kevin_status.tool_count` advances `25 → 26` (comment chain updated). Golden file `tests/fixtures/contract/v1.json` is append-only.
+
+### Fixed
+
+- **`InjectionLedger` settlement on sub-second fixtures** — previously two events within the same second tied; now `toMs` distinguishes 250 ms gaps (K11-003).
+- **`CausalChain` 24 h window on sub-second fixtures** — 800 ms fix after failure now links with `_ms`, fallback still links when columns are nulled (K11-004).
+
+### Honest Limitations
+
+- **Backfill approximation:** rows created before 1.1.0 receive `ts_ms` / `injected_at_ms` as `seconds × 1000`; sub-second ordering for those historical rows remains approximate (new rows are true `Date.now()`).
+- **Distribution checklist items pending human action:** GitHub Discussions, Releases, demo GIF, and list PRs are documented in `docs/DISTRIBUTION.md` and require manual execution — they are measurable public signals, not exit gates.
+
 ## [1.0.0] - 2026-08-21
 
 ### Added — Proven

@@ -80,7 +80,7 @@ describe("K10-028 — every historical schema_version upgrades to 011", () => {
 					"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 				)
 				.get() as { version: string };
-			expect(versionRow.version).toBe("011");
+			expect(versionRow.version).toBe("012");
 
 			const mem = store
 				.prepare("SELECT type, content FROM memories WHERE id = ?")
@@ -107,8 +107,8 @@ describe("K10-028 — every historical schema_version upgrades to 011", () => {
 				join(process.cwd(), "migrations"),
 			).run();
 			expect(second.applied).toEqual([]);
-			expect(second.from).toBe("011");
-			expect(second.to).toBe("011");
+			expect(second.from).toBe("012");
+			expect(second.to).toBe("012");
 
 			const memAgain = store
 				.prepare("SELECT content FROM memories WHERE id = ?")
