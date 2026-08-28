@@ -61,10 +61,20 @@ describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 		// (~/.opencode-kevin, .kevin/) — never to a file in the user's
 		// repository. A third module acquiring raw fs writes breaks this
 		// test, exactly as a writeFileSync in SharedLayer.ts would.
+		// v1.2.0 (K12-003/K12-017) — TUI projection writers (TuiSnapshots,
+		// DashboardHtml, TuiActions, tui) also target ~/.opencode-kevin/tui
+		// — same allowed directory, hence allowlisted.
 		const sites = scan(/\bwriteFileSync\b/);
 		expect(sites.length).toBeGreaterThan(0);
 		for (const site of sites) {
-			expect(["RepoIdentity.ts", "Retrospective.ts"]).toContain(site.file);
+			expect([
+				"RepoIdentity.ts",
+				"Retrospective.ts",
+				"TuiSnapshots.ts",
+				"DashboardHtml.ts",
+				"TuiActions.ts",
+				"tui.ts",
+			]).toContain(site.file);
 		}
 	});
 

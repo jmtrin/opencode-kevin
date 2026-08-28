@@ -88,6 +88,15 @@ try {
 		if (keys[0] !== "types")
 			fail(2, `first exports condition is "${keys[0]}" expected "types"`);
 		pass(2, `exports["."] first key is "types" (${keys.join(",")})`);
+		// v1.2.0 (K12-013) — exports["./tui"] must exist with types-first
+		const expTui = pkgJson.exports?.["./tui"] as
+			| Record<string, string>
+			| undefined;
+		if (!expTui) fail(2, 'exports["./tui"] missing (K12-013)');
+		const tuiKeys = Object.keys(expTui as object);
+		if (tuiKeys[0] !== "types")
+			fail(2, `exports["./tui"] first key is "${tuiKeys[0]}" expected "types"`);
+		pass(2, `exports["./tui"] first key is "types" (${tuiKeys.join(",")})`);
 	}
 
 	// Property 3: No .js.map that references absent source

@@ -139,6 +139,7 @@ describe("K9-020 — kevin_audit host block (plan §5.5)", () => {
 			"team",
 			"tokens",
 			"truth",
+			"tui",
 		];
 		for (const key of expectedKeys) {
 			expect(rest).toHaveProperty(key);

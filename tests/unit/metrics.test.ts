@@ -75,7 +75,7 @@ describe("Metrics", () => {
 		const store = new Store({ path: ":memory:" });
 		const m = new Metrics(store);
 		const snap = m.snapshot();
-		// All 39 keys still present at zero.
+		// All 44 keys still present at zero (39 + v1.1 bench/forget + v1.2 tui).
 		// v0.8.0 (K8-003) adds the six Team keys.
 		expect(Object.keys(snap).sort()).toEqual(
 			[
@@ -121,6 +121,8 @@ describe("Metrics", () => {
 				"bench_regression_failures",
 				"forget_requests_total",
 				"forget_tombstones_published",
+				"tui_actions_invoked",
+				"tui_snapshots_flushed",
 			].sort(),
 		);
 		for (const v of Object.values(snap)) expect(v).toBe(0);
@@ -322,8 +324,9 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 	// appends five Project Truth keys for a total of 33. This length is the
 	// verifiable cumulative ladder the later release gates depend on.
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
+	// v1.1.0 adds 3 (bench+forget), v1.2.0 adds 2 (tui) for a total of 44.
 	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(42);
+		expect(METRIC_KEYS).toHaveLength(44);
 	});
 
 	it("snapshot() includes all keys", () => {
@@ -475,8 +478,9 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 
 describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
+	// v1.1.0 + v1.2.0 bring the total to 44.
 	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(42);
+		expect(METRIC_KEYS).toHaveLength(44);
 	});
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {

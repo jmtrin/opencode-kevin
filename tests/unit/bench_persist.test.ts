@@ -71,7 +71,7 @@ describe("K10-017 — bench result persistence", () => {
 			expect(new Set(rows.map((r) => r.corpus_digest)).size).toBe(1);
 			expect(rows.map((r) => r.arm)).toEqual([...ARMS]);
 			expect(rows.every((r) => r.k === 5)).toBe(true);
-			expect(rows[0]?.package_version).toBe("1.1.0");
+			expect(rows[0]?.package_version).toBe("1.2.0");
 			const total = store
 				.prepare(
 					"SELECT value FROM kevin_metrics WHERE key = 'bench_runs_total'",

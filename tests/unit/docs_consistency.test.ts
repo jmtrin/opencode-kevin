@@ -33,8 +33,8 @@ const PAIRS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 const LADDER_TOOLS = [10, 13, 16, 18, 21, 23, 25, 26];
-const LADDER_METRICS = [13, 22, 28, 33, 39, 45, 51, 54];
-const LADDER_SETTINGS = [6, 9, 14, 18, 23, 27, 31];
+const LADDER_METRICS = [13, 22, 28, 33, 39, 45, 51, 54, 56];
+const LADDER_SETTINGS = [6, 9, 14, 18, 23, 27, 31, 32];
 
 describe("K10-025 — cross-version consistency pass", () => {
 	it("the Roadmap cumulative ladders are monotone with the declared values", () => {
@@ -63,8 +63,8 @@ describe("K10-025 — cross-version consistency pass", () => {
 		expect(monotone(settings)).toBe(true);
 		// The last rung must match the shipped surface, not the prose.
 		expect(tools.at(-1)).toBe(26);
-		expect(metrics.at(-1)).toBe(54);
-		expect(settings.at(-1)).toBe(31);
+		expect(metrics.at(-1)).toBe(56);
+		expect(settings.at(-1)).toBe(32);
 		// Migrations ladder and principles range as declared.
 		expect(t).toMatch(/migrations `00\d` → `012`/);
 		expect(t).toMatch(/principles 39/);

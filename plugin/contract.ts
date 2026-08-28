@@ -85,6 +85,9 @@ export const CONTRACT_METRIC_ADDITIONS: readonly {
 	{ name: "bench_regression_failures", since: "1.1.0" },
 	{ name: "forget_requests_total", since: "1.1.0" },
 	{ name: "forget_tombstones_published", since: "1.1.0" },
+	// v1.2.0 (K12-001 / plan §4, D12-??) — surface metrics (no migration this release)
+	{ name: "tui_snapshots_flushed", since: "1.2.0" },
+	{ name: "tui_actions_invoked", since: "1.2.0" },
 ];
 
 /**

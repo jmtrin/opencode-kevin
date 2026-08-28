@@ -12,12 +12,15 @@ export interface Capabilities {
 	readonly skills: boolean;
 	readonly references: boolean;
 	readonly apiVersion: string | null;
+	/** v1.2.0 (K12-012 / plan D12-03) — additive probe for permission.ask. */
+	readonly permissionAsk?: boolean;
 }
 
 const ALL_FALSE: Capabilities = {
 	skills: false,
 	references: false,
 	apiVersion: null,
+	permissionAsk: false,
 };
 
 function hasCallable(
@@ -43,10 +46,12 @@ export function probe(input: unknown): Capabilities {
 			typeof record.apiVersion === "string"
 				? (record.apiVersion as string)
 				: null;
+		const permissionAsk = hasCallable(record, "permission", "ask");
 		return {
 			skills: hasCallable(record, "skill", "source"),
 			references: hasCallable(record, "reference", "add"),
 			apiVersion,
+			permissionAsk,
 		};
 	} catch {
 		// a Proxy whose getter throws must degrade to the all-false result,

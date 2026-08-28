@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { effectivePrePromptCap } from "./ContextInjector.js";
 import { hasRepoIdColumn } from "./MemoryService.js";
 import type { Store } from "./Store.js";
@@ -159,6 +162,22 @@ export interface AuditReport {
 		clause_count: number;
 		deprecated_count: number;
 	};
+	/**
+	 * v1.2.0 (K12-014 / D12-??) — TUI surface block. Read-only introspection:
+	 * enabled_setting is the kevin_settings value, last_flush_age_s is seconds
+	 * since meta.json generatedAt (null when absent/corrupt), mailbox_depth is
+	 * queue length (null when file missing), last_results is the parsed
+	 * results.json array (null when absent). Dashboard age and bridge counters
+	 * added in K12-019.
+	 */
+	tui?: {
+		enabled_setting: string;
+		last_flush_age_s: number | null;
+		mailbox_depth: number | null;
+		last_results: unknown | null;
+		dashboard_last_write_age_s: number | null;
+		bridge_interceptions: number;
+	};
 	partial: boolean;
 }
 
@@ -246,6 +265,7 @@ export function buildAudit(
 	capabilities: Capabilities = ALL_FALSE_CAPABILITIES,
 	projectId?: string,
 	repoId?: string | null,
+	tuiRoot?: string,
 ): AuditReport {
 	let partial = false;
 
@@ -887,6 +907,64 @@ export function buildAudit(
 		deprecated_count: liveContract.clauses.filter((c) => c.deprecated).length,
 	};
 
+	// v1.2.0 (K12-014/K12-019) — TUI block: best-effort fs introspection (absent → nulls)
+	let tui: AuditReport["tui"] | undefined;
+	try {
+		const enabled_setting = settings.tui_snapshots_enabled ?? "0";
+		const root = tuiRoot ?? join(homedir(), ".opencode-kevin", "tui");
+		let last_flush_age_s: number | null = null;
+		try {
+			const metaRaw = readFileSync(join(root, "meta.json"), "utf8");
+			const meta = JSON.parse(metaRaw) as { generatedAt?: string };
+			if (meta.generatedAt) {
+				const age = (Date.now() - Date.parse(meta.generatedAt)) / 1000;
+				if (Number.isFinite(age) && age >= 0)
+					last_flush_age_s = Math.floor(age);
+			}
+		} catch {}
+		let mailbox_depth: number | null = null;
+		try {
+			if (existsSync(join(root, "actions.json"))) {
+				const raw = readFileSync(join(root, "actions.json"), "utf8");
+				const parsed = JSON.parse(raw) as { actions?: unknown };
+				if (Array.isArray(parsed.actions))
+					mailbox_depth = parsed.actions.length;
+				else mailbox_depth = null;
+			} else {
+				mailbox_depth = null;
+			}
+		} catch {
+			mailbox_depth = null;
+		}
+		let last_results: unknown | null = null;
+		try {
+			const raw = readFileSync(join(root, "results.json"), "utf8");
+			last_results = JSON.parse(raw);
+		} catch {
+			last_results = null;
+		}
+		let dashboard_last_write_age_s: number | null = null;
+		try {
+			const st = statSync(join(root, "dashboard.html"));
+			const age = (Date.now() - st.mtimeMs) / 1000;
+			if (Number.isFinite(age) && age >= 0)
+				dashboard_last_write_age_s = Math.floor(age);
+		} catch {
+			dashboard_last_write_age_s = null;
+		}
+		const bridge_interceptions = metrics.get("tui_actions_invoked") ?? 0;
+		tui = {
+			enabled_setting,
+			last_flush_age_s,
+			mailbox_depth,
+			last_results,
+			dashboard_last_write_age_s,
+			bridge_interceptions,
+		};
+	} catch {
+		tui = undefined;
+	}
+
 	return {
 		memories,
 		injections,
@@ -903,6 +981,7 @@ export function buildAudit(
 		host,
 		perf,
 		contract,
+		tui,
 		partial,
 	};
 }

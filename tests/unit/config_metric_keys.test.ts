@@ -40,7 +40,7 @@ function seededKeys(sql: string, table: string): string[] {
 		`INSERT INTO ${table} (key, value, updated_at) VALUES`,
 		`INSERT INTO ${table} (key, value) VALUES`,
 	];
-	let keys: string[] = [];
+	const keys: string[] = [];
 	for (const marker of markers) {
 		let start = sql.indexOf(marker);
 		while (start !== -1) {
@@ -123,16 +123,22 @@ describe("K9-003 — derived registration coverage (Native)", () => {
 		// 23 -> 27 settings, 39 -> 45 metric labels (v0.9.0)
 		// v1.0.0 (K10-005 / plan §5.2): 27 -> 31 settings, 45 -> 51 metric
 		// labels with the perf/contract surface seeded by migration 011.
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(31);
-		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(54);
+		// v1.2.0 (K12-001 / plan §4): 31 -> 32 settings, 54 -> 56 metric
+		// labels with the surface surface.
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(32);
+		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(56);
 	});
 
 	it("fails if a future migration seeds a key that is not registered", () => {
 		// The derived lists above are the guard: this test documents the
 		// failure mode — a future seed lands in ALL_SETTING_KEYS /
 		// ALL_METRIC_KEYS and the coverage assertions above fail.
-		expect(ALL_SETTING_KEYS.length).toBe(KEVIN_CONFIG_KEYS.length);
-		expect(ALL_METRIC_KEYS.length).toBe(Object.keys(METRIC_KEY_LABELS).length);
+		// v1.2.0 (K12-001): tui_snapshots_enabled is lazy-seeded (no migration), and
+		// tui_* metrics are upsert-on-incr — hence 1 setting and 2 metrics beyond migrations.
+		expect(ALL_SETTING_KEYS.length).toBe(KEVIN_CONFIG_KEYS.length - 1);
+		expect(ALL_METRIC_KEYS.length).toBe(
+			Object.keys(METRIC_KEY_LABELS).length - 2,
+		);
 	});
 });
 

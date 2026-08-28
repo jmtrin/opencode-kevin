@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { probe } from "../../plugin/capabilities.js";
 
-const ALL_FALSE = { skills: false, references: false, apiVersion: null };
+const ALL_FALSE = {
+	skills: false,
+	references: false,
+	apiVersion: null,
+	permissionAsk: false,
+};
 
 describe("K6-016 — capabilities probe (plan §5.7, D6-13)", () => {
 	it("returns the all-false result and never throws for ten malformed inputs", () => {
@@ -43,6 +48,7 @@ describe("K6-016 — capabilities probe (plan §5.7, D6-13)", () => {
 			skills: true,
 			references: true,
 			apiVersion: "2.0.0",
+			permissionAsk: false,
 		});
 	});
 
@@ -51,11 +57,13 @@ describe("K6-016 — capabilities probe (plan §5.7, D6-13)", () => {
 			skills: true,
 			references: false,
 			apiVersion: null,
+			permissionAsk: false,
 		});
 		expect(probe({ reference: { add: () => "added" } })).toEqual({
 			skills: false,
 			references: true,
 			apiVersion: null,
+			permissionAsk: false,
 		});
 	});
 
@@ -65,6 +73,26 @@ describe("K6-016 — capabilities probe (plan §5.7, D6-13)", () => {
 			skills: true,
 			references: false,
 			apiVersion: null,
+			permissionAsk: false,
+		});
+	});
+
+	it("permissionAsk capability reports correctly (K12-012)", () => {
+		expect(probe({ permission: { ask: () => true } })).toEqual({
+			skills: false,
+			references: false,
+			apiVersion: null,
+			permissionAsk: true,
+		});
+		expect(probe({ permission: { ask: 1 } })).toEqual(ALL_FALSE);
+		expect(probe({ permission: null })).toEqual(ALL_FALSE);
+		expect(
+			probe({ skill: { source: () => "" }, permission: { ask: () => true } }),
+		).toEqual({
+			skills: true,
+			references: false,
+			apiVersion: null,
+			permissionAsk: true,
 		});
 	});
 

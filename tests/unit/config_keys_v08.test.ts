@@ -160,6 +160,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 	it("set equality: every key seeded by migration 009, 010 or 011 is a known config key, and every constant key not seeded before 009 is seeded by 009, 010 or 011", () => {
 		// v0.9.0 (K9-006 / plan §6): the union spans 009 and 010.
 		// v1.0.0 (K10-005 / plan §5.2): 011 joins the union.
+		// v1.2.0 (K12-001): tui_snapshots_enabled is lazy-seeded without a migration.
 		expect(V08_SETTING_KEYS).toHaveLength(5);
 		expect(V09_SETTING_KEYS).toHaveLength(4);
 		expect(V10_SETTING_KEYS).toHaveLength(4);
@@ -167,13 +168,19 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 			(k) => !PRIOR_SETTING_KEYS.includes(k),
 		);
 		expect([...constantV09].sort()).toEqual(
-			[...V08_SETTING_KEYS, ...V09_SETTING_KEYS, ...V10_SETTING_KEYS].sort(),
+			[
+				...V08_SETTING_KEYS,
+				...V09_SETTING_KEYS,
+				...V10_SETTING_KEYS,
+				"tui_snapshots_enabled",
+			].sort(),
 		);
 	});
 
 	it("kevin_config set succeeds for all new keys and list shows all 31 keys", async () => {
 		// v0.9.0 (K9-006 / plan §6): 23 → 27 with the four Native settings.
 		// v1.0.0 (K10-005 / plan §5.2): 27 → 31 with the perf/contract settings.
+		// v1.2.0 (K12-001): 31 → 32 with tui_snapshots_enabled.
 		for (const key of [
 			...V08_SETTING_KEYS,
 			...V09_SETTING_KEYS,
@@ -183,7 +190,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 			expect(out.ok).toBe(true);
 			expect(out.key).toBe(key);
 		}
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(31);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(32);
 		const listed = await runConfig({ action: "list" });
 		for (const key of [
 			...V08_SETTING_KEYS,

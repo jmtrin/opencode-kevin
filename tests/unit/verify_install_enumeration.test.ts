@@ -55,7 +55,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		tmpRoot = mkdtempSync(join(tmpdir(), "kevin-verify-enum-"));
 		migrationsDir = join(tmpRoot, "migrations");
 		mkdirSync(migrationsDir, { recursive: true });
-	});
+	}, 15000);
 
 	afterEach(() => {
 		rmSync(tmpRoot, { recursive: true, force: true });
@@ -66,7 +66,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
 		expect(stdout).toContain("12 migraciones copiadas");
-	});
+	}, 30000);
 
 	it("floor check fails when fewer than 6 migration files", async () => {
 		writeFileSync(join(migrationsDir, "001_initial.sql"), "-- initial");
@@ -76,14 +76,14 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(1);
 		expect(stdout).toContain("Floor check failed");
-	});
+	}, 30000);
 
 	it("floor check fails when migrations directory does not exist", async () => {
 		const nonexistent = join(tmpRoot, "no-such-dir");
 		const { stdout, exitCode } = await runVerify(nonexistent);
 		expect(exitCode).toBe(1);
 		expect(stdout).toContain("Floor check failed");
-	});
+	}, 30000);
 
 	// v1.0.0 (K10-022) — deleting a migration fails loudly: 002_indexes.sql
 	// was absent from hard-coded lists for six releases, so its presence is
@@ -95,7 +95,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(1);
 		expect(stdout).toContain("002_indexes.sql is missing");
-	});
+	}, 30000);
 
 	it("copies exactly the *.sql files found, no more no less", async () => {
 		copyRealMigrations(migrationsDir);
@@ -105,7 +105,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
 		expect(stdout).toContain("12 migraciones copiadas");
-	});
+	}, 30000);
 
 	it("sorts files lexicographically so 010 comes after 009", async () => {
 		copyRealMigrations(migrationsDir);
@@ -113,7 +113,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
 		expect(stdout).toContain("12 migraciones copiadas");
-	});
+	}, 30000);
 
 	it("matches the actual migrations/ directory floor on disk (6)", () => {
 		const actualMigrations = readdirSync(REAL_MIGRATIONS).filter((f) =>

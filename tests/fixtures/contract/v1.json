@@ -119,7 +119,8 @@
 					"shared_confidence_floor",
 					"shared_layer_enabled",
 					"skill_emission_enabled",
-					"tool_calls_dedup_enabled"
+					"tool_calls_dedup_enabled",
+					"tui_snapshots_enabled"
 				]
 			}
 		},
@@ -192,6 +193,14 @@
 					{
 						"name": "forget_tombstones_published",
 						"since": "1.1.0"
+					},
+					{
+						"name": "tui_actions_invoked",
+						"since": "1.2.0"
+					},
+					{
+						"name": "tui_snapshots_flushed",
+						"since": "1.2.0"
 					}
 				]
 			}

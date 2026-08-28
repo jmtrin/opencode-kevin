@@ -7,10 +7,12 @@ import { tool } from "@opencode-ai/plugin";
 import { Archiver } from "./Archiver.js";
 import { ArtifactWriter } from "./ArtifactWriter.js";
 import { CausalChain } from "./CausalChain.js";
+import { handleBridgeCommand } from "./ChatBridge.js";
 import { ConflictDetector } from "./ConflictDetector.js";
 import { type ChatMessage, ContextInjector } from "./ContextInjector.js";
 import { ConventionMiner } from "./ConventionMiner.js";
 import { Curator } from "./Curator.js";
+import { writeDashboard } from "./DashboardHtml.js";
 import { Feedback } from "./Feedback.js";
 import { HookLiveness } from "./HookLiveness.js";
 import { InjectionLedger } from "./InjectionLedger.js";
@@ -32,8 +34,16 @@ import { Retrospective } from "./Retrospective.js";
 import { type ImportReport, SharedLayer } from "./SharedLayer.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
+import {
+	deleteMailbox,
+	processActions,
+	readMailbox,
+	writeResults,
+} from "./TuiActions.js";
+import { flushSnapshots } from "./TuiSnapshots.js";
 import { probe } from "./capabilities.js";
 import { computeConfidence } from "./confidence.js";
+import { contractDigest, describeContract } from "./contract.js";
 import { fingerprint } from "./fingerprint.js";
 import { probeHost, summarize } from "./host.js";
 import { kevinApprove } from "./kevin_approve.js";
@@ -137,6 +147,11 @@ export const KEVIN_CONFIG_KEYS = [
 	"perf_ring_capacity",
 	"perf_flush_on_idle",
 	"contract_report_enabled",
+	// v1.2.0 (K12-001 / plan §4) — the single setting seeded by runtime
+	// (no migration this release). Omitting makes `kevin_config set`
+	// return { error: "unknown_key" } while `kevin_config list` still
+	// shows it.
+	"tui_snapshots_enabled",
 ] as const;
 // v1.1.0 (K11-007 / D11-08) — no new settings in 1.1.0; thresholds are constants (D11-03)
 
@@ -149,7 +164,7 @@ export const KEVIN_CONFIG_KEYS = [
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
 
 /** Plugin release version — stamped into generated files (K8-021/027). */
-export const KEVIN_VERSION = "1.1.0";
+export const KEVIN_VERSION = "1.2.0";
 
 function resolveMigrationsDir(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
@@ -345,6 +360,18 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	const store = new Store({ path: dbPath });
 	const migrationsDir = opts.migrationsDir ?? resolveMigrationsDir();
 	await new Migrate(store, migrationsDir).run();
+	// v1.2.0 (K12-001 / D12-??) — no migration this release: ensure the
+	// new setting exists with its default so `kevin_config list` shows it
+	// on a database that was already at 012.
+	try {
+		store
+			.prepare(
+				"INSERT OR IGNORE INTO kevin_settings (key, value) VALUES (?, ?)",
+			)
+			.run("tui_snapshots_enabled", "1");
+	} catch {
+		// pre-003 DB without kevin_settings — nothing to seed
+	}
 	const metrics = new Metrics(store);
 	// v0.4.0 (K4-019): the plugin hooks expose no project field, so the
 	// project id is derived once from the plugin host's working directory
@@ -519,6 +546,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	mkdirSync(join(materializerRoot, "skills"), { recursive: true });
 	mkdirSync(join(materializerRoot, "refs"), { recursive: true });
 	const capabilities = probe(input);
+	// v1.2.0 (K12-012 / D12-03) — permission.ask probe (best-effort, additive).
+	// When the host exposes permission.ask, the presence is noted; absence is silent no-op.
+	// No new setting — bounded to tui_snapshots_enabled host-support check per spec.
+	void capabilities.permissionAsk;
 	const materializer = new Materializer(store, { root: materializerRoot });
 	// v0.9.0 (K9-016 / plan §5.4, D9-10) — native registration replaces
 	// file emission. When attachNative returns a registration for a
@@ -2049,15 +2080,90 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		},
 
 		"chat.message": async (hookInput, output) => {
+			const rawText = output.parts
+				.map((p) => p as { type?: string; text?: string })
+				.filter((p) => p.type === "text")
+				.map((p) => p.text ?? "")
+				.join(" ");
+			const trimmed = rawText.trim();
+			// v1.2.0 (K12-018 / D12-09) — chat-command bridge BEFORE deriveQuery.
+			// Valid commands are SWALLOWED (parts cleared) and never reach the model.
+			// Must run outside perf.measure so early return actually exits the hook.
+			if (trimmed.length > 0) {
+				try {
+					const bridgeDeps = {
+						getPending: () => {
+							try {
+								const maybe = (
+									curator as unknown as { pending?: () => unknown[] }
+								).pending;
+								if (typeof maybe === "function") {
+									const rows = maybe.call(curator) as {
+										id: string;
+										proposed_text?: string;
+										proposedText?: string;
+									}[];
+									return rows.map((p) => ({
+										id: p.id,
+										proposedText: String(
+											p.proposed_text ?? p.proposedText ?? "",
+										),
+									}));
+								}
+							} catch {}
+							try {
+								const rows = store
+									.prepare(
+										"SELECT id, proposed_text FROM curation_proposals WHERE status = 'pending'",
+									)
+									.all() as { id: string; proposed_text: string }[];
+								return rows.map((r) => ({
+									id: r.id,
+									proposedText: r.proposed_text,
+								}));
+							} catch {
+								return [];
+							}
+						},
+						approve: (id: string) =>
+							kevinApprove(store, memoryService, curator, writer, metrics, {
+								proposalId: id,
+								decision: "approve",
+							}),
+						reject: (id: string, note?: string) =>
+							kevinApprove(store, memoryService, curator, writer, metrics, {
+								proposalId: id,
+								decision: "reject",
+							}) && void note,
+						acknowledge: (conflictId: string) => {
+							try {
+								const cd = conflictDetector as unknown as {
+									acknowledge?: (id: string) => unknown;
+									resolve?: (id: string, keep: string) => unknown;
+								};
+								if (typeof cd.acknowledge === "function")
+									cd.acknowledge(conflictId);
+								else if (typeof cd.resolve === "function")
+									cd.resolve(conflictId, "a");
+							} catch {}
+						},
+						metrics,
+					};
+					const br = handleBridgeCommand(trimmed, bridgeDeps as never);
+					if (br.handled) {
+						try {
+							(output as { parts: unknown[] }).parts = [];
+						} catch {}
+						return;
+					}
+				} catch {
+					// best-effort — bridge failure must not break chat flow
+				}
+			}
 			perf.measure("chat.message", () => {
-				const text = output.parts
-					.map((p) => p as { type?: string; text?: string })
-					.filter((p) => p.type === "text")
-					.map((p) => p.text ?? "")
-					.join(" ");
-				if (text.trim()) {
+				if (trimmed.length > 0) {
 					const derived = injector.deriveQuery([
-						{ role: "user", content: text },
+						{ role: "user", content: rawText },
 					]);
 					lastUserQuery = derived.length > 0 ? derived : null;
 					if (hookInput.sessionID && lastUserQuery) {
@@ -2194,6 +2300,86 @@ export const KevinPlugin: Plugin = async (input, options) => {
 								// column)
 								.catch(() => {}),
 						);
+						// v1.2.0 (K12-007/K12-011 / D12-05) — TUI mailbox: actions→curate ordering.
+						// Process mailbox BEFORE curator.propose so a fresh proposal created this idle
+						// is NOT visible to a stale token (D12-04). Best-effort, never breaks idle.
+						try {
+							const mb = readMailbox(materializerRoot);
+							if (mb.actions.length) {
+								const tuiDeps = {
+									getPending: () => {
+										try {
+											const maybe = (
+												curator as unknown as { pending?: () => unknown[] }
+											).pending;
+											if (typeof maybe === "function") {
+												const rows = maybe.call(curator) as {
+													id: string;
+													proposed_text?: string;
+													proposedText?: string;
+												}[];
+												return rows.map((p) => ({
+													id: p.id,
+													proposedText: String(
+														p.proposed_text ?? p.proposedText ?? "",
+													),
+												}));
+											}
+										} catch {}
+										try {
+											const rows = store
+												.prepare(
+													"SELECT id, proposed_text FROM curation_proposals WHERE status = 'pending'",
+												)
+												.all() as { id: string; proposed_text: string }[];
+											return rows.map((r) => ({
+												id: r.id,
+												proposedText: r.proposed_text,
+											}));
+										} catch {
+											return [];
+										}
+									},
+									approve: (id: string) =>
+										kevinApprove(
+											store,
+											memoryService,
+											curator,
+											writer,
+											metrics,
+											{
+												proposalId: id,
+												decision: "approve",
+											},
+										),
+									reject: (id: string, _note?: string) =>
+										kevinApprove(
+											store,
+											memoryService,
+											curator,
+											writer,
+											metrics,
+											{
+												proposalId: id,
+												decision: "reject",
+											},
+										),
+									acknowledge: (conflictId: string) => {
+										const cd = conflictDetector as unknown as {
+											acknowledge?: (id: string) => unknown;
+										};
+										if (typeof cd.acknowledge === "function")
+											cd.acknowledge(conflictId);
+									},
+									metrics,
+								};
+								const tuiResults = processActions(mb.actions, tuiDeps as never);
+								writeResults(materializerRoot, tuiResults);
+								deleteMailbox(materializerRoot);
+							}
+						} catch {
+							// best-effort
+						}
 						// v0.6.0 (K6-015 / plan §8.14) — session-idle curation
 						// generation. Dry-run only: `propose()` calls `plan()`
 						// and never `apply()`, so nothing here can touch disk
@@ -2238,6 +2424,168 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						} catch {
 							// best-effort, same pattern as ledger.settle — a
 							// sync failure must not break the idle path
+						}
+						// v1.2.0 (K12-003/K12-011/K12-017 / D12-05) — snapshot flush gated by tui_snapshots_enabled.
+						// Order: actions→curate→syncSharedLayer→snapshots (D12-05) — snapshots reflect post-action truth.
+						try {
+							if (
+								memoryService.getSetting("tui_snapshots_enabled", "1") === "1"
+							) {
+								// Proposals
+								let proposals: import("./tui-types.js").ProposalView[] = [];
+								try {
+									const rawPending = (() => {
+										try {
+											const maybe = (
+												curator as unknown as { pending?: () => unknown[] }
+											).pending;
+											if (typeof maybe === "function")
+												return maybe.call(curator) as unknown[];
+										} catch {}
+										return store
+											.prepare(
+												"SELECT id, kind, target_path, proposed_text, diff, memory_id, created_at FROM curation_proposals WHERE status = 'pending' ORDER BY created_at",
+											)
+											.all() as unknown[];
+									})();
+									const { proposalToken } = await import("./TuiActions.js");
+									proposals = (rawPending as unknown[]).map((r) => {
+										const row = r as Record<string, unknown>;
+										const id = String(row.id ?? "");
+										const proposed = String(
+											row.proposed_text ?? row.proposedText ?? "",
+										);
+										return {
+											id,
+											kind: String(row.kind ?? "agents_md"),
+											target_path: String(
+												row.target_path ?? row.targetPath ?? "AGENTS.md",
+											),
+											diff: String(row.diff ?? ""),
+											memory_ids: String(
+												row.memory_id ?? (row.memoryIds as string) ?? "",
+											)
+												.split(",")
+												.filter((s) => s.length > 0),
+											created_at: String(
+												row.created_at ??
+													row.createdAt ??
+													new Date().toISOString(),
+											),
+											token: (
+												proposalToken as (a: string, b: string) => string
+											)(id, proposed),
+										};
+									});
+								} catch {}
+								// Conflicts
+								let conflicts: import("./tui-types.js").ConflictView[] = [];
+								try {
+									const maybe = (
+										conflictDetector as unknown as {
+											openConflicts?: () => unknown[];
+										}
+									).openConflicts;
+									if (typeof maybe === "function") {
+										const raw = maybe.call(conflictDetector) as unknown[];
+										conflicts = raw.map((c) => {
+											const row = c as Record<string, unknown>;
+											return {
+												id: String(row.id ?? ""),
+												kind: String(row.kind ?? ""),
+												a_summary: String(row.a_summary ?? row.aSummary ?? ""),
+												b_summary: String(row.b_summary ?? row.bSummary ?? ""),
+												opened_at: String(
+													row.opened_at ??
+														row.openedAt ??
+														new Date().toISOString(),
+												),
+											};
+										});
+									}
+								} catch {
+									conflicts = [];
+								}
+								// Health
+								let health: import("./tui-types.js").HealthView;
+								try {
+									const doc = buildDoctor(store, host, memoryService);
+									let perfRows: import("./tui-types.js").HealthView["perf"] =
+										[];
+									try {
+										const stats = (
+											perf as unknown as { stats?: () => unknown[] }
+										).stats?.();
+										if (Array.isArray(stats)) {
+											perfRows = stats.map((p) => {
+												const row = p as Record<string, unknown>;
+												const budget = row.budget as
+													| Record<string, unknown>
+													| undefined;
+												return {
+													scope: String(row.scope ?? ""),
+													p95: Number(row.p95 ?? 0),
+													budget_p95: Number(
+														budget?.p95Ms ??
+															row.budget_p95 ??
+															row.budgetP95 ??
+															0,
+													),
+													within_budget: Boolean(
+														row.withinBudget ?? row.within_budget ?? true,
+													),
+												};
+											});
+										}
+									} catch {
+										perfRows = [];
+									}
+									let digest = "unknown";
+									try {
+										digest = contractDigest(describeContract());
+									} catch {}
+									health = {
+										verdict: doc.verdict,
+										reason: doc.reason,
+										hooks: doc.hooks.map((h) => ({
+											hook: h.hook,
+											state: h.state,
+											fire_count: h.fire_count,
+											expected_count: h.expected_count,
+										})),
+										perf: perfRows,
+										contract_digest: digest,
+										counters: metrics.snapshot() as Record<string, number>,
+									};
+								} catch {
+									health = {
+										verdict: "unknown",
+										reason: "health unavailable",
+										hooks: [],
+										perf: [],
+										contract_digest: "unknown",
+										counters: {},
+									};
+								}
+								flushSnapshots({
+									root: materializerRoot,
+									proposals,
+									conflicts,
+									health,
+									metrics,
+									version: KEVIN_VERSION,
+								});
+								try {
+									writeDashboard(materializerRoot, {
+										generatedAt: new Date().toISOString(),
+										proposals,
+										conflicts,
+										health,
+									});
+								} catch {}
+							}
+						} catch {
+							// best-effort — snapshot failure must not break idle
 						}
 						// v1.0.0 (K10-013 / D10-08) — the session recorded work:
 						// arm the deferred dispose settlement. The ISO timestamp

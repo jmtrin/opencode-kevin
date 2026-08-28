@@ -63,6 +63,10 @@ export const METRIC_KEYS = [
 	"bench_regression_failures",
 	"forget_requests_total",
 	"forget_tombstones_published",
+	// v1.2.0 (K12-001 / plan §4) — surface metrics; no migration this
+	// release — rows are created on first incr via upsert (K12-001).
+	"tui_snapshots_flushed",
+	"tui_actions_invoked",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

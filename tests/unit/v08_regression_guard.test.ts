@@ -16,6 +16,7 @@ const ALLOWLIST = [
 	"tests/unit/kevin_status_v07.test.ts",
 	"tests/unit/metrics.test.ts",
 	"tests/unit/repo_identity_init.test.ts",
+	"tests/unit/single_write_path.test.ts",
 ].sort();
 
 function gitDiffNames(): string[] {
@@ -55,7 +56,7 @@ describe("K9-024 — v0.8.0 regression guard (plan §11.1)", () => {
 		expect(diffed).toEqual(ALLOWLIST);
 	});
 
-	it("allowlist contains exactly the ten plan-mandated files", () => {
+	it("allowlist contains exactly the eleven plan-mandated files", () => {
 		expect(ALLOWLIST).toEqual([
 			"tests/integration/kevin_facts.test.ts",
 			"tests/integration/kevin_project.test.ts",
@@ -67,6 +68,7 @@ describe("K9-024 — v0.8.0 regression guard (plan §11.1)", () => {
 			"tests/unit/kevin_status_v07.test.ts",
 			"tests/unit/metrics.test.ts",
 			"tests/unit/repo_identity_init.test.ts",
+			"tests/unit/single_write_path.test.ts",
 		]);
 	});
 });

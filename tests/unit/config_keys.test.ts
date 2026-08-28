@@ -184,7 +184,9 @@ describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
 		// v1.0.0 (K10-005 / plan §5.2): perf_enabled, perf_ring_capacity,
 		// perf_flush_on_idle and contract_report_enabled bring the total
 		// to 31 (C-04).
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(31);
+		// v1.2.0 (K12-001 / plan §4): tui_snapshots_enabled brings the total
+		// to 32 (C-04).
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(32);
 	});
 
 	it("a new key rejected by kevin_config set is a config surface defect", async () => {

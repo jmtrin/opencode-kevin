@@ -413,16 +413,7 @@ Estimated cadence (project history: ~1 minor/month): v1.1.0 Sep 2026, v1.2.0 Oct
 v1.3.0 Nov–Dec 2026, v1.4.0 Dec 2026–Jan 2027, v1.5.0 Feb 2027, v2.0.0 Mar–Apr 2027.
 Dates are indicative; exit criteria rule.
 
-Cumulative ladders (monotone; every digit traceable to the §5 scopes): tools 25 → 26
-(v1.1.0, `kevin_forget`) → 26 → 26 → 26 → 26 → 27 (v2.0.0, `kevin_sources`); setting keys
-31 → 31 → 32 (`tui_snapshots_enabled`) → 32 → 35 (`mcp_write_enabled`,
-`mcp_approve_enabled`, `mcp_repo_override`) → 39 (`skills_canonical_dir`,
-`skills_mirror_claude`, `skills_mirror_cursor`, `import_host_memory`) → 43 (v2.0.0 adds
-`sources_enabled` + three `source_*` + `okf_write_version` and RETIRES
-`import_host_memory`, absorbed by sources); metric keys 51 → 54 → 56 → 56 → 61 → 64 → 67;
-migrations 011 → 012 (ms) → — → — → 013 (`kevin_injections.channel`) → — → 014
-(MemorySources); principles 39–41 / 42–44 / 45–47 / 48–50 / 51–54 / 55–59; decisions
-D11…D16; tasks K11…K16.
+Cumulative ladders (monotone; every digit traceable to the §5 scopes): tools 10 → 13 → 16 → 18 → 21 → 23 → 25 → 26; setting keys 6 → 9 → 14 → 18 → 23 → 27 → 31 → 32; metric keys 13 → 22 → 28 → 33 → 39 → 45 → 51 → 54 → 56; migrations `001` → `012`; principles 39–44; decisions D11…D16; tasks K11…K16.
 
 ### 5.1 v1.1.0 — "Drift"
 

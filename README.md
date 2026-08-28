@@ -159,7 +159,15 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ~/.opencode-kevin/
 ├── kevin.db            ← everything Kevin learns (SQLite, WAL)
 ├── skills/             ← generated pull channels
-└── refs/               ← topic reference bundles
+├── refs/               ← topic reference bundles
+└── tui/
+    ├── proposals.json  ← pending proposals projection (512 KiB cap)
+    ├── conflicts.json  ← open conflicts projection
+    ├── health.json     ← doctor+perf snapshot
+    ├── meta.json       ← {generatedAt, versions}
+    ├── dashboard.html  ← static review surface (file://, zero network)
+    ├── actions.json    ← mailbox queue (TUI panels → session.idle)
+    └── results.json    ← last action results (audit)
 
 <repo>/.kevin/
 ├── AGENTS.md           ← curated knowledge (marker block, human-approved)
@@ -177,6 +185,26 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 - ⏱️ **Millisecond timestamps** — new `_ms` columns with conservative backfill; `settle()` and `CausalChain` now decide sub-second causality.
 - 🧹 **Debt paid** — one `STOP_WORDS` source, one `readOriginCallId`, `ConflictDetector` via `mapRow`, one column-probe registry; every setting has an on-path test.
 - 📜 **Public hygiene** — `LICENSE` (MIT), `homepage` filled, `docs/DISTRIBUTION.md` checklist, `scripts/release-notes.mjs` for `gh release create`, and `<!-- demo -->` slot.
+
+---
+
+## 🆕 What's new in 1.2.0 — "Surface"
+
+> 1.2.0 gives the human-in-the-loop a place to stand: every pending proposal is readable with its diff without opening an editor, and every approval rides the same gated handler.
+
+- 🖥️ **Three review surfaces, one projection** — TUI panels (`/kevin` route, `k` to open) where the host renders them, plus a static `dashboard.html` under `~/.opencode-kevin/tui/` that opens via `file://` with zero network, zero fetch, inline CSS/JS and embedded JSON.
+- 💬 **Chat-command bridge `/kevin-*` (universal, immediate)** — `/kevin-approve <id> <token>`, `/kevin-reject <id> <token> [note]`, `/kevin-ack <id>` execute through the existing `kevinApprove` / acknowledge handlers; valid commands are swallowed, invalid/stale ones pass through untouched to the model.
+- 📦 **Mailbox for TUI panels (idle-latency)** — proposals approved from the TUI write `~/.opencode-kevin/tui/actions.json`; the session consumes it at the next `session.idle` before `curator.propose`, then refreshes snapshots (`tui_snapshots_enabled='1'`).
+- ⏱️ **Latency honesty** — chat commands apply this turn; mailbox actions apply at next idle. Both disclosed in-surface (`queued — applies at session idle` toast, copy hint on dashboard).
+- 📦 **Packaging** — new export `opencode-kevin/tui` (`dist/plugin/tui.*`), `engines.opencode ^1.18.0` validated by the host with skip-with-warning.
+
+| Surface | Review | Action | Latency |
+|---|---|---|---|
+| TUI panel (`/kevin`) — CLI/TUI host | Proposals / Conflicts / Health tabs, diff dialog, truncation markers | `a` approve / `r` reject / `x` ack → mailbox | next idle |
+| Static dashboard (`dashboard.html`) | Proposals (+escaped diff `<pre>`), conflicts two-column, health banner | Copy `/kevin-*` button → paste into chat input | immediate (chat bridge) |
+| Any client (Desktop, CLI) | — | Type `/kevin-approve …` etc in chat input | immediate |
+
+Snapshots + dashboard are capped at 512 KiB (diff truncation with `truncated:true`), written atomically via `tmp`+`rename`, and read best-effort with empty-state explanations (`no snapshots yet — open an opencode session…`) when missing/corrupt/stale-token.
 
 ---
 
@@ -489,6 +517,7 @@ client). All values are TEXT — flags compare with `=== "1"`, never truthiness.
 | `perf_ring_capacity` | `'512'` | Samples per scope (clamped `[64, 8192]`) |
 | `perf_flush_on_idle` | `'1'` | Persist samples at idle |
 | `contract_report_enabled` | `'1'` | Contract block in `kevin_audit` |
+| `tui_snapshots_enabled` | `'1'` | Snapshot + dashboard flush at idle (opencode-kevin/tui) |
 
 ---
 

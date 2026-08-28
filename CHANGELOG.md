@@ -4,6 +4,32 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-28
+
+### Added — Surface
+
+- **Dual surfaces — R1 TUI panels (conditional), R2 static dashboard, R3 chat-command bridge** (K12-001…K12-019, D12-01…D12-10, principles 42–44 — plan §4): Kevin 1.1 required an editor and a terminal for HITL review; 1.2 projects the same pending proposals through three read-only surfaces backed by one filesystem transport (`~/.opencode-kevin/tui/` — `proposals.json` / `conflicts.json` / `health.json` / `meta.json` / `dashboard.html` / `actions.json` / `results.json`), capped at 512 KiB (diff truncation with `truncated:true`), written atomically `tmp+rename`, gated by `tui_snapshots_enabled='1'` (32nd setting).
+- **R1 — TUI module `plugin/tui.ts` (target-exclusive)** behind spike gate K12-016: Desktop probe records CLI YES / Desktop NO (unverified), so panels are `plugin/tui` route `kevin` (`k` to open) with Proposals/Conflicts/Health tabs, diff dialog, truncation helpers, mailbox `actions.json` writer, toast `queued — applies at session idle` — isolated (`tui-types.ts` type-only) and verified by `tui_isolation.test.ts`.
+- **R2 — Static dashboard `plugin/DashboardHtml.ts`** (Desktop-first): single self-contained `dashboard.html` (inline CSS/JS, snapshot JSON embedded as `const DATA` with `<`→`\u003c` escaping, no `fetch`/`XHR`/`WebSocket`, no external asset), renders proposals/conflicts/health, **Copy approve/reject/ack** copies the exact `/kevin-*` command to clipboard with paste hint; deterministic, hostile-fixture escaped, atomic, `file://` openable.
+- **R3 — Chat-command bridge `plugin/ChatBridge.ts`** (universal, immediate): `chat.message` prefix guard `^/kevin-(approve|reject)\s+(\S+)\s+([0-9a-f]{16})` plus `/kevin-ack` (token-free, non-destructive) + exact ACK regex; `parseBridgeCommand` + `handleBridgeCommand(verifyFresh)` execute through **same handlers** as mailbox (`kevinApprove` / acknowledge) and are **swallowed** only when valid; invalid/stale pass through byte-identical to the model (D12-09) — hot-path cost one regex, `tui_actions_invoked` incremented on valid only, property-tested pass-through purity and p95 <0.5 ms.
+- **Snapshotter `plugin/TuiSnapshots.ts` + mailbox `plugin/TuiActions.ts`** (K12-003…K12-007): `flushSnapshots(root, proposals, conflicts, health)` (proposals/conflicts/health/meta, truncate, `tui_snapshots_flushed` incr) + `readMailbox` tolerant parser (unknown type dropped with `parseWarnings`, malformed→empty+warning, missing→empty) + `proposalToken` SHA-256 16hex + `verifyFresh` stale detection + `processActions/consumeMailbox/writeResults/deleteMailbox` (single-flight, per-action try/catch, `tui_actions_invoked` per execution).
+- **Idle-chain wiring `plugin/index.ts` (D12-05)**: `chat.message` bridge **before** `deriveQuery` (swallow via `parts=[]`), `session.idle` mailbox `readMailbox→processActions→writeResults→deleteMailbox` **before** `curator.propose`, then `syncSharedLayer` and gated `flushSnapshots+writeDashboard` **last** so panels reflect post-action truth; best-effort guards never break idle.
+- **Packaging** (K12-013): `package.json` `exports["./tui"]` (`types` first) → `dist/plugin/tui.(js|d.ts)`, `engines.opencode ^1.18.0` (skip-with-warning), `verify-pack` extended (property 2 covers `./tui`), consumer smoke `import("@jmtrin/opencode-kevin/tui")` resolves `["id","tui"]`.
+- **Audit & docs** (K12-014/K12-019): `kevin_audit` `tui` block `{enabled_setting, last_flush_age_s, mailbox_depth, last_results, dashboard_last_write_age_s, bridge_interceptions}` best-effort fs introspection (absent→nulls); internal 24-step Desktop-first checklist (dashboard→paste→idle→conflicts→degradation + TUI conditional + audit ladders), `README` Surfaces section with review/action/latency table and `~/.opencode-kevin/tui/` layout, internal desktop probe Q1–Q3 findings; `capabilities.ts` probe gains `permissionAsk` (D12-03, additive, tri-state audit).
+
+### Changed
+
+- **`plugin/tui.ts` is target-exclusive** (D12-02): imports allowlist (`@opencode-ai/plugin/tui`, `node:fs|path|os`, `import type ./tui-types.js`) enforced by `tui_isolation.test.ts`; no `console.log`, toast via host API.
+- **`kevin_audit` strict-prefix test updated**: `tui` is now an expected additive key alongside `host`/`perf`/`contract`.
+
+### Fixed
+
+- **Metric/setting ladders**: tools 26, settings 31→32, metrics 54→56 (`tui_snapshots_flushed`, `tui_actions_invoked` with `since: "1.2.0"`), migrations 012 max — verified by `config_metric_keys.test.ts` adjusted for lazy-seeded surface keys; `single_write_path` allowlist extended to TUI projection writers (`~/.opencode-kevin/tui/`).
+- **Dashboard token invalidation after truncation** (`plugin/DashboardHtml.ts:1`): `renderDashboard` recomputaba `proposalToken(p.id, p.diff)` sobre `diff` truncado, emitiendo `/kevin-approve` con token inválido (`stale_skipped` al pegar). Ahora prefiere `p.token` (emitido por `flushSnapshots`) y solo recalcula como fallback.
+- **`chat.message` swallow no cerraba el hook** (`plugin/index.ts:1`): el `return` estaba dentro de `perf.measure` y `deriveQuery` seguía ejecutándose con el texto del comando, inyectando la query del comando al modelo. Reestructurado a bridge fuera de `measure` con `return` del hook y `parts=[]` garantizado.
+- **Health `contract_digest` y `perf` vacíos en snapshots** (`plugin/index.ts:1`): `health.contract_digest` estaba hardcodeado a `"unknown"` y `perf` llamaba a `summary()` inexistente (`stats()` es el nombre real) mapeando campos equivocados. Ahora `contractDigest(describeContract())` y `stats()`→`HealthView.perf` con `budget_p95`/`within_budget`.
+- **`TuiSnapshots` dead code y presupuesto** (`plugin/TuiSnapshots.ts:1`): eliminado `remaining` no usado; distribución proporcional intacta.
+
 ## [1.1.0] - 2026-08-27
 
 ### Added — Drift

@@ -114,6 +114,9 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	bench_regression_failures: "Fallos de regresion de benchmark",
 	forget_requests_total: "Solicitudes de olvido totales",
 	forget_tombstones_published: "Tombstones publicados por olvido",
+	// v1.2.0 (K12-001 / plan §4) — surface metrics; labels required by BUG-014 regression.
+	tui_snapshots_flushed: "Snapshots TUI generados",
+	tui_actions_invoked: "Acciones TUI invocadas",
 };
 
 function originLabel(
