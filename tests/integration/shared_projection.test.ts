@@ -10,13 +10,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ArtifactWriter } from "../../plugin/ArtifactWriter.js";
-import { ConflictDetector } from "../../plugin/ConflictDetector.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { SharedLayer } from "../../plugin/SharedLayer.js";
-import { Store } from "../../plugin/Store.js";
-import { type OkfEntry, computeEntryId, serialize } from "../../plugin/okf.js";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { ConflictDetector } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { SharedLayer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { type OkfEntry, computeEntryId, serialize } from "@jmtrin/kevin-core";
 
 const REPO = "aaaaaaaaaaaaaaaa";
 const PROJECT = "cccccccccccccccc";
@@ -48,9 +48,9 @@ afterEach(() => {
 function makeMigrationsDir(): string {
 	const dir = join(tmpRoot, "migrations");
 	mkdirSync(dir, { recursive: true });
-	for (const file of readdirSync(join(process.cwd(), "migrations"))) {
+	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		if (file.startsWith("00") || file === "009_v08_team.sql") {
-			copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 		}
 	}
 	return dir;

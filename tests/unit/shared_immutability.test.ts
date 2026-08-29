@@ -8,14 +8,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConflictDetector } from "../../plugin/ConflictDetector.js";
-import { Feedback } from "../../plugin/Feedback.js";
-import { InjectionLedger } from "../../plugin/InjectionLedger.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import { buildAudit } from "../../plugin/kevin_audit.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { ConflictDetector } from "@jmtrin/kevin-core";
+import { Feedback } from "@jmtrin/kevin-core";
+import { InjectionLedger } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 const REPO = "aaaaaaaaaaaaaaaa";
 const PROJECT = "cccccccccccccccc";
@@ -44,9 +44,9 @@ afterEach(() => {
 function makeMigrationsDir(): string {
 	const dir = join(tmpRoot, "migrations");
 	mkdirSync(dir, { recursive: true });
-	for (const file of readdirSync(join(process.cwd(), "migrations"))) {
+	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		if (file.startsWith("00") || file === "009_v08_team.sql") {
-			copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 		}
 	}
 	return dir;
@@ -114,7 +114,7 @@ describe("K8-018 — shared-row immutability (plan §5.2)", () => {
 		const svc = new MemoryService(store, null, REPO);
 
 		const attempts: Array<
-			[Partial<import("../../plugin/MemoryService.js").Memory>, string]
+			[Partial<import("@jmtrin/kevin-core").Memory>, string]
 		> = [
 			[{ content: "Rewritten locally" }, "statement"],
 			[{ type: "decision" }, "type"],

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { computeEntryId } from "../../plugin/okf.js";
+import { computeEntryId } from "@jmtrin/kevin-core";
 
 // A deterministic PRNG so the 1000 random inputs are reproducible.
 function xorshift32(seed: number): () => number {

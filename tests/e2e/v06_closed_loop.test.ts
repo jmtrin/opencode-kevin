@@ -10,11 +10,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MARKER_BEGIN, MARKER_END } from "../../plugin/ArtifactWriter.js";
-import { firstSentence } from "../../plugin/Curator.js";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
-import { classify } from "../../plugin/inferability.js";
+import { MARKER_BEGIN, MARKER_END } from "@jmtrin/kevin-core";
+import { firstSentence } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
+import { classify } from "@jmtrin/kevin-core";
 
 const MEM1_CONTENT =
 	"Always run `npm run typecheck` before committing to the shared branch.";
@@ -40,7 +40,7 @@ beforeEach(async () => {
 		"007_v06_pull.sql",
 	]) {
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

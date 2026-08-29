@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
 	handleBridgeCommand,
 	parseBridgeCommand,
-} from "../../plugin/ChatBridge.js";
-import { Store } from "../../plugin/Store.js";
-import { proposalToken } from "../../plugin/TuiActions.js";
-import { Metrics } from "../../plugin/metrics.js";
+} from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { proposalToken } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 describe("ChatBridge", () => {
 	describe("parseBridgeCommand — regex table", () => {

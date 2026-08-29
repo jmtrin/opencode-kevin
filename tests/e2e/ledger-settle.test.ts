@@ -11,14 +11,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { InjectionLedger } from "../../plugin/InjectionLedger.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import { fingerprint } from "../../plugin/fingerprint.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { InjectionLedger } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { fingerprint } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(__dirname, "..", "..", "migrations");
+const MIGRATIONS_DIR = join(__dirname, "..", "..", "packages/core/migrations");
 
 let tmpRoot: string;
 let migrationsDir: string;

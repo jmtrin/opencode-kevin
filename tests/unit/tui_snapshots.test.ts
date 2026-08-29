@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { flushSnapshots } from "../../plugin/TuiSnapshots.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { Store } from "@jmtrin/kevin-core";
+import { flushSnapshots } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 describe("K12-003 — flushSnapshots writer", () => {
 	it("writes 4 files valid JSON, re-flush replaces atomically, truncation fits cap, counter increments", () => {

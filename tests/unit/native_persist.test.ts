@@ -2,38 +2,38 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Materializer } from "../../plugin/Materializer.js";
-import { Store } from "../../plugin/Store.js";
-import type { HostSurface } from "../../plugin/host.js";
-import type { KevinNativeContext } from "../../plugin/native.js";
-import { type NativeDeps, attachNative } from "../../plugin/native.js";
+import { Materializer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import type { HostSurface } from "../../packages/plugin/src/host.js";
+import type { KevinNativeContext } from "../../packages/plugin/src/native.js";
+import { type NativeDeps, attachNative } from "../../packages/plugin/src/native.js";
 
 const SQL_001 = readFileSync(
-	join(process.cwd(), "migrations", "001_initial.sql"),
+	join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(process.cwd(), "migrations", "003_v02_signal.sql"),
+	join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+	join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 const SQL_005 = readFileSync(
-	join(process.cwd(), "migrations", "005_v04_signal.sql"),
+	join(process.cwd(), "packages/core/migrations", "005_v04_signal.sql"),
 	"utf8",
 );
 const SQL_006 = readFileSync(
-	join(process.cwd(), "migrations", "006_v05_glassbox.sql"),
+	join(process.cwd(), "packages/core/migrations", "006_v05_glassbox.sql"),
 	"utf8",
 );
 const SQL_007 = readFileSync(
-	join(process.cwd(), "migrations", "007_v06_pull.sql"),
+	join(process.cwd(), "packages/core/migrations", "007_v06_pull.sql"),
 	"utf8",
 );
 const SQL_010 = readFileSync(
-	join(process.cwd(), "migrations", "010_v09_native.sql"),
+	join(process.cwd(), "packages/core/migrations", "010_v09_native.sql"),
 	"utf8",
 );
 

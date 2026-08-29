@@ -10,10 +10,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ArtifactWriter } from "../../plugin/ArtifactWriter.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { SharedLayer } from "../../plugin/SharedLayer.js";
-import { Store } from "../../plugin/Store.js";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { SharedLayer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const REPO_A = "aaaaaaaaaaaaaaaa";
 const PROJECT = "cccccccccccccccc";
@@ -44,8 +44,8 @@ function openMigrated(): Store {
 	openStore = store;
 	const dir = join(tmpRoot, "migrations");
 	mkdirSync(dir, { recursive: true });
-	for (const file of readdirSync(join(process.cwd(), "migrations"))) {
-		copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
+		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 	}
 	const migrate = new Migrate(store, dir);
 	void migrate.run();

@@ -14,8 +14,8 @@ import {
 	ArtifactWriter,
 	MARKER_BEGIN,
 	MARKER_END,
-} from "../../plugin/ArtifactWriter.js";
-import { Store } from "../../plugin/Store.js";
+} from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const BODY = "line1\nline2\nline3";
 

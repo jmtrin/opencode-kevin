@@ -1,5 +1,4 @@
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
 
 export interface SqliteStatement {
 	get(...params: unknown[]): unknown;
@@ -14,11 +13,7 @@ export interface SqliteAdapter {
 	close(): void;
 }
 
-const localRequire = createRequire(
-	typeof import.meta.url === "string"
-		? import.meta.url
-		: fileURLToPath(`file://${process.cwd()}/`),
-);
+const localRequire = createRequire(import.meta.url);
 
 function detectRuntime(): "bun" | "node" {
 	if (typeof (globalThis as { Bun?: unknown }).Bun !== "undefined") {

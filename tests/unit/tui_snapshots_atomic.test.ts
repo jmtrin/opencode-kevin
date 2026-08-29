@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { flushSnapshots, readJsonSafe } from "../../plugin/TuiSnapshots.js";
+import { flushSnapshots, readJsonSafe } from "@jmtrin/kevin-core";
 
 describe("K12-004 — snapshot atomicity / corruption", () => {
 	it("stale .tmp files are overwritten and no .tmp leftovers remain", () => {

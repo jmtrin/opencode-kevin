@@ -9,11 +9,11 @@ import {
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Materializer } from "../../plugin/Materializer.js";
-import { Store } from "../../plugin/Store.js";
-import type { HostSurface } from "../../plugin/host.js";
-import { attachNative, buildNativePlugin } from "../../plugin/native.js";
-import type { NativeDeps } from "../../plugin/native.js";
+import { Materializer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import type { HostSurface } from "../../packages/plugin/src/host.js";
+import { attachNative, buildNativePlugin } from "../../packages/plugin/src/native.js";
+import type { NativeDeps } from "../../packages/plugin/src/native.js";
 
 // v0.9.0 (K9-013 / plan §5.4) — the only file allowed to name the v2
 // subpath, and only inside a dynamic import().

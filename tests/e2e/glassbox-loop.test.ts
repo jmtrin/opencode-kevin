@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 /**
  * K5-023 — closed-loop e2e for the v0.5.0 glassbox semantics (plan §F6).
@@ -53,7 +53,7 @@ beforeEach(async () => {
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const name of MIGRATIONS) {
 		copyFileSync(
-			join(process.cwd(), "migrations", name),
+			join(process.cwd(), "packages/core/migrations", name),
 			join(migrationsDir, name),
 		);
 	}

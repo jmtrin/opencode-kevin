@@ -1,31 +1,31 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Store } from "../../plugin/Store.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const SQL_001 = readFileSync(
-	join(process.cwd(), "migrations", "001_initial.sql"),
+	join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(process.cwd(), "migrations", "003_v02_signal.sql"),
+	join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+	join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 const SQL_005 = readFileSync(
-	join(process.cwd(), "migrations", "005_v04_signal.sql"),
+	join(process.cwd(), "packages/core/migrations", "005_v04_signal.sql"),
 	"utf8",
 );
 const SQL_006 = readFileSync(
-	join(process.cwd(), "migrations", "006_v05_glassbox.sql"),
+	join(process.cwd(), "packages/core/migrations", "006_v05_glassbox.sql"),
 	"utf8",
 );
 const SQL_007 = readFileSync(
-	join(process.cwd(), "migrations", "007_v06_pull.sql"),
+	join(process.cwd(), "packages/core/migrations", "007_v06_pull.sql"),
 	"utf8",
 );
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { contractDigest, describeContract } from "../../plugin/contract.js";
-import { buildKevinContract } from "../../plugin/kevin_contract.js";
+import { contractDigest, describeContract } from "@jmtrin/kevin-core";
+import { buildKevinContract } from "@jmtrin/kevin-core";
 
 describe("K10-018 — kevin_contract tool", () => {
 	it("summary returns version, 16-hex digest, package_version and one line per clause", () => {

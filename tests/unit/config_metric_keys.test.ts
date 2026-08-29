@@ -22,10 +22,10 @@ import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { METRIC_KEY_LABELS } from "../../plugin/Retrospective.js";
-import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../plugin/index.js";
+import { METRIC_KEY_LABELS } from "@jmtrin/kevin-core";
+import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../packages/plugin/src/index.js";
 
-const MIGRATIONS_DIR = join(process.cwd(), "migrations");
+const MIGRATIONS_DIR = join(process.cwd(), "packages/core/migrations");
 
 const MIGRATION_FILES = readdirSync(MIGRATIONS_DIR)
 	.filter((f) => f.endsWith(".sql"))

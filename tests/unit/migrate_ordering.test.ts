@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 describe("K11-015 Migrate versioning lexicographic validity", () => {
 	let tmp: string;

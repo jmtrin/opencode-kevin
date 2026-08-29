@@ -4,8 +4,8 @@
 // and its budget.
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { Store } from "../plugin/Store.js";
-import { BUDGETS } from "../plugin/perf.js";
+import { Store } from "@jmtrin/kevin-core";
+import { BUDGETS } from "@jmtrin/kevin-core";
 
 interface Row {
 	id: number;

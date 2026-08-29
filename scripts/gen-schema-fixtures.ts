@@ -11,8 +11,8 @@
 import { copyFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Migrate } from "../plugin/Migrate.js";
-import { Store } from "../plugin/Store.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const VERSIONS = [
 	"001",
@@ -25,6 +25,7 @@ const VERSIONS = [
 	"008",
 	"009",
 	"010",
+	"011",
 ] as const;
 
 type Cols = Map<string, Set<string>>;
@@ -89,10 +90,10 @@ function seed(store: Store): void {
 function truncatedMigrationsDir(root: string, version: string): string {
 	const dir = join(root, `migrations-${version}`);
 	mkdirSync(dir, { recursive: true });
-	for (const f of readdirSync(join(process.cwd(), "migrations"))) {
+	for (const f of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		if (!f.endsWith(".sql")) continue;
 		if (f.slice(0, 3) <= version) {
-			copyFileSync(join(process.cwd(), "migrations", f), join(dir, f));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", f), join(dir, f));
 		}
 	}
 	return dir;

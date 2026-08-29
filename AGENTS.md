@@ -8,17 +8,26 @@
 - `npm run replay` — Replay report over tests/replay/fixtures (v0.5.0)
 
 ## Architecture
-Kevin is 1 plugin with 53 modules (`plugin/*.ts`), built around 9 core
-components — Store, Migrate, MemoryService, ToolCallObserver, Reflector,
-ContextInjector, Retrospective, Feedback, Archiver — plus the v0.3–v0.6
-components: CausalChain, QualityGate, InjectionLedger, LessonFixer,
-PatternMiner, ConventionMiner, ConflictDetector, Curator, ArtifactWriter, Materializer, kevin_why,
-kevin_propose/kevin_approve/kevin_audit/kevin_publish, the v0.8 team
-components — RepoIdentity (repo_id: declared → remote → path), SharedLayer
-(OKF v2 plan/apply/tombstone/import), okf (parse/serialize/merge, entry_id),
-kevin_project/kevin_share/kevin_sync/kevin_forget — and the pure helpers
-(confidence, diff, fingerprint, inferability, query-tokenizer, memory-format,
-redact, uuid, replay, sqlite-adapter, capabilities, columns, time-ms, bench-compare).
+Kevin is a monorepo with 3 packages (`packages/core` @jmtrin/kevin-core ~60
+modules, zero deps; `packages/plugin` @jmtrin/opencode-kevin 4 modules —
+`index`, `host`, `native`, `capabilities` — adapter thin; `packages/tui`
+@jmtrin/opencode-kevin-tui isolated), built around 9 core components — Store,
+Migrate, MemoryService, ToolCallObserver, Reflector, ContextInjector,
+Retrospective, Feedback, Archiver — plus the v0.3–v0.6 components: CausalChain,
+QualityGate, InjectionLedger, LessonFixer, PatternMiner, ConventionMiner,
+ConflictDetector, Curator, ArtifactWriter, Materializer, kevin_why,
+kevin_propose/kevin_approve/kevin_audit/kevin_publish, the v0.8 team components
+— RepoIdentity (repo_id: declared → remote → path), SharedLayer (OKF v2
+plan/apply/tombstone/import), okf (parse/serialize/merge, entry_id),
+kevin_project/kevin_share/kevin_sync/kevin_forget — plus the v1.3.0 Bedrock
+additions: `KevinEnv`/`resolveEnv` (`packages/core/src/env.ts`, sole
+`process.cwd`/`homedir` site), `exportMigrationsDir` (`Migrate.ts`),
+`idle-pipeline` (`composeIdlePipeline` / `IDLE_STEP_ORDER`, single source consumed
+by adapter idle + replay), `replay` (now core-native, parity harness
+`packages/plugin/tests/parity.test.ts`), and the pure helpers (confidence, diff,
+fingerprint, inferability, query-tokenizer, memory-format, redact, uuid, replay,
+sqlite-adapter, capabilities, columns, time-ms, bench-compare). C-10 preview is the
+explicit export list at `packages/core/src/index.ts` (keep minimal).
 
 ## Conventions
 - TypeScript strict, ESM modules

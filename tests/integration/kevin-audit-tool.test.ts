@@ -2,13 +2,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { buildAudit } from "../../plugin/kevin_audit.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { Store } from "@jmtrin/kevin-core";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL = (name: string) =>
-	readFileSync(join(__dirname, "..", "..", "migrations", name), "utf8");
+	readFileSync(join(__dirname, "..", "..", "packages/core/migrations", name), "utf8");
 
 function makeMigratedStore(): Store {
 	const s = new Store({ path: ":memory:" });

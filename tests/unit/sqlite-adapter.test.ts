@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type SqliteAdapter,
 	createDatabase,
-} from "../../plugin/sqlite-adapter.js";
+} from "@jmtrin/kevin-core";
 
 describe("sqlite-adapter", () => {
 	it("createDatabase returns a working adapter for :memory:", () => {

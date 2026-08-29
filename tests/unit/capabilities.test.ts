@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { probe } from "../../plugin/capabilities.js";
+import { probe } from "../../packages/plugin/src/capabilities.js";
 
 const ALL_FALSE = {
 	skills: false,

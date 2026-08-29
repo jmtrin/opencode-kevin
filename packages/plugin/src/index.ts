@@ -1,70 +1,71 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Hooks, Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import { Archiver } from "./Archiver.js";
-import { ArtifactWriter } from "./ArtifactWriter.js";
-import { CausalChain } from "./CausalChain.js";
-import { handleBridgeCommand } from "./ChatBridge.js";
-import { ConflictDetector } from "./ConflictDetector.js";
-import { type ChatMessage, ContextInjector } from "./ContextInjector.js";
-import { ConventionMiner } from "./ConventionMiner.js";
-import { Curator } from "./Curator.js";
-import { writeDashboard } from "./DashboardHtml.js";
-import { Feedback } from "./Feedback.js";
-import { HookLiveness } from "./HookLiveness.js";
-import { InjectionLedger } from "./InjectionLedger.js";
-import { Materializer, SKILL_TOPIC } from "./Materializer.js";
+import { Archiver } from "@jmtrin/kevin-core";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { CausalChain } from "@jmtrin/kevin-core";
+import { handleBridgeCommand } from "@jmtrin/kevin-core";
+import { ConflictDetector } from "@jmtrin/kevin-core";
+import { type ChatMessage, ContextInjector } from "@jmtrin/kevin-core";
+import { ConventionMiner } from "@jmtrin/kevin-core";
+import { Curator } from "@jmtrin/kevin-core";
+import { writeDashboard } from "@jmtrin/kevin-core";
+import { Feedback } from "@jmtrin/kevin-core";
+import { HookLiveness } from "@jmtrin/kevin-core";
+import { InjectionLedger } from "@jmtrin/kevin-core";
+import { Materializer, SKILL_TOPIC } from "@jmtrin/kevin-core";
 import {
 	type Memory,
 	MemoryService,
 	type SlimMemory,
 	type SlimMemoryWithEvidence,
 	hasRepoIdColumn,
-} from "./MemoryService.js";
-import { Migrate } from "./Migrate.js";
-import { PatternMiner } from "./PatternMiner.js";
-import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "./Reflector.js";
-import * as RepoIdentity from "./RepoIdentity.js";
-import type { IdentitySource, ResolvedIdentity } from "./RepoIdentity.js";
-import { RepoTruth } from "./RepoTruth.js";
-import { Retrospective } from "./Retrospective.js";
-import { type ImportReport, SharedLayer } from "./SharedLayer.js";
-import { Store } from "./Store.js";
-import { ToolCallObserver } from "./ToolCallObserver.js";
+} from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { PatternMiner } from "@jmtrin/kevin-core";
+import { ERROR_LINE_RE, Reflector, STRONG_ERROR_RE } from "@jmtrin/kevin-core";
+import * as RepoIdentity from "@jmtrin/kevin-core";
+import type { IdentitySource, ResolvedIdentity } from "@jmtrin/kevin-core";
+import { RepoTruth } from "@jmtrin/kevin-core";
+import { Retrospective } from "@jmtrin/kevin-core";
+import { type ImportReport, SharedLayer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { ToolCallObserver } from "@jmtrin/kevin-core";
 import {
 	deleteMailbox,
 	processActions,
 	readMailbox,
 	writeResults,
-} from "./TuiActions.js";
-import { flushSnapshots } from "./TuiSnapshots.js";
+} from "@jmtrin/kevin-core";
+import { flushSnapshots } from "@jmtrin/kevin-core";
 import { probe } from "./capabilities.js";
-import { computeConfidence } from "./confidence.js";
-import { contractDigest, describeContract } from "./contract.js";
-import { fingerprint } from "./fingerprint.js";
+import { computeConfidence, type KevinEnv, exportMigrationsDir, composeIdlePipeline, KEVIN_VERSION } from "@jmtrin/kevin-core";
+import { contractDigest, describeContract } from "@jmtrin/kevin-core";
+import { fingerprint } from "@jmtrin/kevin-core";
 import { probeHost, summarize } from "./host.js";
-import { kevinApprove } from "./kevin_approve.js";
-import { buildAudit } from "./kevin_audit.js";
-import { buildKevinBench } from "./kevin_bench.js";
-import { executeKevinConflicts } from "./kevin_conflicts.js";
-import { buildKevinContract } from "./kevin_contract.js";
-import { buildDoctor } from "./kevin_doctor.js";
-import { buildKevinFacts } from "./kevin_facts.js";
-import { handleForget } from "./kevin_forget.js";
-import { handleNative } from "./kevin_native.js";
-import { kevinPropose } from "./kevin_propose.js";
-import { kevinPublish } from "./kevin_publish.js";
-import { kevinWhy } from "./kevin_why.js";
-import type { WhyResult } from "./kevin_why.js";
-import { Metrics } from "./metrics.js";
+import { kevinApprove } from "@jmtrin/kevin-core";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { buildKevinBench } from "@jmtrin/kevin-core";
+import { executeKevinConflicts } from "@jmtrin/kevin-core";
+import { buildKevinContract } from "@jmtrin/kevin-core";
+import { buildDoctor } from "@jmtrin/kevin-core";
+import { buildKevinFacts } from "@jmtrin/kevin-core";
+import { handleForget } from "@jmtrin/kevin-core";
+import { handleNative } from "@jmtrin/kevin-core";
+import { kevinPropose } from "@jmtrin/kevin-core";
+import { kevinPublish } from "@jmtrin/kevin-core";
+import { kevinWhy } from "@jmtrin/kevin-core";
+import type { WhyResult } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 import { attachNative } from "./native.js";
-import { exportMarkdown, exportOkf } from "./okf-export.js";
-import { importOkf } from "./okf-import.js";
-import { Perf } from "./perf.js";
-import { uuidv7 } from "./uuid.js";
+import { exportMarkdown, exportOkf } from "@jmtrin/kevin-core";
+import { importOkf } from "@jmtrin/kevin-core";
+import { Perf } from "@jmtrin/kevin-core";
+import { uuidv7 } from "@jmtrin/kevin-core";
 
 export interface KevinPluginOptions {
 	dbPath?: string;
@@ -163,12 +164,39 @@ export const KEVIN_CONFIG_KEYS = [
 // behaviour on the next reflection.
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
 
-/** Plugin release version — stamped into generated files (K8-021/027). */
-export const KEVIN_VERSION = "1.2.0";
+/** Plugin release version — single source is @jmtrin/kevin-core (B-003 drift fix). */
+export { KEVIN_VERSION };
 
 function resolveMigrationsDir(): string {
+	// K13-008 (D13-04): migrations now owned by @jmtrin/kevin-core.
+	// Explicit option is handled at call site (opts.migrationsDir ?? resolve...),
+	// so this helper only resolves the core location.
+	// 1. Installed layout: walk-up via require.resolve (reuses host.ts strategy)
+	try {
+		const pkgJson = createRequire(import.meta.url).resolve(
+			"@jmtrin/kevin-core/package.json",
+		);
+		const cand = join(dirname(pkgJson), "dist", "migrations");
+		if (existsSync(cand)) return cand;
+	} catch {}
+	// 2. Workspace sources: delegate to core's own resolver (handles both
+	//    src via tsx and dist after build).
+	try {
+		const dir = exportMigrationsDir();
+		if (existsSync(dir)) return dir;
+	} catch {}
+	// 3. Monorepo fallback probes (dev without build)
 	const here = dirname(fileURLToPath(import.meta.url));
-	return join(here, "..", "migrations");
+	const candidates = [
+		join(here, "..", "..", "core", "dist", "migrations"),
+		join(here, "..", "..", "core", "migrations"),
+		join(here, "..", "migrations"),
+		join(here, "..", "..", "migrations"),
+	];
+	for (const c of candidates) {
+		if (existsSync(c)) return c;
+	}
+	return join(here, "..", "..", "core", "migrations");
 }
 
 // v0.8.0 (K8-009 / plan §5.1, D8-03) — `kevin_project rekey`.
@@ -440,6 +468,9 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// v0.7.0 (K7-009 / plan §5.1, D7-13) — the repository truth scanner reads
 	// the JSON project files. Runs once at init, gated by repo_truth_enabled.
 	const projectRoot = opts.projectRoot ?? process.cwd();
+	const materializerRoot =
+		opts.materializerRoot ?? join(homedir(), ".opencode-kevin");
+	const kevinEnv: KevinEnv = { projectRoot, dataRoot: materializerRoot };
 	const repoTruth = new RepoTruth(store, projectId, projectRoot, metrics);
 	if (memoryService.getSetting("repo_truth_enabled", "0") === "1") {
 		try {
@@ -489,6 +520,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			dir: opts.retrospectivesDir,
 		},
 		metrics,
+		kevinEnv,
 	);
 	const patternMiner = new PatternMiner(store, memoryService, metrics);
 	const conventionMiner = new ConventionMiner(
@@ -535,14 +567,12 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		metrics.incr("shared_entries_imported", report.imported);
 		return report;
 	}
-	let curator = new Curator(store, memoryService, projectId, metrics, repoId);
+	let curator = new Curator(store, memoryService, projectId, metrics, repoId, kevinEnv);
 	// v0.6.0 (K6-017/018 / plan §5.6-5.7, D6-13) — pull-channel bundles and
 	// the v2 domain probe. `probe()` runs ONCE at init and the result is
 	// held; probing per-event is a hot-path cost for a value that cannot
 	// change within a process (K6-016). The Materializer writes next to its
 	// targets, so the bundle directories are created here at init.
-	const materializerRoot =
-		opts.materializerRoot ?? join(homedir(), ".opencode-kevin");
 	mkdirSync(join(materializerRoot, "skills"), { recursive: true });
 	mkdirSync(join(materializerRoot, "refs"), { recursive: true });
 	const capabilities = probe(input);
@@ -550,7 +580,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// When the host exposes permission.ask, the presence is noted; absence is silent no-op.
 	// No new setting — bounded to tui_snapshots_enabled host-support check per spec.
 	void capabilities.permissionAsk;
-	const materializer = new Materializer(store, { root: materializerRoot });
+	const materializer = new Materializer(store, { root: materializerRoot }, kevinEnv);
 	// v0.9.0 (K9-016 / plan §5.4, D9-10) — native registration replaces
 	// file emission. When attachNative returns a registration for a
 	// surface, the corresponding *_emission_enabled path is skipped for
@@ -1235,6 +1265,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 								projectId,
 								metrics,
 								live.repoId,
+								kevinEnv,
 							);
 							// v0.8.0 (BUG-003) — heal the OKF file header.
 							// Rekey changes the scope the file is written
@@ -1347,6 +1378,8 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						capabilities,
 						projectId,
 						sessionIdentity.repoId,
+						undefined,
+						kevinEnv,
 					);
 					const payload = args.verbose
 						? report
@@ -1367,7 +1400,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					"Doctor de Kevin (v0.9.0): salud del host, hooks, dependencias y registros nativos. Solo lectura, sin LLM ni writes, invocable en cualquier momento. Devuelve host (version, flavour, shell, v2), hooks ordenados dead primero, dependencies (zod_copies), native (enabled, registered/verified por surface), verdict (healthy|degraded|unknown) y reason. Output pensado para pegar en un issue: sin filesystem paths ni session ids.",
 				args: {},
 				async execute() {
-					const report = buildDoctor(store, host, memoryService);
+					const report = buildDoctor(store, host, memoryService, {}, kevinEnv);
 					return {
 						title: "Doctor de Kevin",
 						output: JSON.stringify(report),
@@ -1444,7 +1477,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						.describe("status | last"),
 				},
 				async execute(args) {
-					const result = buildKevinBench({ store }, args);
+					const result = buildKevinBench({ store }, args, kevinEnv);
 					return {
 						title: "Benchmark de Kevin",
 						output: JSON.stringify(result),
@@ -2242,64 +2275,39 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						// BUG-011 — the session is done: drop the global query
 						// so the next session cannot reuse it.
 						lastUserQuery = null;
-						// v0.4.0 (K4-024) — plan §5.2: settle the session's
-						// unmeasured injections (effective/ineffective +
-						// recurrence_count charges) at idle. Best-effort: a
-						// legacy DB without migration 005 has no ledger table.
-						try {
-							ledger.settle(sid);
-						} catch {
-							// best-effort: a legacy DB without the ledger
-							// table must not break the idle path
-						}
-						// v0.5.0 (K5-012 / plan §5.4) — retire stale lessons at
-						// idle; pre-006 DBs degrade to a no-op.
-						try {
-							archiver.run();
-						} catch {
-							// best-effort, same pattern as ledger.settle
-						}
-						fireAndForget(retrospective.generate(sid));
-						memoryService.boostPositiveReflectors(sid);
-						const recurred = memoryService.penalizeRecurringReflectors(sid);
-						injector.setRecurrences(recurred, sid);
-						patternMiner.mine(projectId);
-						// v0.7.0 (K7-012 / plan §5.4, D7-10) — convention mining is
-						// session.idle-only, default-off, and isolated from the rest of
-						// the idle chain. Mined rules still enter the ordinary Curator
-						// approval path; this step never writes to the repository.
-						try {
-							if (
-								memoryService.getSetting("convention_mining_enabled", "0") ===
-								"1"
-							) {
-								const conventions = conventionMiner.mine();
-								conventionMiner.emit(conventions);
-							}
-						} catch {
-							// A throwing miner must not reject or truncate the idle chain.
-						}
-						// v0.7.0 (K7-016 / plan §5.5, D7-06) — conflict detection is
-						// surfacing-only on idle. It may create/open conflict rows, but
-						// no idle path can acknowledge or resolve one.
-						try {
-							if (
-								memoryService.getSetting("conflict_detection_enabled", "0") ===
-								"1"
-							) {
-								conflictDetector.detect();
-							}
-						} catch {
-							// Conflict surfacing is best-effort and must not reject idle.
-						}
-						fireAndForget(
-							Promise.resolve()
-								.then(() => causalChain.onSessionIdle(sid))
-								// non-blocking — promote is a best-effort pass
-								// (legacy DBs pre-005 lack the recurrence_count
-								// column)
-								.catch(() => {}),
-						);
+						// K13-010 (D13-07) — single ORDER via composeIdlePipeline.
+						// Ledger/archiver/reflectors/pattern are the hand-synced core;
+						// adapter and replay both consume IDLE_STEP_ORDER so re-order is visible in both.
+						await composeIdlePipeline({
+							"ledger.settle": () => { ledger.settle(sid); },
+							"archiver.run": () => { archiver.run(); },
+							retrospective: () => {
+								fireAndForget(retrospective.generate(sid));
+							},
+							"reflectors.boost": () => { memoryService.boostPositiveReflectors(sid); },
+							"reflectors.penalize": () => {
+								const recurred = memoryService.penalizeRecurringReflectors(sid);
+								injector.setRecurrences(recurred, sid);
+							},
+							"patternMiner.mine": () => { patternMiner.mine(projectId); },
+						});
+						// v0.7.0 (K7-012/K7-016) + causalChain — folded into the single ORDER via composeIdlePipeline (K13-010)
+						await composeIdlePipeline({
+							"conventionMiner.mine": () => {
+								if (memoryService.getSetting("convention_mining_enabled", "0") === "1") {
+									const conventions = conventionMiner.mine();
+									conventionMiner.emit(conventions);
+								}
+							},
+							"conflictDetector.detect": () => {
+								if (memoryService.getSetting("conflict_detection_enabled", "0") === "1") {
+									conflictDetector.detect();
+								}
+							},
+							"causalChain.onSessionIdle": () => {
+								fireAndForget(Promise.resolve().then(() => causalChain.onSessionIdle(sid)).catch(() => {}));
+							},
+						});
 						// v1.2.0 (K12-007/K12-011 / D12-05) — TUI mailbox: actions→curate ordering.
 						// Process mailbox BEFORE curator.propose so a fresh proposal created this idle
 						// is NOT visible to a stale token (D12-04). Best-effort, never breaks idle.
@@ -2432,7 +2440,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 								memoryService.getSetting("tui_snapshots_enabled", "1") === "1"
 							) {
 								// Proposals
-								let proposals: import("./tui-types.js").ProposalView[] = [];
+								let proposals: import("@jmtrin/kevin-core").ProposalView[] = [];
 								try {
 									const rawPending = (() => {
 										try {
@@ -2448,7 +2456,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 											)
 											.all() as unknown[];
 									})();
-									const { proposalToken } = await import("./TuiActions.js");
+									const { proposalToken } = await import("@jmtrin/kevin-core");
 									proposals = (rawPending as unknown[]).map((r) => {
 										const row = r as Record<string, unknown>;
 										const id = String(row.id ?? "");
@@ -2479,7 +2487,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 									});
 								} catch {}
 								// Conflicts
-								let conflicts: import("./tui-types.js").ConflictView[] = [];
+								let conflicts: import("@jmtrin/kevin-core").ConflictView[] = [];
 								try {
 									const maybe = (
 										conflictDetector as unknown as {
@@ -2507,10 +2515,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 									conflicts = [];
 								}
 								// Health
-								let health: import("./tui-types.js").HealthView;
+								let health: import("@jmtrin/kevin-core").HealthView;
 								try {
-									const doc = buildDoctor(store, host, memoryService);
-									let perfRows: import("./tui-types.js").HealthView["perf"] =
+									const doc = buildDoctor(store, host, memoryService, {}, kevinEnv);
+									let perfRows: import("@jmtrin/kevin-core").HealthView["perf"] =
 										[];
 									try {
 										const stats = (

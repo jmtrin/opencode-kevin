@@ -8,11 +8,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import { ToolCallObserver } from "../../plugin/ToolCallObserver.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { ToolCallObserver } from "@jmtrin/kevin-core";
 
-const migrationsDir = join(process.cwd(), "migrations");
+const migrationsDir = join(process.cwd(), "packages/core/migrations");
 
 describe("K11-002 ToolCallObserver ts_ms", () => {
 	let store: Store;

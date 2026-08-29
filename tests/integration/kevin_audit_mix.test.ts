@@ -2,15 +2,15 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import { buildAudit } from "../../plugin/kevin_audit.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 describe("K7-019/020 — pure SQL audit mix", () => {
 	it("reports zero shares and precision for an empty ledger", async () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-mix-"));
-		const dir = join(root, "migrations");
+		const dir = join(root, "packages/core/migrations");
 		mkdirSync(dir, { recursive: true });
 		for (const file of [
 			"001_initial.sql",
@@ -21,7 +21,7 @@ describe("K7-019/020 — pure SQL audit mix", () => {
 			"007_v06_pull.sql",
 			"008_v07_truth.sql",
 		])
-			copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 		const store = new Store({ path: ":memory:" });
 		await new Migrate(store, dir).run();
 		const report = buildAudit(store, new Metrics(store));
@@ -48,7 +48,7 @@ describe("K7-019/020 — pure SQL audit mix", () => {
 			"007_v06_pull.sql",
 			"008_v07_truth.sql",
 		])
-			copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 		await new Migrate(store, dir).run();
 		store
 			.prepare(

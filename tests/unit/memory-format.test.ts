@@ -4,7 +4,7 @@ import {
 	escapeInjectedText,
 	formatMemories,
 	formatMemorySnippets,
-} from "../../plugin/memory-format.js";
+} from "@jmtrin/kevin-core";
 
 function row(
 	overrides: Partial<MemoryBlockItem> &

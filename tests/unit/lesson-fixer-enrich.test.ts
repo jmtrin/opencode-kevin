@@ -9,15 +9,15 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CausalChain } from "../../plugin/CausalChain.js";
+import { CausalChain } from "@jmtrin/kevin-core";
 import {
 	type EnrichFn,
 	deterministicFixLine,
 	enrichAtPromotion,
-} from "../../plugin/LessonFixer.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+} from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(

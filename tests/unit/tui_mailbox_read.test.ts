@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readMailbox } from "../../plugin/TuiActions.js";
+import { readMailbox } from "@jmtrin/kevin-core";
 
 describe("K12-005 — readMailbox tolerant parser", () => {
 	it("ok file returns actions", () => {

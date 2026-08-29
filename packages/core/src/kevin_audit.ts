@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveEnv, type KevinEnv } from "./env.js";
 import { effectivePrePromptCap } from "./ContextInjector.js";
 import { hasRepoIdColumn } from "./MemoryService.js";
 import type { Store } from "./Store.js";
@@ -266,6 +266,7 @@ export function buildAudit(
 	projectId?: string,
 	repoId?: string | null,
 	tuiRoot?: string,
+	env?: KevinEnv,
 ): AuditReport {
 	let partial = false;
 
@@ -911,7 +912,7 @@ export function buildAudit(
 	let tui: AuditReport["tui"] | undefined;
 	try {
 		const enabled_setting = settings.tui_snapshots_enabled ?? "0";
-		const root = tuiRoot ?? join(homedir(), ".opencode-kevin", "tui");
+		const root = tuiRoot ?? join(resolveEnv(env).dataRoot, "tui");
 		let last_flush_age_s: number | null = null;
 		try {
 			const metaRaw = readFileSync(join(root, "meta.json"), "utf8");

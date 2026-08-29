@@ -2,15 +2,15 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Materializer } from "../../plugin/Materializer.js";
-import { Store } from "../../plugin/Store.js";
-import type { HostSurface } from "../../plugin/host.js";
+import { Materializer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import type { HostSurface } from "../../packages/plugin/src/host.js";
 import {
 	type KevinNativeContext,
 	type NativeDeps,
 	buildNativePlugin,
 	kevinSkillSource,
-} from "../../plugin/native.js";
+} from "../../packages/plugin/src/native.js";
 
 // Built by concatenation so this test file never names the literal:
 // K9-013's containment scan allows exactly one file to name the
@@ -26,7 +26,7 @@ const MIGRATED_SQL = [
 	"005_v04_signal.sql",
 	"006_v05_glassbox.sql",
 	"007_v06_pull.sql",
-].map((name) => readFileSync(join(process.cwd(), "migrations", name), "utf8"));
+].map((name) => readFileSync(join(process.cwd(), "packages/core/migrations", name), "utf8"));
 
 function v2Host(): HostSurface {
 	return {

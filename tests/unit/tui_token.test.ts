@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { proposalToken, verifyFresh } from "../../plugin/TuiActions.js";
+import { proposalToken, verifyFresh } from "@jmtrin/kevin-core";
 
 describe("K12-006 — token scheme + stale detection", () => {
 	it("deterministic token vectors", () => {

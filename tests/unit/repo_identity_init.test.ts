@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as RepoIdentity from "../../plugin/RepoIdentity.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import * as RepoIdentity from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 const MIGRATION_FILES = [
 	"001_initial.sql",
@@ -34,7 +34,7 @@ describe("K8-006 — resolve() runs exactly once at plugin init", () => {
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const file of MIGRATION_FILES) {
 			copyFileSync(
-				join(process.cwd(), "migrations", file),
+				join(process.cwd(), "packages/core/migrations", file),
 				join(migrationsDir, file),
 			);
 		}

@@ -1,5 +1,5 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveEnv, type KevinEnv } from "./env.js";
 import type { ArtifactWriter, WriteOutcome } from "./ArtifactWriter.js";
 import { firstSentence } from "./Curator.js";
 import type { Store } from "./Store.js";
@@ -118,8 +118,9 @@ export class Materializer {
 	constructor(
 		private readonly store: Store,
 		options: { root?: string } = {},
+		env?: KevinEnv,
 	) {
-		this.root = options.root ?? join(homedir(), ".opencode-kevin");
+		this.root = options.root ?? resolveEnv(env).dataRoot;
 	}
 
 	/**

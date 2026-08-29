@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { ContextInjector } from "../../plugin/ContextInjector.js";
+import { ContextInjector } from "@jmtrin/kevin-core";
 import type {
 	GetRelevantInput,
 	Memory,
 	MemoryService,
-} from "../../plugin/MemoryService.js";
+} from "@jmtrin/kevin-core";
 
 function createMock(memories: Memory[], settingValue = "1") {
 	const calls: GetRelevantInput[] = [];

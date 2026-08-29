@@ -9,12 +9,13 @@
  */
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { resolveEnv, type KevinEnv } from "./env.js";
 import type { Store } from "./Store.js";
 import { fnv1a64 } from "./fingerprint.js";
 
 export interface KevinBenchDeps {
 	store: Store;
-	/** Working directory used to locate bench/corpus (defaults process.cwd()). */
+	/** Working directory used to locate bench/corpus (defaults to env.projectRoot). */
 	cwd?: string;
 }
 
@@ -57,6 +58,7 @@ function noRuns(): Record<string, unknown> {
 export function buildKevinBench(
 	deps: KevinBenchDeps,
 	args: KevinBenchArgs,
+	env?: KevinEnv,
 ): Record<string, unknown> {
 	if (args.action === "status") {
 		const count = deps.store
@@ -77,7 +79,7 @@ export function buildKevinBench(
 			  }
 			| undefined;
 		if (!latest) return noRuns();
-		const disk = onDiskCorpusDigest(deps.cwd ?? process.cwd());
+		const disk = onDiskCorpusDigest(deps.cwd ?? resolveEnv(env).projectRoot);
 		return {
 			has_runs: true,
 			total_runs: count.c,

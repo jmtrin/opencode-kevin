@@ -10,24 +10,24 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { PatternMiner } from "../../plugin/PatternMiner.js";
-import { Store } from "../../plugin/Store.js";
-import type { Metrics } from "../../plugin/metrics.js";
-import { uuidv7 } from "../../plugin/uuid.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { PatternMiner } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import type { Metrics } from "@jmtrin/kevin-core";
+import { uuidv7 } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 
@@ -323,7 +323,7 @@ describe("PatternMiner — K2-030 edge: upgrade path (001→003 schema)", () => 
 	it("runs correctly on a DB that was 001-only then upgraded via migration 003", () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-pm-v030-"));
 		try {
-			const dir = join(root, "migrations");
+			const dir = join(root, "packages/core/migrations");
 			mkdirSync(dir, { recursive: true });
 			writeFileSync(join(dir, "001_initial.sql"), SQL_001);
 			writeFileSync(join(dir, "003_v02_signal.sql"), SQL_003);

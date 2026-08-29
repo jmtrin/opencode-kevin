@@ -10,9 +10,9 @@ import { readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Migrate } from "../../plugin/Migrate.js";
-import { RepoTruth } from "../../plugin/RepoTruth.js";
-import { Store } from "../../plugin/Store.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { RepoTruth } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -35,7 +35,7 @@ beforeEach(() => {
 		"008_v07_truth.sql",
 	]) {
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

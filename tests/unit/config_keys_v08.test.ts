@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { METRIC_KEY_LABELS } from "../../plugin/Retrospective.js";
-import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../plugin/index.js";
-import { METRIC_KEYS } from "../../plugin/metrics.js";
+import { METRIC_KEY_LABELS } from "@jmtrin/kevin-core";
+import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../packages/plugin/src/index.js";
+import { METRIC_KEYS } from "@jmtrin/kevin-core";
 
 const MIGRATION_FILES = [
 	"001_initial.sql",
@@ -26,14 +26,14 @@ const MIGRATION_FILES = [
 ];
 
 const SQL_009 = readFileSync(
-	join(process.cwd(), "migrations", "009_v08_team.sql"),
+	join(process.cwd(), "packages/core/migrations", "009_v08_team.sql"),
 	"utf8",
 );
 
 // v0.9.0 (K9-006 / plan §6): the four Native settings and six hook metrics
 // live in migration 010's seed blocks.
 const SQL_010 = readFileSync(
-	join(process.cwd(), "migrations", "010_v09_native.sql"),
+	join(process.cwd(), "packages/core/migrations", "010_v09_native.sql"),
 	"utf8",
 );
 
@@ -76,13 +76,13 @@ const PRIOR_FILES = [
 
 const PRIOR_SETTING_KEYS = PRIOR_FILES.flatMap((f) =>
 	seededKeys(
-		readFileSync(join(process.cwd(), "migrations", f), "utf8"),
+		readFileSync(join(process.cwd(), "packages/core/migrations", f), "utf8"),
 		"kevin_settings",
 	),
 );
 const PRIOR_METRIC_KEYS = PRIOR_FILES.flatMap((f) =>
 	seededKeys(
-		readFileSync(join(process.cwd(), "migrations", f), "utf8"),
+		readFileSync(join(process.cwd(), "packages/core/migrations", f), "utf8"),
 		"kevin_metrics",
 	),
 );
@@ -98,7 +98,7 @@ const V09_METRIC_KEYS = seededKeys(SQL_010, "kevin_metrics");
 // v1.0.0 (K10-005 / plan §5.2): migration 011 seeds four settings and six
 // metrics for the perf/contract surface; same derivation rule.
 const SQL_011 = readFileSync(
-	join(process.cwd(), "migrations", "011_v10_proven.sql"),
+	join(process.cwd(), "packages/core/migrations", "011_v10_proven.sql"),
 	"utf8",
 );
 const V10_SETTING_KEYS = seededKeys(SQL_011, "kevin_settings");
@@ -113,7 +113,7 @@ beforeEach(async () => {
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of MIGRATION_FILES) {
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

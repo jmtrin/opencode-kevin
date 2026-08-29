@@ -19,13 +19,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 const REPO_ROOT = join(__dirname, "..", "..");
 
 function listMigrations(): string[] {
-	return readdirSync(join(REPO_ROOT, "migrations"))
+	return readdirSync(join(REPO_ROOT, "packages/core/migrations"))
 		.filter((f) => f.endsWith(".sql"))
 		.sort();
 }
@@ -39,7 +39,7 @@ beforeEach(() => {
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of listMigrations()) {
 		copyFileSync(
-			join(REPO_ROOT, "migrations", file),
+			join(REPO_ROOT, "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

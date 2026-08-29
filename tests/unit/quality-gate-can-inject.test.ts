@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { QualityGate } from "../../plugin/QualityGate.js";
+import { QualityGate } from "@jmtrin/kevin-core";
 
 function mem(
 	over: Partial<{

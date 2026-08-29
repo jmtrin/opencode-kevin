@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Reflector } from "../../plugin/Reflector.js";
+import { Reflector } from "@jmtrin/kevin-core";
 
 function memoryService(mode: string, save = vi.fn()) {
 	const service = {

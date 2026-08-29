@@ -41,14 +41,14 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 31 `kevin_settings` keys and their string-typed defaults.
+- **Covers:** the 32 `kevin_settings` keys and their string-typed defaults (31 at 1.1.0 + `tui_snapshots_enabled` since 1.2.0).
 - **Consumer may rely on:** every listed key is accepted by `kevin_config`; unknown keys error.
 
 ## C-05 — Metric key names
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 54 `kevin_metrics` keys (51 at 1.0.0 + `bench_regression_failures`, `forget_requests_total`, `forget_tombstones_published` since 1.1.0).
+- **Covers:** the 56 `kevin_metrics` keys (51 at 1.0.0 + `bench_regression_failures`, `forget_requests_total`, `forget_tombstones_published` since 1.1.0 + `tui_snapshots_flushed`, `tui_actions_invoked` since 1.2.0).
 - **Consumer may rely on:** counters are monotonic integers; absent keys are zero.
 
 ## C-06 — Package entry points
@@ -62,7 +62,7 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** forward-only
 - **Since:** 0.1.0
-- **Covers:** schema version `012`, migrations are forward-only (`migrations/*.sql` apply in order, never rewritten).
+- **Covers:** schema version `012`, migrations are forward-only (`packages/core/migrations/*.sql` apply in order, never rewritten; moved from `migrations/` in v1.3.0 Bedrock).
 - **Consumer may rely on:** forward-only migrations; `Migrate.run()` idempotent.
 
 ## C-08 — Filesystem locations
@@ -105,7 +105,7 @@ Every arrow after `memories` was added by a later release for an unrelated reaso
 The boundary, frozen as part of C-09 in three rules:
 
 1. **Stored is not trusted.** A memory derived from tool output carries its provenance. Kevin distinguishes `origin` values; anything reaching an artifact or a prompt is escaped according to its container, not according to where it came from.
-2. **Escaping happens once, at the single write path.** `plugin/escape.ts` provides one pure, total, idempotent function per container — `escapeForMarkerBlock` (the marker pair itself, comment terminators), `escapeForFence` (fenced-code delimiters), `escapeForOkfLine` (any byte that would terminate an OKF v2 line). They are applied only inside `ArtifactWriter`; a second call site would reopen the audit D6-01 closed.
+2. **Escaping happens once, at the single write path.** `packages/core/src/escape.ts` (moved from `plugin/escape.ts` in v1.3.0 Bedrock) provides one pure, total, idempotent function per container — `escapeForMarkerBlock` (the marker pair itself, comment terminators), `escapeForFence` (fenced-code delimiters), `escapeForOkfLine` (any byte that would terminate an OKF v2 line). They are applied only inside `ArtifactWriter`; a second call site would reopen the audit D6-01 closed.
 3. **Sharing requires curation, and curation requires a human.** `kevin_share` routes through `share_requires_approval` and `SharedLayer.applyExport()` has exactly one call site; a memory reaches git only via a human-approved proposal.
 
 A frozen invariant whose rationale lives only in a plan document is one refactor away from being deleted as dead code — which is why the threat model lives here, beside the clause that freezes it.

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
 	normalizeRemote,
 	parseGitConfigRemote,
-} from "../../plugin/RepoIdentity.js";
+} from "@jmtrin/kevin-core";
 
 const LF_CONFIG = `[core]
 	repositoryformatversion = 0

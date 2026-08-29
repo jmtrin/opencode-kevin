@@ -2,13 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import type { HostSurface } from "../../plugin/host.js";
-import { buildDoctor } from "../../plugin/kevin_doctor.js";
-import type { SettingsReader } from "../../plugin/native.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import type { HostSurface } from "../../packages/plugin/src/host.js";
+import { buildDoctor } from "@jmtrin/kevin-core";
+import type { SettingsReader } from "../../packages/plugin/src/native.js";
 
-const MIGRATIONS_DIR = join(process.cwd(), "migrations");
+const MIGRATIONS_DIR = join(process.cwd(), "packages/core/migrations");
 
 // K10-021 — dispose joins the hook report and a p95 budget breach
 // degrades the verdict (a slow plugin is not healthy even when every

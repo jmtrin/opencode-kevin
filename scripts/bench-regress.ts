@@ -124,7 +124,7 @@ export async function main(
 			// Best-effort metric increment when KEVIN_REGRESS_DB=1
 			if (process.env.KEVIN_REGRESS_DB === "1") {
 				try {
-					const { Store } = await import("../plugin/Store.js");
+					const { Store } = await import("@jmtrin/kevin-core");
 					const { homedir } = await import("node:os");
 					const dbPath = join(homedir(), ".opencode-kevin", "kevin.db");
 					if (existsSync(dbPath)) {

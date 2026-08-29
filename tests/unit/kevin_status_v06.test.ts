@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 const MIGRATIONS_007 = [
 	"001_initial.sql",
@@ -68,7 +68,7 @@ async function boot(
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const name of migrations) {
 		copyFileSync(
-			join(process.cwd(), "migrations", name),
+			join(process.cwd(), "packages/core/migrations", name),
 			join(migrationsDir, name),
 		);
 	}

@@ -11,13 +11,13 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ArtifactWriter } from "../../plugin/ArtifactWriter.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { resolve } from "../../plugin/RepoIdentity.js";
-import { SharedLayer } from "../../plugin/SharedLayer.js";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
-import { computeEntryId } from "../../plugin/okf.js";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { resolve } from "@jmtrin/kevin-core";
+import { SharedLayer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
+import { computeEntryId } from "@jmtrin/kevin-core";
 
 // The negative half of the exit criterion: child_process is stubbed to
 // throw, so any process spawn originating from Kevin fails the run.
@@ -71,7 +71,7 @@ function makeMigrationsDir(): string {
 		"008_v07_truth.sql",
 		"009_v08_team.sql",
 	]) {
-		copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 	}
 	return dir;
 }

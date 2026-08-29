@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { QualityGate, isGenericSuggestion } from "../../plugin/QualityGate.js";
+import { QualityGate, isGenericSuggestion } from "@jmtrin/kevin-core";
 
 describe("K4-003 — QualityGate.evaluate + rescueErrorType", () => {
 	it("rescues the errorType when a code was dispatched", () => {

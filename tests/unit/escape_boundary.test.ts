@@ -7,21 +7,21 @@ import {
 	MARKER_BEGIN,
 	MARKER_END,
 	escapeForContainer,
-} from "../../plugin/ArtifactWriter.js";
-import { Store } from "../../plugin/Store.js";
+} from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 import {
 	escapeForFence,
 	escapeForMarkerBlock,
 	escapeForOkfLine,
-} from "../../plugin/escape.js";
-import { Metrics } from "../../plugin/metrics.js";
+} from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 import {
 	type OkfEntry,
 	canonicalize,
 	computeEntryId,
 	parse,
 	serialize,
-} from "../../plugin/okf.js";
+} from "@jmtrin/kevin-core";
 
 const SQL_FILES = [
 	"001_initial.sql",
@@ -145,7 +145,7 @@ describe("K10-027 — enforcement at the single write path (D6-01)", () => {
 	function writer(): ArtifactWriter {
 		const store = new Store({ path: ":memory:" });
 		for (const f of SQL_FILES) {
-			store.exec(readFileSync(join(process.cwd(), "migrations", f), "utf8"));
+			store.exec(readFileSync(join(process.cwd(), "packages/core/migrations", f), "utf8"));
 		}
 		return new ArtifactWriter(store, "test-project", new Metrics(store));
 	}

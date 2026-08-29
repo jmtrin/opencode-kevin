@@ -1,5 +1,5 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveEnv, type KevinEnv } from "./env.js";
 import {
 	type ArtifactWriter,
 	MARKER_BEGIN,
@@ -98,6 +98,7 @@ export class Curator {
 		private readonly projectId: string,
 		metrics?: Metrics | null,
 		private readonly repoId?: string | null,
+		private readonly env?: KevinEnv,
 	) {
 		this.metrics = metrics ?? null;
 	}
@@ -391,15 +392,13 @@ export class Curator {
 				return this.memoryService.getSetting("agents_md_path", "AGENTS.md");
 			case "skill":
 				return join(
-					homedir(),
-					".opencode-kevin",
+					resolveEnv(this.env).dataRoot,
 					"skills",
 					"project-knowledge.md",
 				);
 			case "reference":
 				return join(
-					homedir(),
-					".opencode-kevin",
+					resolveEnv(this.env).dataRoot,
 					"refs",
 					"project-knowledge.md",
 				);

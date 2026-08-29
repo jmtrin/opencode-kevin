@@ -26,7 +26,7 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-1.1.0-blue)
+![version](https://img.shields.io/badge/version-1.3.0-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
 ![tests](https://img.shields.io/badge/tests-1380%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
@@ -173,6 +173,20 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── AGENTS.md           ← curated knowledge (marker block, human-approved)
 └── knowledge.okf       ← optional team-sharing file (opt-in)
 ```
+
+---
+
+## 🆕 What's new in 1.3.0 — "Bedrock"
+
+> 1.3.0 declares the border the code already had. No visible behavior change — everything after this changes *because* of it.
+
+- 🏗️ **Monorepo with a hostless core** — root becomes a private `npm workspaces` manager; `packages/core` (`@jmtrin/kevin-core` **zero deps**), `packages/plugin` (`@jmtrin/opencode-kevin` — name frozen by C-06, now depends on core `1.3.0` exact), `packages/tui` (`@jmtrin/opencode-kevin-tui`, isolated). 60+ domain modules `plugin/*.ts` → `packages/core/src/*.ts` via `git mv`, migrations `migrations/` → `packages/core/migrations/` (12 SQL, built to `dist/migrations`).
+- 🔌 **One new type + one new export** (`KevinEnv` + `exportMigrationsDir`): every `process.cwd()`/`homedir()` touchpoint now takes an injected `KevinEnv {projectRoot,dataRoot}` via `resolveEnv()` (defaults `cwd` / `~/.opencode-kevin` only in `env.ts`). Core scans as `0` `process.cwd/homedir/node:os` outside the allowlist (K13-007), verified by `packages/core/tests/core_purity_scan.test.ts`.
+- 🔄 **Replay lives in core** — `replay.ts` + `idle-pipeline.ts` (`IDLE_STEP_ORDER` single source, `composeIdlePipeline`) moved to core; adapter and replay both mount the same pipeline (D13-07). Parity harness `packages/plugin/tests/parity.test.ts` mounts adapter vs core wirings over every `tests/replay/fixtures/*.json` and asserts byte-identical outputs (swapped-step probe proves sensitivity).
+- 📦 **Packaging proof** — both tarballs verified + offline consumer smoke (`npm install <core.tgz> <tui.tgz> <plugin.tgz>` → `Store` + `Migrate` + `exportMigrationsDir` → `schema_version 012`). Core zero-deps and `types`-first exports; plugin pins core exact `1.3.0`, `exports["./tui"]` redirects to the tui package — external specifiers unchanged.
+- 📜 **Contract unchanged** — `describeContract({scanRoots})` now accepts explicit roots (monorepo vs packed), golden values byte-equal (D13-05, 26/32/56 unchanged, no new setting/tool/metric/migration).
+
+**Upgrade:** no action required — drop-in reorganization, behavior diff empty (K13-016), DB untouched.
 
 ---
 
@@ -571,25 +585,33 @@ instrumentation. That is what Kevin adds around it.
 ## 🛠️ Development
 
 ```bash
-npm install
-npm run typecheck     # tsc --noEmit (strict)
-npm run lint          # biome
-npm test              # vitest — 1374 tests across 190 files
-npm run verify        # install checks + Bun smoke + verify:pack
-npm run gen:corpus    # regenerate the seeded corpus (byte-identical)
-npm run replay        # replay recorded sessions deterministically
+npm install                            # hoists workspaces (root private)
+npm run build                          # core → tui → plugin (tsc + copy-migrations)
+npm run typecheck                      # -w core -w tui -w plugin + root (strict)
+npm run lint                           # biome
+npm test                               # vitest — root suite (190 files)
+npm test -w @jmtrin/kevin-core         # core only — also passes with @opencode-ai/plugin absent (K13-013)
+npm run verify                         # install checks + Bun smoke + verify:pack (×2 + consumer)
+npm run verify:pack                    # dual-tarball + offline consumer smoke (K13-014)
+npm run gen:corpus                     # regenerate the seeded corpus (byte-identical)
+npm run replay                         # replay recorded sessions deterministically (now via core)
 ```
 
-Project layout:
+Project layout (Bedrock monorepo):
 
 ```
-plugin/      53 modules — Store, MemoryService, Reflector, Perf, Contract, columns, kevin_forget …
-migrations/  001 → 012 — additive, idempotent, forward-only forever
-scripts/     bench · gen-corpus · verify-pack · verify-install · …
-tests/       unit · integration · e2e · replay fixtures
-bench/       committed corpus + committed results
-docs/        CONTRACT.md · per-release plans/tasks · roadmap
+packages/core/         @jmtrin/kevin-core — ~60 modules (zero deps), src/*.ts, migrations/ 001→012, dist/migrations
+packages/plugin/       @jmtrin/opencode-kevin — 4 modules (index, host, native, capabilities), adapter thin, depends on core+tui 1.3.0 exact
+packages/tui/          @jmtrin/opencode-kevin-tui — isolated TUI panel (target-exclusive, own package.json/exports)
+scripts/               bench · gen-corpus · verify-pack (dual) · verify-install · …
+tests/                 unit · integration · e2e · replay fixtures (at root, run via workspaces)
+bench/                 committed corpus + committed results
+docs/                  CONTRACT.md · per-release plans/tasks · roadmap v2
 ```
+
+> **C-10 preview** — the future public surface is the explicit re-export list at `packages/core/src/index.ts` (keep it minimal and deliberate).
+
+C-06 frozen: `plugin` package name `@jmtrin/opencode-kevin` and `exports["./tui"]` specifier unchanged; consumers see no break.
 
 ---
 

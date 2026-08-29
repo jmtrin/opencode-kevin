@@ -1,11 +1,11 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Store } from "../../plugin/Store.js";
-import { exportOkf } from "../../plugin/okf-export.js";
-import { importOkf } from "../../plugin/okf-import.js";
-import { parse, serialize } from "../../plugin/okf.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { exportOkf } from "@jmtrin/kevin-core";
+import { importOkf } from "@jmtrin/kevin-core";
+import { parse, serialize } from "@jmtrin/kevin-core";
 
 /**
  * K8-027 / plan §5.3 — the two formats are mutually unintelligible and
@@ -21,7 +21,7 @@ describe("K8-027 — OKF v1/v2 format separation", () => {
 			"003_v02_signal.sql",
 			"004_v03_knowledge.sql",
 		]) {
-			store.exec(readFileSync(join(process.cwd(), "migrations", file), "utf8"));
+			store.exec(readFileSync(join(process.cwd(), "packages/core/migrations", file), "utf8"));
 		}
 		const service = new MemoryService(store);
 		service.save({
@@ -49,7 +49,7 @@ describe("K8-027 — OKF v1/v2 format separation", () => {
 			"004_v03_knowledge.sql",
 			"005_v04_signal.sql",
 		]) {
-			store.exec(readFileSync(join(process.cwd(), "migrations", file), "utf8"));
+			store.exec(readFileSync(join(process.cwd(), "packages/core/migrations", file), "utf8"));
 		}
 		const service = new MemoryService(store);
 

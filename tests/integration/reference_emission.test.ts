@@ -10,8 +10,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PluginInput } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -37,7 +37,7 @@ async function bootPlugin(input: PluginInput): Promise<void> {
 		"007_v06_pull.sql",
 	]) {
 		await copyFile(
-			join(__dirname, "..", "..", "migrations", file),
+			join(__dirname, "..", "..", "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

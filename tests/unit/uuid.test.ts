@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { uuidv7 } from "../../plugin/uuid.js";
+import { uuidv7 } from "@jmtrin/kevin-core";
 
 describe("uuidv7", () => {
 	it("returns a 36-char string with dashes in the right positions", () => {

@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { InjectionLedger } from "../../plugin/InjectionLedger.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { InjectionLedger } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
-const migrationsDir = join(process.cwd(), "migrations");
+const migrationsDir = join(process.cwd(), "packages/core/migrations");
 
 describe("K11-003 InjectionLedger ms plumbing", () => {
 	let store: Store;

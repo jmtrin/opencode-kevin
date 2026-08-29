@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ContextInjector } from "../../plugin/ContextInjector.js";
-import type { Memory, MemoryService } from "../../plugin/MemoryService.js";
-import { Store } from "../../plugin/Store.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { ContextInjector } from "@jmtrin/kevin-core";
+import type { Memory, MemoryService } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 function mem(): Memory {
 	return {

@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Store } from "../../plugin/Store.js";
-import { exportMarkdown, exportOkf } from "../../plugin/okf-export.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { exportMarkdown, exportOkf } from "@jmtrin/kevin-core";
 
 /**
  * K8-027 / plan §5.3 — the v1 export is scoped to one project. The
@@ -16,26 +16,26 @@ describe("K8-027 — v1 export scoped to the requesting project", () => {
 		const store = new Store({ path: ":memory:" });
 		store.exec(
 			readFileSync(
-				join(process.cwd(), "migrations", "001_initial.sql"),
+				join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 				"utf8",
 			),
 		);
 		store.exec(
 			readFileSync(
-				join(process.cwd(), "migrations", "003_v02_signal.sql"),
+				join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 				"utf8",
 			),
 		);
 		store.exec(
 			readFileSync(
-				join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+				join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 				"utf8",
 			),
 		);
 		if (with005) {
 			store.exec(
 				readFileSync(
-					join(process.cwd(), "migrations", "005_v04_signal.sql"),
+					join(process.cwd(), "packages/core/migrations", "005_v04_signal.sql"),
 					"utf8",
 				),
 			);

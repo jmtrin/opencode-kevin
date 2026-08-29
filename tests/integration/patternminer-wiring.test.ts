@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KevinPlugin } from "../../plugin/index.js";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let migrationsDir: string;
@@ -21,15 +21,15 @@ beforeEach(async () => {
 	migrationsDir = join(tmpRoot, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	copyFileSync(
-		join(process.cwd(), "migrations", "001_initial.sql"),
+		join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 		join(migrationsDir, "001_initial.sql"),
 	);
 	copyFileSync(
-		join(process.cwd(), "migrations", "003_v02_signal.sql"),
+		join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 		join(migrationsDir, "003_v02_signal.sql"),
 	);
 	copyFileSync(
-		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+		join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 		join(migrationsDir, "004_v03_knowledge.sql"),
 	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
@@ -125,15 +125,15 @@ describe("PatternMiner wiring (K2-022) — session.idle triggers mine()", () => 
 		const mig2 = join(tmp2, "migrations");
 		mkdirSync(mig2, { recursive: true });
 		copyFileSync(
-			join(process.cwd(), "migrations", "001_initial.sql"),
+			join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 			join(mig2, "001_initial.sql"),
 		);
 		copyFileSync(
-			join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+			join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 			join(mig2, "004_v03_knowledge.sql"),
 		);
 		const sql003 = readFileSync(
-			join(process.cwd(), "migrations", "003_v02_signal.sql"),
+			join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 			"utf8",
 		);
 		writeFileSync(

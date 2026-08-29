@@ -8,11 +8,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConflictDetector } from "../../plugin/ConflictDetector.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { RepoTruth } from "../../plugin/RepoTruth.js";
-import { Store } from "../../plugin/Store.js";
+import { ConflictDetector } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { RepoTruth } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 let root: string;
 let migrationsDir: string;
@@ -20,7 +20,7 @@ let store: Store;
 
 beforeEach(async () => {
 	root = mkdtempSync(join(tmpdir(), "kevin-conflicts-"));
-	migrationsDir = join(root, "migrations");
+	migrationsDir = join(root, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -32,7 +32,7 @@ beforeEach(async () => {
 		"008_v07_truth.sql",
 	]) {
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

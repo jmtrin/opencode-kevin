@@ -2,16 +2,16 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Reflector } from "../../plugin/Reflector.js";
-import { Store } from "../../plugin/Store.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Reflector } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 describe("K7-018 — triage-only side effects", () => {
 	it("suppresses the memory while preserving link callback and suppression metric", async () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-triage-"));
-		const migrations = join(root, "migrations");
+		const migrations = join(root, "packages/core/migrations");
 		mkdirSync(migrations, { recursive: true });
 		for (const file of [
 			"001_initial.sql",
@@ -23,7 +23,7 @@ describe("K7-018 — triage-only side effects", () => {
 			"008_v07_truth.sql",
 		])
 			copyFileSync(
-				join(process.cwd(), "migrations", file),
+				join(process.cwd(), "packages/core/migrations", file),
 				join(migrations, file),
 			);
 		const store = new Store({ path: ":memory:" });

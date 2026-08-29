@@ -10,12 +10,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ArtifactWriter } from "../../plugin/ArtifactWriter.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { initProjectFile, resolve } from "../../plugin/RepoIdentity.js";
-import { Store } from "../../plugin/Store.js";
-import { fingerprint } from "../../plugin/fingerprint.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { initProjectFile, resolve } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { fingerprint } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let drops: string[] = [];
@@ -49,7 +49,7 @@ function makeMigrationsDir(include009: boolean): string {
 	];
 	if (include009) files.push("009_v08_team.sql");
 	for (const file of files) {
-		copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 	}
 	return dir;
 }
@@ -265,7 +265,7 @@ describe("K8-008 — .kevin/project.json + kevin_project show/init (plan §5.8)"
 			"006_v05_glassbox.sql",
 			"007_v06_pull.sql",
 		]) {
-			store.exec(readFileSync(join(process.cwd(), "migrations", file), "utf8"));
+			store.exec(readFileSync(join(process.cwd(), "packages/core/migrations", file), "utf8"));
 		}
 		const writer = new ArtifactWriter(store, "test-project");
 		const first = initProjectFile(projectRoot, writer);

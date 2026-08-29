@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 describe("K12-010 — tui module isolation", () => {
 	it("imports only allowlist", () => {
-		const src = readFileSync(join(process.cwd(), "plugin", "tui.ts"), "utf8");
+		const src = readFileSync(join(process.cwd(), "packages/tui/src/tui.ts"), "utf8");
 		// Reconstruct import statements (handles biome-split multiline imports) by joining
 		// lines until a semicolon-terminated statement. This is robust to formatting.
 		const statements: string[] = [];

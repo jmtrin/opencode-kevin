@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fingerprint, fnv1a64, normalize } from "../../plugin/fingerprint.js";
+import { fingerprint, fnv1a64, normalize } from "@jmtrin/kevin-core";
 
 describe("fingerprint — normalize", () => {
 	it("strips ANSI CSI sequences", () => {

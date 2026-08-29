@@ -4,35 +4,35 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Archiver } from "../../plugin/Archiver.js";
-import { Feedback } from "../../plugin/Feedback.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { Archiver } from "@jmtrin/kevin-core";
+import { Feedback } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 const SQL_005 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "005_v04_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "005_v04_signal.sql"),
 	"utf8",
 );
 const SQL_006 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "006_v05_glassbox.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "006_v05_glassbox.sql"),
 	"utf8",
 );
 const SQL_007 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "007_v06_pull.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "007_v06_pull.sql"),
 	"utf8",
 );
 

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveEnv, type KevinEnv } from "./env.js";
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
 import type { Metrics } from "./metrics.js";
@@ -137,9 +137,10 @@ export class Retrospective {
 		private memoryService: MemoryService,
 		options?: RetrospectiveOptions,
 		metrics?: Metrics | null,
+		env?: KevinEnv,
 	) {
 		this.retrospectivesDir =
-			options?.dir ?? join(homedir(), ".opencode-kevin", "retrospectives");
+			options?.dir ?? join(resolveEnv(env).dataRoot, "retrospectives");
 		this.metrics = metrics ?? null;
 	}
 

@@ -4,31 +4,31 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CausalChain } from "../../plugin/CausalChain.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { CausalChain } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 import {
 	CONFIDENCE_MAX,
 	CONFIDENCE_MIN,
 	computeConfidence,
-} from "../../plugin/confidence.js";
+} from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 const SQL_005 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "005_v04_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "005_v04_signal.sql"),
 	"utf8",
 );
 
@@ -165,7 +165,7 @@ describe("K4-010 — computeConfidence (two-sided formula)", () => {
 		mem.penalizeRecurringReflectors("sess-2");
 		chain.onSessionIdle("sess-2");
 
-		const { kevinWhy } = await import("../../plugin/kevin_why.js");
+		const { kevinWhy } = await import("@jmtrin/kevin-core");
 		const why = kevinWhy(store, "TS2304");
 		expect(why).not.toBeNull();
 		expect(why?.confidence).toBeCloseTo(

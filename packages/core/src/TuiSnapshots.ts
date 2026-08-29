@@ -1,4 +1,5 @@
-// v1.2.0 (K12-003 / plan §4.2, D12-05) — snapshot flush (pure serialization + atomic write).
+// v1.3.0 (K13-002/K13-004) — snapshot flush moved to core (pure serialization + atomic write).
+// Was v1.2.0 (K12-003 / plan §4.2, D12-05); version fallback updated for Bedrock (B-002).
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Metrics } from "./metrics.js";
@@ -148,7 +149,7 @@ export function flushSnapshots(input: FlushInput): FlushResult {
 	// Meta
 	const meta = {
 		generatedAt,
-		version: version ?? "1.2.0",
+		version: version ?? "1.3.0",
 		files: SNAP_FILES.slice(0, 3),
 	};
 	atomicWrite(join(dir, "meta.json"), JSON.stringify(meta, null, 2));

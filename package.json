@@ -1,29 +1,18 @@
 {
-	"name": "@jmtrin/opencode-kevin",
-	"version": "1.2.0",
-	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
+	"name": "opencode-kevin-monorepo",
+	"private": true,
+	"version": "1.3.0",
+	"description": "Kevin monorepo — workspaces manager (Bedrock)",
 	"type": "module",
-	"main": "dist/plugin/index.js",
-	"types": "./dist/plugin/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/plugin/index.d.ts",
-			"import": "./dist/plugin/index.js"
-		},
-		"./tui": {
-			"types": "./dist/plugin/tui.d.ts",
-			"import": "./dist/plugin/tui.js"
-		}
-	},
-	"files": ["dist/plugin", "dist/migrations"],
+	"workspaces": ["packages/*"],
 	"scripts": {
-		"build": "tsc -p tsconfig.build.json && node scripts/copy-migrations.mjs",
-		"prepublishOnly": "npm run build",
+		"build": "npm run build -w @jmtrin/kevin-core && npm run build -w @jmtrin/opencode-kevin-tui && npm run build -w @jmtrin/opencode-kevin",
+		"prepublishOnly": "echo \"use per-package publish\"",
 		"test": "vitest run",
 		"test:unit": "vitest run tests/unit",
 		"test:integration": "vitest run tests/integration",
 		"test:e2e": "vitest run tests/e2e",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "npm run typecheck -w @jmtrin/kevin-core && npm run typecheck -w @jmtrin/opencode-kevin-tui && npm run typecheck -w @jmtrin/opencode-kevin && tsc --noEmit --project tsconfig.json",
 		"lint": "biome check .",
 		"format": "biome format --write .",
 		"verify": "node --import tsx scripts/verify-install.ts && npm run verify:pack",
@@ -35,12 +24,6 @@
 		"replay": "node --import tsx scripts/replay.ts",
 		"measure:mix": "node --import tsx scripts/measure-mix.ts"
 	},
-	"dependencies": {
-		"@opencode-ai/plugin": "^1.18.16"
-	},
-	"optionalDependencies": {
-		"better-sqlite3": "^12.11.0"
-	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
 		"@types/better-sqlite3": "^7.6.12",
@@ -48,6 +31,12 @@
 		"tsx": "^4.19.0",
 		"typescript": "^5.7.2",
 		"vitest": "^2.1.8"
+	},
+	"dependencies": {
+		"@opencode-ai/plugin": "^1.18.16"
+	},
+	"optionalDependencies": {
+		"better-sqlite3": "^12.11.0"
 	},
 	"engines": {
 		"node": ">=22.5.0",

@@ -1,10 +1,12 @@
-# Kevin — Distribution Checklist (v1.1.0 "Drift")
+# Kevin — Distribution Checklist (v1.3.0 "Bedrock")
 
-**Version:** 1.1.0
+**Version:** 1.3.0
 **Status:** Active
 **Principle:** Public trust signals are engineering surface (P40) — these items are measured, not goodwill.
 
 This checklist is the human-side of the release (D11-04). CI asserts only offline facts (LICENSE, homepage, CHANGELOG); GitHub-side actions live here with owner + evidence placeholders. (D11-04)
+
+> Updated for Bedrock monorepo (K13-001..018): `packages/core` + `packages/plugin` + `packages/tui` publish ordering `core FIRST` then `plugin` (pins exact core).
 
 ---
 
@@ -17,9 +19,9 @@ This checklist is the human-side of the release (D11-04). CI asserts only offlin
 
 ### 2. Publish GitHub Release per tag
 - [ ] For each tag `vX.Y.Z`, create a GitHub Release using `scripts/release-notes.mjs`
-- Command: `gh release create v1.1.0 --notes-file <(node scripts/release-notes.mjs 1.1.0)` or `node scripts/release-notes.mjs > /tmp/notes.md && gh release create v1.1.0 --notes-file /tmp/notes.md`
+- Command: `gh release create v1.3.0 --notes-file <(node scripts/release-notes.mjs 1.3.0)` (template `vX.Y.Z`) or `node scripts/release-notes.mjs > /tmp/notes.md && gh release create vX.Y.Z --notes-file /tmp/notes.md`
 - **Owner:** @jmtrin
-- **Evidence:** Release URL (e.g., `https://github.com/jmtrin/opencode-kevin/releases/tag/v1.1.0`)
+- **Evidence:** Release URL (e.g., `https://github.com/jmtrin/opencode-kevin/releases/tag/v1.3.0`)
 
 ### 3. Record 15-second demo GIF (failure → lesson → recall → AGENTS.md diff)
 - [ ] Record a 15 s screen capture: a failing tool call → Reflector lesson → next session recall → `kevin_propose` → `kevin_approve` diff in AGENTS.md

@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { KEVIN_CONFIG_KEYS } from "../../plugin/index.js";
+import { KEVIN_CONFIG_KEYS } from "../../packages/plugin/src/index.js";
 
 describe("K9-023 — every KEVIN_CONFIG_KEYS appears in README.md", () => {
 	it("README documents all 27 config keys including the four v0.9.0 natives", () => {

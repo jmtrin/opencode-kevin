@@ -1,9 +1,46 @@
 // v1.0.0 (K10-006 / plan §5.1) — the surface, as data.
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { MARKER_BEGIN, MARKER_END } from "./ArtifactWriter.js";
+import { resolveEnv, type KevinEnv } from "./env.js";
 import { METRIC_KEY_LABELS } from "./Retrospective.js";
 import { fnv1a64 } from "./fingerprint.js";
 import { KEVIN_CONFIG_KEYS, KEVIN_VERSION } from "./index.js";
 import { MAX_ENTRIES, MAX_LINE_BYTES } from "./okf.js";
+
+/**
+ * K13-012 (D13-05) — scanRoots plumbing. Resolves monorepo vs packed locations.
+ * Monorepo: [packages/plugin/src, packages/core/src] when both dirs exist on disk.
+ * Packed: walk-up via require.resolve for @jmtrin/kevin-core and @jmtrin/opencode-kevin.
+ * Clause VALUES are unchanged; this only provides the roots future parsers would scan.
+ * Uses KevinEnv for cwd (K13-006) — defaults via resolveEnv — env.ts is the only
+ * core file allowed to call process cwd.
+ */
+export function resolveScanRoots(env?: KevinEnv): string[] {
+	const cwd = resolveEnv(env).projectRoot;
+	const monorepoCore = join(cwd, "packages", "core", "src");
+	const monorepoPlugin = join(cwd, "packages", "plugin", "src");
+	if (existsSync(monorepoCore) && existsSync(monorepoPlugin)) {
+		return [monorepoPlugin, monorepoCore];
+	}
+	// Packed mode — locate installed packages
+	const req = createRequire(import.meta.url);
+	const roots: string[] = [];
+	try {
+		const corePkg = req.resolve("@jmtrin/kevin-core/package.json");
+		const cand = join(dirname(corePkg), "dist");
+		if (existsSync(cand)) roots.push(cand);
+	} catch {}
+	try {
+		const pluginPkg = req.resolve("@jmtrin/opencode-kevin/package.json");
+		const cand = join(dirname(pluginPkg), "dist", "plugin");
+		if (existsSync(cand)) roots.push(cand);
+	} catch {}
+	if (roots.length > 0) return roots;
+	// Fallback to monorepo relative (even if not yet built)
+	return [monorepoPlugin, monorepoCore];
+}
 
 export const CONTRACT_VERSION = 1;
 
@@ -27,6 +64,10 @@ export interface PublicContract {
 export interface ContractInput {
 	readonly packageName?: string;
 	readonly packageVersion?: string;
+	/** K13-012 (D13-05) — scan roots for source parsers. Monorepo mode:
+	 *  [packages/plugin/src, packages/core/src]; packed mode resolves
+	 *  installed locations via walk-up. Clause VALUES untouched. */
+	readonly scanRoots?: readonly string[];
 }
 
 // Tool names — the live source of truth for C-03. Any rename here must
@@ -118,6 +159,9 @@ function canonicalJson(value: unknown): string {
 }
 
 export function describeContract(_input?: ContractInput): PublicContract {
+	// K13-012 plumbing — resolve scan roots for future parsers, but VALUES stay untouched (D13-05).
+	const _scanRoots = _input?.scanRoots ?? resolveScanRoots();
+	void _scanRoots;
 	// Derive clause values from live source wherever possible (plan §5.1).
 	// C-03 members added after the freeze carry their `since` as objects;
 	// the original frozen set stays plain strings.

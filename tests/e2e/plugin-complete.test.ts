@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KevinPlugin } from "../../plugin/index.js";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
@@ -19,19 +19,19 @@ beforeEach(async () => {
 	const migrationsDir = join(tmpRoot, "migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	copyFileSync(
-		join(process.cwd(), "migrations", "001_initial.sql"),
+		join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 		join(migrationsDir, "001_initial.sql"),
 	);
 	copyFileSync(
-		join(process.cwd(), "migrations", "003_v02_signal.sql"),
+		join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 		join(migrationsDir, "003_v02_signal.sql"),
 	);
 	copyFileSync(
-		join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+		join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 		join(migrationsDir, "004_v03_knowledge.sql"),
 	);
 	copyFileSync(
-		join(process.cwd(), "migrations", "005_v04_signal.sql"),
+		join(process.cwd(), "packages/core/migrations", "005_v04_signal.sql"),
 		join(migrationsDir, "005_v04_signal.sql"),
 	);
 	hooks = await KevinPlugin({ directory: tmpRoot } as PluginInput, {
@@ -710,19 +710,19 @@ describe("K3-026: cap", () => {
 		const migrationsDir = join(tmpRootCap, "migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		copyFileSync(
-			join(process.cwd(), "migrations", "001_initial.sql"),
+			join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 			join(migrationsDir, "001_initial.sql"),
 		);
 		copyFileSync(
-			join(process.cwd(), "migrations", "003_v02_signal.sql"),
+			join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 			join(migrationsDir, "003_v02_signal.sql"),
 		);
 		copyFileSync(
-			join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+			join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 			join(migrationsDir, "004_v03_knowledge.sql"),
 		);
 		copyFileSync(
-			join(process.cwd(), "migrations", "005_v04_signal.sql"),
+			join(process.cwd(), "packages/core/migrations", "005_v04_signal.sql"),
 			join(migrationsDir, "005_v04_signal.sql"),
 		);
 		hooksCap = await KevinPlugin({ directory: tmpRootCap } as PluginInput, {

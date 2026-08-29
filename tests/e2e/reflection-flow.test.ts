@@ -9,22 +9,22 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Reflector } from "../../plugin/Reflector.js";
-import { Store } from "../../plugin/Store.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Reflector } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_SQL = readFileSync(
-	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const MIGRATION_003_SQL = readFileSync(
-	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const MIGRATION_004_SQL = readFileSync(
-	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 

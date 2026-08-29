@@ -1,13 +1,13 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { HookLiveness } from "../../plugin/HookLiveness.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { HookLiveness } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 describe("K11-015 HookLiveness arity guard", () => {
 	it("slices excess args to 2 and increments excessArityCount", async () => {
 		const store = new Store({ path: ":memory:" });
-		await new Migrate(store, join(process.cwd(), "migrations")).run();
+		await new Migrate(store, join(process.cwd(), "packages/core/migrations")).run();
 		const hl = new HookLiveness(store, {
 			enabled: true,
 			thresholdText: "3",
@@ -35,7 +35,7 @@ describe("K11-015 HookLiveness arity guard", () => {
 
 	it("does not increment for compliant arity", async () => {
 		const store = new Store({ path: ":memory:" });
-		await new Migrate(store, join(process.cwd(), "migrations")).run();
+		await new Migrate(store, join(process.cwd(), "packages/core/migrations")).run();
 		const hl = new HookLiveness(store, {
 			enabled: true,
 			thresholdText: "3",

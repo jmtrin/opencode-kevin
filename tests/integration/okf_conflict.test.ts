@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { type OkfEntry, merge, parse, serialize } from "../../plugin/okf.js";
+import { type OkfEntry, merge, parse, serialize } from "@jmtrin/kevin-core";
 
 const FIXTURES = join(process.cwd(), "tests", "fixtures", "okf");
 const REPO = "8f3a2c1d9e7b6045";

@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import { buildKevinBench } from "../../plugin/kevin_bench.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { buildKevinBench } from "@jmtrin/kevin-core";
 import { loadCorpus } from "../../scripts/gen-corpus.js";
 
 const REPO_ROOT = join(
@@ -13,7 +13,7 @@ const REPO_ROOT = join(
 	"..",
 	"..",
 );
-const MIGRATIONS_DIR = join(REPO_ROOT, "migrations");
+const MIGRATIONS_DIR = join(REPO_ROOT, "packages/core/migrations");
 
 let tmpRoot: string;
 let storePath: string;

@@ -3,24 +3,24 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { METRIC_KEYS, Metrics, estimateTokens } from "../../plugin/metrics.js";
+import { Store } from "@jmtrin/kevin-core";
+import { METRIC_KEYS, Metrics, estimateTokens } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 const SQL_009 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "009_v08_team.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "009_v08_team.sql"),
 	"utf8",
 );
 
@@ -395,19 +395,19 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 
 describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 	const SQL_005 = readFileSync(
-		join(__dirname, "..", "..", "migrations", "005_v04_signal.sql"),
+		join(__dirname, "..", "..", "packages/core/migrations", "005_v04_signal.sql"),
 		"utf8",
 	);
 	const SQL_006 = readFileSync(
-		join(__dirname, "..", "..", "migrations", "006_v05_glassbox.sql"),
+		join(__dirname, "..", "..", "packages/core/migrations", "006_v05_glassbox.sql"),
 		"utf8",
 	);
 	const SQL_007 = readFileSync(
-		join(__dirname, "..", "..", "migrations", "007_v06_pull.sql"),
+		join(__dirname, "..", "..", "packages/core/migrations", "007_v06_pull.sql"),
 		"utf8",
 	);
 	const SQL_008 = readFileSync(
-		join(__dirname, "..", "..", "migrations", "008_v07_truth.sql"),
+		join(__dirname, "..", "..", "packages/core/migrations", "008_v07_truth.sql"),
 		"utf8",
 	);
 
@@ -425,7 +425,7 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 	}
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {
-		const { METRIC_KEY_LABELS } = await import("../../plugin/Retrospective.js");
+		const { METRIC_KEY_LABELS } = await import("@jmtrin/kevin-core");
 		for (const key of METRIC_KEYS) {
 			expect(typeof METRIC_KEY_LABELS[key]).toBe("string");
 			expect(METRIC_KEY_LABELS[key].length).toBeGreaterThan(0);
@@ -484,7 +484,7 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 	});
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {
-		const { METRIC_KEY_LABELS } = await import("../../plugin/Retrospective.js");
+		const { METRIC_KEY_LABELS } = await import("@jmtrin/kevin-core");
 		for (const key of METRIC_KEYS) {
 			expect(typeof METRIC_KEY_LABELS[key]).toBe("string");
 			expect(METRIC_KEY_LABELS[key].length).toBeGreaterThan(0);
@@ -509,7 +509,7 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 		];
 		for (const f of migrationFiles) {
 			store.exec(
-				readFileSync(join(__dirname, "..", "..", "migrations", f), "utf8"),
+				readFileSync(join(__dirname, "..", "..", "packages/core/migrations", f), "utf8"),
 			);
 		}
 		const rows = store.prepare("SELECT key FROM kevin_metrics").all() as {
@@ -538,7 +538,7 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 	});
 
 	it("metrics.ts exports no per-type precision helper", async () => {
-		const { Metrics } = await import("../../plugin/metrics.js");
+		const { Metrics } = await import("@jmtrin/kevin-core");
 		const proto = Object.getOwnPropertyNames(Metrics.prototype);
 		expect(proto).not.toContain("precisionRateByType");
 		expect(proto).not.toContain("precisionError");

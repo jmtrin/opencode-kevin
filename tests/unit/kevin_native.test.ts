@@ -2,36 +2,36 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import type { HostSurface } from "../../plugin/host.js";
-import { handleNative } from "../../plugin/kevin_native.js";
+import { Store } from "@jmtrin/kevin-core";
+import type { HostSurface } from "../../packages/plugin/src/host.js";
+import { handleNative } from "@jmtrin/kevin-core";
 
 const SQL_001 = readFileSync(
-	join(process.cwd(), "migrations", "001_initial.sql"),
+	join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(process.cwd(), "migrations", "003_v02_signal.sql"),
+	join(process.cwd(), "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(process.cwd(), "migrations", "004_v03_knowledge.sql"),
+	join(process.cwd(), "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 const SQL_005 = readFileSync(
-	join(process.cwd(), "migrations", "005_v04_signal.sql"),
+	join(process.cwd(), "packages/core/migrations", "005_v04_signal.sql"),
 	"utf8",
 );
 const SQL_006 = readFileSync(
-	join(process.cwd(), "migrations", "006_v05_glassbox.sql"),
+	join(process.cwd(), "packages/core/migrations", "006_v05_glassbox.sql"),
 	"utf8",
 );
 const SQL_007 = readFileSync(
-	join(process.cwd(), "migrations", "007_v06_pull.sql"),
+	join(process.cwd(), "packages/core/migrations", "007_v06_pull.sql"),
 	"utf8",
 );
 const SQL_010 = readFileSync(
-	join(process.cwd(), "migrations", "010_v09_native.sql"),
+	join(process.cwd(), "packages/core/migrations", "010_v09_native.sql"),
 	"utf8",
 );
 
@@ -155,7 +155,7 @@ describe("K9-019 — kevin_native show/enable/disable (plan §5.5, D9-12)", () =
 	});
 
 	it("no action re-runs probeHost()", async () => {
-		const mod = await import("../../plugin/host.js");
+		const mod = await import("../../packages/plugin/src/host.js");
 		const spy = vi.spyOn(mod, "probeHost");
 		handleNative("show", { host: v1Host(), store, settings: settings("0") });
 		handleNative("enable", { host: v1Host(), store, settings: settings("0") });

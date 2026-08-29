@@ -2,16 +2,16 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ArtifactWriter } from "../../plugin/ArtifactWriter.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { resolve } from "../../plugin/RepoIdentity.js";
-import { SharedLayer } from "../../plugin/SharedLayer.js";
-import { Store } from "../../plugin/Store.js";
-import { handleForget } from "../../plugin/kevin_forget.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { resolve } from "@jmtrin/kevin-core";
+import { SharedLayer } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { handleForget } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
-const migrationsDir = join(process.cwd(), "migrations");
+const migrationsDir = join(process.cwd(), "packages/core/migrations");
 
 describe("K11-005 kevin_forget dry-run planner", () => {
 	let store: Store;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeConfidence } from "../../plugin/confidence.js";
+import { computeConfidence } from "@jmtrin/kevin-core";
 import {
 	type OkfEntry,
 	computeEntryId,
@@ -7,7 +7,7 @@ import {
 	merge,
 	parse,
 	serialize,
-} from "../../plugin/okf.js";
+} from "@jmtrin/kevin-core";
 
 const REPO = "8f3a2c1d9e7b6045";
 const VERSION = "0.8.0";

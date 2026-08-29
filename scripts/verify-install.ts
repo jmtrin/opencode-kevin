@@ -8,11 +8,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ContextInjector } from "../plugin/ContextInjector.js";
-import { MemoryService } from "../plugin/MemoryService.js";
-import { Migrate } from "../plugin/Migrate.js";
-import { Reflector } from "../plugin/Reflector.js";
-import { Store } from "../plugin/Store.js";
+import { ContextInjector } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Reflector } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 let passed = 0;
 let failed = 0;
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
 	// hard-coded list; floor = 6 migrations as of this release.
 	const srcMigrations = process.env.MIGRATIONS_DIR
 		? join(process.env.MIGRATIONS_DIR)
-		: join(process.cwd(), "migrations");
+		: join(process.cwd(), "packages/core/migrations");
 	let sqlFiles: string[];
 	try {
 		sqlFiles = readdirSync(srcMigrations)

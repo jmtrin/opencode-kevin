@@ -10,7 +10,7 @@ import type { HostSurface } from "./host.js";
 // ============================================================
 // Repository-derived identity that survives a clone. Two clones
 // of the same remote must agree on one `repo_id` even though
-// `process.cwd()` differs.
+// the cwd differs.
 //
 // This file deliberately contains no process-launching calls (D8-01)
 // and no `new URL()` — the scp-style `git@host:path` form that git
@@ -201,8 +201,8 @@ export function computeRepoId(normalized: string): string {
  *   3. `host` — the value the host resolved for this directory,
  *      `host.project.worktree` first, `host.project.directory` as
  *      fallback; both empty or absent falls through to `path`.
- *      This is strictly better than `process.cwd()` — the host's own
- *      ToolContext documents "prefer this over `process.cwd()`" —
+ *      This is strictly better than cwd — the host's own
+ *      ToolContext documents "prefer this over cwd" —
  *      but it sits below the explicit sources, because monorepos and
  *      D8-03's confirmed re-keying depend on `.kevin/project.json`
  *      winning;

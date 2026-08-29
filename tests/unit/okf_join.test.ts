@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type OkfEntry, canonicalize, join } from "../../plugin/okf.js";
+import { type OkfEntry, canonicalize, join } from "@jmtrin/kevin-core";
 
 function xorshift32(seed: number): () => number {
 	let s = seed >>> 0;

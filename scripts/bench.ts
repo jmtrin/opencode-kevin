@@ -29,10 +29,10 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DATE_NOW, MemoryService } from "../plugin/MemoryService.js";
-import { Migrate } from "../plugin/Migrate.js";
-import { Store } from "../plugin/Store.js";
-import { Perf } from "../plugin/perf.js";
+import { DATE_NOW, MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { Perf } from "@jmtrin/kevin-core";
 import { type CorpusMemory, loadCorpus } from "./gen-corpus.js";
 
 const K = 5;
@@ -102,7 +102,7 @@ async function openCorpusStore(corpusDir: string): Promise<LoadedCorpus> {
 	const { memories, digest } = loadCorpus(corpusDir);
 	const tmp = mkdtempSync(join(tmpdir(), "kevin-bench-"));
 	const store = new Store({ path: join(tmp, "bench.db") });
-	await new Migrate(store, join(corpusDir, "..", "..", "migrations")).run();
+	await new Migrate(store, join(REPO_ROOT, "packages/core/migrations")).run();
 	store
 		.prepare(
 			"INSERT INTO kevin_settings (key, value) VALUES ('deterministic_retrieval', '1') ON CONFLICT(key) DO UPDATE SET value = '1'",
@@ -283,7 +283,7 @@ export async function persistResult(
 	},
 ): Promise<{ rows: number; file: string | null }> {
 	const { contractDigest, describeContract } = await import(
-		"../plugin/contract.js"
+		"@jmtrin/kevin-core"
 	);
 	const ranAt = opts?.ranAt ?? new Date();
 	let packageVersion = "0.0.0";
@@ -316,7 +316,7 @@ export async function persistResult(
 		mkdirSync(dirname(storePath), { recursive: true });
 		const store = new Store({ path: storePath });
 		try {
-			await new Migrate(store, join(REPO_ROOT, "migrations")).run();
+			await new Migrate(store, join(REPO_ROOT, "packages/core/migrations")).run();
 			store.transaction(() => {
 				const ins = store.prepare(
 					"INSERT INTO bench_runs (corpus_digest, contract_digest, package_version, runtime, arm, k, precision_at_k, recall_at_k, mrr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

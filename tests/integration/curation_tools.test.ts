@@ -10,8 +10,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -77,7 +77,7 @@ async function bootPlugin(): Promise<void> {
 	]) {
 		await import("node:fs/promises").then(({ copyFile }) =>
 			copyFile(
-				join(__dirname, "..", "..", "migrations", file),
+				join(__dirname, "..", "..", "packages/core/migrations", file),
 				join(migrationsDir, file),
 			),
 		);

@@ -1,6 +1,20 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Store } from "./Store.js";
+
+/**
+ * K13-008 (D13-04) — core-owns-migrations. Returns the directory containing
+ * the SQL migration files, resolved relative to the compiled location.
+ * Works both when running from src via tsx (src/.. → migrations) and from
+ * dist (dist/migrations).
+ */
+export function exportMigrationsDir(): string {
+	const here = dirname(fileURLToPath(import.meta.url));
+	const direct = join(here, "migrations");
+	if (existsSync(direct)) return direct;
+	return join(here, "..", "migrations");
+}
 
 export interface MigrateResult {
 	from: string;

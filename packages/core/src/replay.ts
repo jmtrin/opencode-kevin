@@ -1,16 +1,16 @@
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Archiver } from "./Archiver.js";
 import { CausalChain } from "./CausalChain.js";
 import { ContextInjector } from "./ContextInjector.js";
+import { composeIdlePipeline } from "./idle-pipeline.js";
 import { InjectionLedger } from "./InjectionLedger.js";
 import { MemoryService } from "./MemoryService.js";
-import { Migrate } from "./Migrate.js";
+import { Migrate, exportMigrationsDir } from "./Migrate.js";
 import { Reflector } from "./Reflector.js";
 import { Store } from "./Store.js";
 import { ToolCallObserver } from "./ToolCallObserver.js";
 import { Metrics } from "./metrics.js";
 import type { ReplayEvent, ReplayTranscript } from "./replay-types.js";
+import type { KevinEnv } from "./env.js";
 
 /**
  * v0.5.0 (K5-019 / plan §5.8, D5-12) — replay harness.
@@ -43,18 +43,12 @@ export interface ReplayResult {
 	readonly blocked: Record<string, number>;
 }
 
-const MIGRATIONS_DIR = join(
-	dirname(fileURLToPath(import.meta.url)),
-	"..",
-	"migrations",
-);
-
 export async function replay(
 	transcript: ReplayTranscript,
-	opts?: { dbPath?: string },
+	opts?: { dbPath?: string; env?: KevinEnv },
 ): Promise<ReplayResult> {
 	const store = new Store({ path: opts?.dbPath ?? ":memory:" });
-	await new Migrate(store, MIGRATIONS_DIR).run();
+	await new Migrate(store, exportMigrationsDir()).run();
 
 	// Freeze retrieval BEFORE any query happens (K5-008): deterministic
 	// mode uses the DATE_NOW sentinel, ignores recency and never bumps.
@@ -268,14 +262,30 @@ export async function replay(
 				return;
 			}
 			case "session.idle": {
-				ledger.settle(event.sessionId);
-				archiver.run();
-				metrics.flush();
+				// K13-010 (D13-07) — single ORDER via composeIdlePipeline. Replay
+				// provides core-native implementations; adapter provides closures
+				// over its live services. The ORDER array is the single source.
+				await composeIdlePipeline({
+					"ledger.settle": () => { ledger.settle(event.sessionId); },
+					"archiver.run": () => { archiver.run(); },
+					"metrics.flush": () => { metrics.flush(); },
+					// core-native stubs for steps that are no-ops in hermetic replay
+					// but keep ORDER parity with the adapter (e.g. pattern mining)
+					"patternMiner.mine": () => {},
+					"causalChain.onSessionIdle": () => { void causalChain.onSessionIdle(event.sessionId); },
+				});
 				return;
 			}
 		}
 	}
 }
+
+/**
+ * K13-010 — alias required by plan §4: runReplaySession is the core-native mount
+ * entry used by the parity harness (K13-011) and old tests. Signature mirrors
+ * `replay` but accepts env for future threading.
+ */
+export const runReplaySession = replay;
 
 function totalMemories(store: Store): number {
 	const row = store.prepare("SELECT COUNT(*) AS n FROM memories").get() as {

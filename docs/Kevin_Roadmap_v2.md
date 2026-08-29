@@ -13,7 +13,7 @@ Appendix A), elevates **distribution** to a mandatory workstream per release, pu
 cold-start fix forward (minimal importer in v1.5.0), adds sub-thesis T8 and the adoption
 indicators (§8).
 
-**Inputs:**
+**Inputs (pre-split snapshot 2026-08-25; post-Bedrock 2026-08-29: `packages/core/src/` ~66 + `packages/plugin/src/` 4 + `packages/tui/src/` 3, `packages/core/migrations/` 001..012):**
 
 - `plugin/` — complete audit of all 56 modules (exactly 17,572 lines), 11 migrations, `package.json`.
 - `CHANGELOG.md` — fourteen bumps, 0.1.0 → 1.0.0, from 2026-07-02 to 2026-08-21.
@@ -531,9 +531,9 @@ releases; later drags the monolith into the protocol phase.
 
 **Scope.**
 
-1. **Light monorepo**: `plugin/` (opencode adapter, name intact
-   `@jmtrin/opencode-kevin` — C-06 unharmed) + `packages/core/` (`@jmtrin/kevin-core`)
-   + `packages/plugin-tui/` (if target-exclusivity demands a separate package).
+1. **Light monorepo**: `packages/plugin/` (opencode adapter, name intact
+    `@jmtrin/opencode-kevin` — C-06 unharmed) + `packages/core/` (`@jmtrin/kevin-core`)
+    + `packages/tui/` (`@jmtrin/opencode-kevin-tui`, target-exclusive, own package.json/exports).
 2. **Core without host types** (verified by an imports scan in CI — candidate C-v2 rule):
    `cwd/homedir` parameterization via injected `KevinEnv {projectRoot, dataRoot}`;
    `native.ts/host.ts/capabilities.ts` live ONLY in the adapter.
@@ -875,14 +875,17 @@ for the leader; Kevin's active-user base on the order of low hundreds (downloads
 
 **Repository (primary)**
 
-- Code: `plugin/*.ts` (56 modules, 17,572 lines), `migrations/001..011`,
-  `bench/corpus/`, `bench/results/`, `package.json`.
+- Code: `packages/core/src/*.ts` (~66 modules) + `packages/plugin/src/` (4 adapter files) + `packages/tui/src/` (3 files), `packages/core/migrations/001..012` (12 SQL), `bench/corpus/`, `bench/results/`, workspaces `packages/*` (`plugin/*.ts` 56 modules / 17,572 lines was pre-split snapshot 2026-08-25).
 - Docs: `CHANGELOG.md`, `docs/CONTRACT.md`, `docs/Kevin_Roadmap.md`,
-  `docs/Kevin_v{0.9.0,1.0.0}_{Plan,Task}.md`.
+  `docs/Kevin_v{0.9.0,1.0.0,1.2.0,1.3.0}_{Plan,Task}.md`.
 
 ---
 
 **Status update 2026-08-27:** v1.1.0 "Drift" shipped — 26 tools, 31 settings, 54 metrics, 012 migrations, principles 39–41, decisions D11-01…D11-10 cited (see `docs/Kevin_v1.1.0_Plan.md` §6 / `docs/Kevin_v1.1.0_Task.md`).
 
+**Status update 2026-08-28:** v1.2.0 "Surface" shipped — 26 tools, 32 settings, 56 metrics, 012 migrations, principles 42–44, decisions D12-01…D12-10 cited (see `docs/Kevin_v1.2.0_Plan.md` §6 / `docs/Kevin_v1.2.0_Task.md`).
+
+**Status update 2026-08-28:** v1.3.0 "Bedrock" shipped — 26/32/56 unchanged (reorganization-only), migrations 012, principles 45–47, decisions D13-01…D13-08 cited (see `docs/Kevin_v1.3.0_Plan.md` / `docs/Kevin_v1.3.0_Task.md`). Zero behavior diff; hostless core `@jmtrin/kevin-core` ships with same contract (C-06 frozen). C-10 preview at `packages/core/src/index.ts`.
+
 **Author:** ox-alpha
-**Date:** 2026-08-25 (updated 2026-08-27)
+**Date:** 2026-08-25 (updated 2026-08-28)

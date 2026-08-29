@@ -11,11 +11,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { resolve } from "../../plugin/RepoIdentity.js";
-import { Store } from "../../plugin/Store.js";
-import { fingerprint } from "../../plugin/fingerprint.js";
-import { KevinPlugin } from "../../plugin/index.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { resolve } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { fingerprint } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let drops: string[] = [];
@@ -38,9 +38,9 @@ afterEach(() => {
 function makeMigrationsDir(): string {
 	const dir = join(tmpRoot, "migrations");
 	mkdirSync(dir, { recursive: true });
-	for (const file of readdirSync(join(process.cwd(), "migrations"))) {
+	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		if (file.startsWith("00") || file === "009_v08_team.sql") {
-			copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 		}
 	}
 	return dir;

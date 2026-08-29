@@ -3,18 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { contractDigest, describeContract } from "../../plugin/contract.js";
-import { buildAudit } from "../../plugin/kevin_audit.js";
-import { Metrics } from "../../plugin/metrics.js";
-import { BUDGETS } from "../../plugin/perf.js";
+import { Store } from "@jmtrin/kevin-core";
+import { contractDigest, describeContract } from "@jmtrin/kevin-core";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
+import { BUDGETS } from "@jmtrin/kevin-core";
 
 const REPO_ROOT = join(
 	fileURLToPath(new URL(".", import.meta.url)),
 	"..",
 	"..",
 );
-const MIGRATIONS_DIR = join(REPO_ROOT, "migrations");
+const MIGRATIONS_DIR = join(REPO_ROOT, "packages/core/migrations");
 const PRE_011 = [
 	"001_initial.sql",
 	"003_v02_signal.sql",
@@ -61,7 +61,7 @@ afterEach(() => {
 
 describe("K10-020 — kevin_audit perf and contract blocks", () => {
 	it("both blocks appear in the report", async () => {
-		const { Migrate } = await import("../../plugin/Migrate.js");
+		const { Migrate } = await import("@jmtrin/kevin-core");
 		await new Migrate(store, MIGRATIONS_DIR).run();
 		const report = buildAudit(store, new Metrics(store));
 		expect(report.contract).toEqual({
@@ -74,7 +74,7 @@ describe("K10-020 — kevin_audit perf and contract blocks", () => {
 	});
 
 	it("an empty perf_samples table reports eight zero-count scopes, never NULL or NaN", async () => {
-		const { Migrate } = await import("../../plugin/Migrate.js");
+		const { Migrate } = await import("@jmtrin/kevin-core");
 		await new Migrate(store, MIGRATIONS_DIR).run();
 		const report = buildAudit(store, new Metrics(store));
 		for (const b of BUDGETS) {
@@ -93,7 +93,7 @@ describe("K10-020 — kevin_audit perf and contract blocks", () => {
 	});
 
 	it("within_budget uses the stored aggregates directly and agrees with bench:check", async () => {
-		const { Migrate } = await import("../../plugin/Migrate.js");
+		const { Migrate } = await import("@jmtrin/kevin-core");
 		await new Migrate(store, MIGRATIONS_DIR).run();
 		const breached = BUDGETS[0].scope;
 		const ok = BUDGETS[1].scope;
@@ -124,7 +124,7 @@ describe("K10-020 — kevin_audit perf and contract blocks", () => {
 
 	it("a pre-011 database omits the perf block without marking partial", () => {
 		for (const name of PRE_011) {
-			store.exec(readFileSync(join(REPO_ROOT, "migrations", name), "utf8"));
+			store.exec(readFileSync(join(REPO_ROOT, "packages/core/migrations", name), "utf8"));
 		}
 		const report = buildAudit(store, new Metrics(store));
 		expect(report.perf).toBeUndefined();

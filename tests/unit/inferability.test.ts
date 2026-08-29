@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SELF_DESCRIBING_CODES, classify } from "../../plugin/inferability.js";
+import { SELF_DESCRIBING_CODES, classify } from "@jmtrin/kevin-core";
 
 function errorMemory(
 	content: string,

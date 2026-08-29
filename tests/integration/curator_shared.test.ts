@@ -8,13 +8,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ArtifactWriter } from "../../plugin/ArtifactWriter.js";
-import { Curator } from "../../plugin/Curator.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import { buildAudit } from "../../plugin/kevin_audit.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { Curator } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 const MIGRATIONS = [
 	"001_initial.sql",
@@ -29,10 +29,10 @@ const MIGRATIONS = [
 
 async function freshStore(): Promise<Store> {
 	const root = mkdtempSync(join(tmpdir(), "kevin-curator-shared-"));
-	const dir = join(root, "migrations");
+	const dir = join(root, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	for (const file of MIGRATIONS) {
-		copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 	}
 	const store = new Store({ path: ":memory:" });
 	await new Migrate(store, dir).run();
@@ -454,10 +454,10 @@ describe("K8-023 — kevin_audit team block (pure SQL, plan §5.7)", () => {
 
 	it("the team block is gated on migration 009: pre-009 databases keep the K8-018 shape", async () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-curator-pre009-"));
-		const dir = join(root, "migrations");
+		const dir = join(root, "packages/core/migrations");
 		mkdirSync(dir, { recursive: true });
 		for (const file of MIGRATIONS.filter((f) => f !== "009_v08_team.sql")) {
-			copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 		}
 		const store = new Store({ path: ":memory:" });
 		await new Migrate(store, dir).run();

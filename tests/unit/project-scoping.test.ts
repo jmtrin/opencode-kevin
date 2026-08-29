@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Store } from "../../plugin/Store.js";
-import { ToolCallObserver } from "../../plugin/ToolCallObserver.js";
-import { fingerprint } from "../../plugin/fingerprint.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { ToolCallObserver } from "@jmtrin/kevin-core";
+import { fingerprint } from "@jmtrin/kevin-core";
 
-const MIGRATIONS_DIR = join(__dirname, "..", "..", "migrations");
+const MIGRATIONS_DIR = join(__dirname, "..", "..", "packages/core/migrations");
 
 function sql(name: string): string {
 	return readFileSync(join(MIGRATIONS_DIR, name), "utf8");

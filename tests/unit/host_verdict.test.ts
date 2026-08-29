@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { HookReport } from "../../plugin/HookLiveness.js";
-import { reduceVerdict } from "../../plugin/HookLiveness.js";
+import type { HookReport } from "@jmtrin/kevin-core";
+import { reduceVerdict } from "@jmtrin/kevin-core";
 
 // v0.9.0 (K9-012 / plan §5.5, D9-09) — pure reducer tests over literal
 // HookReport[] arrays: any dead → degraded; all live → healthy; anything

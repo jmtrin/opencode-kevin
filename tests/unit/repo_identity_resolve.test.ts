@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { computeRepoId, resolve } from "../../plugin/RepoIdentity.js";
-import { fingerprint, fnv1a64 } from "../../plugin/fingerprint.js";
+import { computeRepoId, resolve } from "@jmtrin/kevin-core";
+import { fingerprint, fnv1a64 } from "@jmtrin/kevin-core";
 
 let root: string;
 

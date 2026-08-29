@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseTranscript } from "../../plugin/replay-types.js";
-import { replay } from "../../plugin/replay.js";
+import { parseTranscript } from "@jmtrin/kevin-core";
+import { replay } from "@jmtrin/kevin-core";
 
 const fixture = parseTranscript(
 	JSON.parse(

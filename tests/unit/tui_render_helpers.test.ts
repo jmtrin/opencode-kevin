@@ -4,7 +4,7 @@ import {
 	formatHealthVerdict,
 	formatProposalRow,
 	truncateSummary,
-} from "../../plugin/tui.js";
+} from "../../packages/tui/src/tui.js";
 
 describe("TUI render helpers (K12-009)", () => {
 	it("truncateSummary caps at 80 and adds ellipsis", () => {

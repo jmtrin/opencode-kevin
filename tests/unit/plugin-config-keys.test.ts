@@ -2,10 +2,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { KEVIN_CONFIG_KEYS } from "../../plugin/index.js";
+import { KEVIN_CONFIG_KEYS } from "../../packages/plugin/src/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(__dirname, "..", "..", "migrations");
+const MIGRATIONS_DIR = join(__dirname, "..", "..", "packages/core/migrations");
 
 /**
  * Extract every setting key seeded by any migration's

@@ -18,7 +18,7 @@ import {
 	probeHost,
 	resetHostProbeCache,
 	summarize,
-} from "../../plugin/host.js";
+} from "../../packages/plugin/src/host.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, "..", "..");

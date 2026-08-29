@@ -11,8 +11,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { HookLiveness, parseThreshold } from "../../plugin/HookLiveness.js";
-import { Store } from "../../plugin/Store.js";
+import { HookLiveness, parseThreshold } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const HOOK_LIVENESS_DDL = `CREATE TABLE IF NOT EXISTS hook_liveness (
     hook          TEXT PRIMARY KEY,

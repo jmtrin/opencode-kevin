@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { describeContract, diffContract } from "../../plugin/contract.js";
-import type { PublicContract } from "../../plugin/contract.js";
+import { describeContract, diffContract } from "@jmtrin/kevin-core";
+import type { PublicContract } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
@@ -95,7 +95,7 @@ describe("Contract frozen — golden file (K10-008)", () => {
 					stability: "frozen",
 					since: "" as unknown as string,
 					value: { note: "bare" },
-				} as unknown as import("../../plugin/contract.js").ContractClause,
+				} as unknown as import("@jmtrin/kevin-core").ContractClause,
 			],
 		};
 		const diffs = diffContract(golden, extended);
@@ -104,7 +104,7 @@ describe("Contract frozen — golden file (K10-008)", () => {
 	});
 
 	it("live digests deterministically (stable across two calls)", async () => {
-		const { contractDigest } = await import("../../plugin/contract.js");
+		const { contractDigest } = await import("@jmtrin/kevin-core");
 		const a = contractDigest(describeContract());
 		const b = contractDigest(describeContract());
 		expect(a).toBe(b);

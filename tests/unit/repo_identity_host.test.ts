@@ -20,9 +20,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { computeRepoId, resolve } from "../../plugin/RepoIdentity.js";
-import { fingerprint } from "../../plugin/fingerprint.js";
-import type { HostSurface } from "../../plugin/host.js";
+import { computeRepoId, resolve } from "@jmtrin/kevin-core";
+import { fingerprint } from "@jmtrin/kevin-core";
+import type { HostSurface } from "../../packages/plugin/src/host.js";
 
 const REPO_ROOT = join(__dirname, "..", "..");
 const FIXTURE_PATH = join(

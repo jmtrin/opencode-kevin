@@ -9,14 +9,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import type { Memory } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import type { Memory } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL = (name: string) =>
-	readFileSync(join(__dirname, "..", "..", "migrations", name), "utf8");
+	readFileSync(join(__dirname, "..", "..", "packages/core/migrations", name), "utf8");
 
 // The v0.7.0 snapshot is built from the migrations up to 008 (002 has been
 // absent from the repository since v0.2.0 — same PRIOR_FILES as the 009 tests).

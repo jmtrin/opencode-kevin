@@ -7,7 +7,7 @@ import {
 	computeEntryId,
 	parse,
 	serialize,
-} from "../../plugin/okf.js";
+} from "@jmtrin/kevin-core";
 
 function entry(overrides: Partial<OkfEntry> = {}): OkfEntry {
 	return {

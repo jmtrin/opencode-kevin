@@ -2,12 +2,12 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConflictDetector } from "../../plugin/ConflictDetector.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
-import { buildAudit } from "../../plugin/kevin_audit.js";
-import { executeKevinConflicts } from "../../plugin/kevin_conflicts.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { ConflictDetector } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { executeKevinConflicts } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 let root: string;
 let migrationsDir: string;
@@ -15,7 +15,7 @@ let store: Store;
 
 beforeEach(async () => {
 	root = mkdtempSync(join(tmpdir(), "kevin-conflicts-tool-"));
-	migrationsDir = join(root, "migrations");
+	migrationsDir = join(root, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -27,7 +27,7 @@ beforeEach(async () => {
 		"008_v07_truth.sql",
 	]) {
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}
@@ -210,7 +210,7 @@ describe("K7-015 — kevin_conflicts and audit conflicts block", () => {
 			"006_v05_glassbox.sql",
 			"007_v06_pull.sql",
 		]) {
-			copyFileSync(join(process.cwd(), "migrations", file), join(oldDir, file));
+			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(oldDir, file));
 		}
 		await new Migrate(oldStore, oldDir).run();
 		const report = buildAudit(oldStore, new Metrics(oldStore), undefined, "P");

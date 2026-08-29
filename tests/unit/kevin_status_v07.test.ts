@@ -9,12 +9,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
 import { describe, expect, it } from "vitest";
-import { KevinPlugin } from "../../plugin/index.js";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 describe("K7-021 — kevin_status v0.7", () => {
 	it("reports 23 tools, schema 008 and Project Truth fields", async () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-status-v07-"));
-		const migrationsDir = join(root, "migrations");
+		const migrationsDir = join(root, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const file of [
 			"001_initial.sql",
@@ -26,7 +26,7 @@ describe("K7-021 — kevin_status v0.7", () => {
 			"008_v07_truth.sql",
 		])
 			copyFileSync(
-				join(process.cwd(), "migrations", file),
+				join(process.cwd(), "packages/core/migrations", file),
 				join(migrationsDir, file),
 			);
 		const hooks = await KevinPlugin({ directory: root } as PluginInput, {
@@ -60,7 +60,7 @@ describe("K8-025 — kevin_status v0.8 identity and shared-layer fields", () => 
 			'[remote "origin"]\n\turl = https://github.com/acme/widget.git\n',
 			"utf8",
 		);
-		const migrationsDir = join(root, "migrations");
+		const migrationsDir = join(root, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const file of [
 			"001_initial.sql",
@@ -73,7 +73,7 @@ describe("K8-025 — kevin_status v0.8 identity and shared-layer fields", () => 
 			"009_v08_team.sql",
 		])
 			copyFileSync(
-				join(process.cwd(), "migrations", file),
+				join(process.cwd(), "packages/core/migrations", file),
 				join(migrationsDir, file),
 			);
 		const hooks = await KevinPlugin({ directory: projectDir } as PluginInput, {

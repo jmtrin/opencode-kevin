@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { MemoryService } from "../../plugin/MemoryService.js";
-import { Reflector } from "../../plugin/Reflector.js";
+import type { MemoryService } from "@jmtrin/kevin-core";
+import { Reflector } from "@jmtrin/kevin-core";
 
 const noopService = {} as unknown as MemoryService;
 

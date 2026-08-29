@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MemoryService, SaveInput } from "../../plugin/MemoryService.js";
-import { Reflector } from "../../plugin/Reflector.js";
-import type { Metrics } from "../../plugin/metrics.js";
+import type { MemoryService, SaveInput } from "@jmtrin/kevin-core";
+import { Reflector } from "@jmtrin/kevin-core";
+import type { Metrics } from "@jmtrin/kevin-core";
 
 function createMock() {
 	const saved: SaveInput[] = [];

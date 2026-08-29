@@ -7,8 +7,8 @@ import {
 	proposalToken,
 	renderDashboard,
 	writeDashboard,
-} from "../../plugin/DashboardHtml.js";
-import type { TuiSnapshotSet } from "../../plugin/tui-types.js";
+} from "@jmtrin/kevin-core";
+import type { TuiSnapshotSet } from "../../packages/tui/src/tui-types.js";
 
 function sampleViews(overrides: Partial<TuiSnapshotSet> = {}): TuiSnapshotSet {
 	return {

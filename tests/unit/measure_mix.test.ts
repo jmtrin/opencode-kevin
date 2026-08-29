@@ -9,13 +9,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 describe("K7-023 — measure:mix", () => {
 	it("reads a database file without migrating or changing its mtime", async () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-measure-"));
-		const migrations = join(root, "migrations");
+		const migrations = join(root, "packages/core/migrations");
 		mkdirSync(migrations, { recursive: true });
 		for (const file of [
 			"001_initial.sql",
@@ -27,7 +27,7 @@ describe("K7-023 — measure:mix", () => {
 			"008_v07_truth.sql",
 		])
 			copyFileSync(
-				join(process.cwd(), "migrations", file),
+				join(process.cwd(), "packages/core/migrations", file),
 				join(migrations, file),
 			);
 		const dbPath = join(root, "kevin.db");

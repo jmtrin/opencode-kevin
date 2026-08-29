@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../plugin/index.js";
+import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
@@ -22,7 +22,7 @@ beforeEach(async () => {
 		"008_v07_truth.sql",
 	]) {
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

@@ -1,12 +1,12 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MemoryService } from "../plugin/MemoryService.js";
-import { Migrate } from "../plugin/Migrate.js";
-import { Store } from "../plugin/Store.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const store = new Store({ path: ":memory:" });
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const migDir = resolve(__dirname, "../migrations");
+const migDir = resolve(__dirname, "../packages/core/migrations");
 await new Migrate(store, migDir).run();
 const mem = new MemoryService(store);
 const id = mem.save({ type: "error", content: "smoke test bun query lesson" });

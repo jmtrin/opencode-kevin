@@ -6,14 +6,14 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
-import { buildAudit } from "../../plugin/kevin_audit.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
+import { buildAudit } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL = (name: string) =>
-	readFileSync(join(__dirname, "..", "..", "migrations", name), "utf8");
+	readFileSync(join(__dirname, "..", "..", "packages/core/migrations", name), "utf8");
 
 function makeStore(...migrations: string[]): Store {
 	const s = new Store({ path: ":memory:" });
@@ -229,7 +229,7 @@ describe("K6-023 — kevin_audit tool reports the emission states from the init 
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const name of MIGRATIONS_007) {
 			copyFileSync(
-				join(process.cwd(), "migrations", name),
+				join(process.cwd(), "packages/core/migrations", name),
 				join(migrationsDir, name),
 			);
 		}

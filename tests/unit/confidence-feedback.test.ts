@@ -1,17 +1,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { Feedback } from "../../plugin/Feedback.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Store } from "../../plugin/Store.js";
+import { Feedback } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 import {
 	FEEDBACK_NEGATIVE_STEP,
 	FEEDBACK_POSITIVE_STEP,
 	computeConfidence,
-} from "../../plugin/confidence.js";
-import { kevinWhy } from "../../plugin/kevin_why.js";
+} from "@jmtrin/kevin-core";
+import { kevinWhy } from "@jmtrin/kevin-core";
 
-const MIGRATIONS_DIR = join(__dirname, "..", "..", "migrations");
+const MIGRATIONS_DIR = join(__dirname, "..", "..", "packages/core/migrations");
 
 function sql(name: string): string {
 	return readFileSync(join(MIGRATIONS_DIR, name), "utf8");

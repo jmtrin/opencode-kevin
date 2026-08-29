@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
+import { Store } from "@jmtrin/kevin-core";
 import {
 	ARMS,
 	persistResult,
@@ -22,7 +22,7 @@ const REPO_ROOT = join(
 	"..",
 	"..",
 );
-const MIGRATIONS = readdirSync(join(REPO_ROOT, "migrations")).filter((f) =>
+const MIGRATIONS = readdirSync(join(REPO_ROOT, "packages/core/migrations")).filter((f) =>
 	f.endsWith(".sql"),
 );
 

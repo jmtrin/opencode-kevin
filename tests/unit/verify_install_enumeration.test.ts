@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 let tmpRoot: string;
 let migrationsDir: string;
 
-const REAL_MIGRATIONS = join(process.cwd(), "migrations");
+const REAL_MIGRATIONS = join(process.cwd(), "packages/core/migrations");
 
 function runVerify(
 	migrationsPath: string,

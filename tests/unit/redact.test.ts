@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactPaths, stripPrivate } from "../../plugin/redact.js";
+import { redactPaths, stripPrivate } from "@jmtrin/kevin-core";
 
 describe("stripPrivate (K2-008)", () => {
 	it("replaces a single-line <private> block with a redacted marker", () => {

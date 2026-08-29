@@ -4,6 +4,39 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-29
+
+### Bedrock — REORGANIZATION-ONLY (no user action required)
+
+> 1.3.0 declares the border the code already had. Every visible behavior (26 tools, 32 settings, 56 metrics, migrations 001→012, DB, file locations, defaults) is **byte-identical** to 1.2.0 on the same fixtures (`npm run verify:pack` + parity harness green, empty diffs in K13-016). The only new runtime surface is one type family + one function, both additive and safe to ignore.
+
+#### Added
+
+- **Monorepo `npm workspaces` with three packages** (K13-001…K13-004, D13-01 — `private` root `opencode-kevin-monorepo`, `packages/core` `@jmtrin/kevin-core` **zero dependencies**, `packages/plugin` `@jmtrin/opencode-kevin` — name **frozen** by C-06 — and `packages/tui` `@jmtrin/opencode-kevin-tui` isolated, `tsconfig.base.json` shared). Layout `packages/core/src/*` holds ~60 domain modules (Store, Migrate, MemoryService, Reflector, … replay) via `git mv`; adapter stays thin (`packages/plugin/src` → 4 modules: `index`, `host`, `native`, `capabilities`).
+- **`KevinEnv {projectRoot,dataRoot}` + `resolveEnv(partial?)`** (`packages/core/src/env.ts`, K13-005 — defaults `process.cwd()` / `join(homedir(),".opencode-kevin")`, no fs, D13-03). `packages/core/src/index.ts` re-exports it — the future C-10 preview.
+- **`exportMigrationsDir(): string`** (`packages/core/src/Migrate.ts`, K13-008, D13-04) — `dirname(fileURLToPath(import.meta.url))` probing `dist/migrations` then `../migrations` (verified `node -e` vs `npx tsx`). Adapter `resolveMigrationsDir()` now via `createRequire(...).resolve("@jmtrin/kevin-core/package.json")` + fallback to core export.
+- **`replay` now core-native + `idle-pipeline` single source** (`packages/core/src/replay.ts`, `packages/core/src/idle-pipeline.ts`, K13-010, D13-07): `MIGRATIONS_DIR→exportMigrationsDir`, signature `replay(transcript,{dbPath,env?:KevinEnv})` + alias `runReplaySession`, `IDLE_STEP_ORDER[16..17]` + `composeIdlePipeline(deps)` consumed by both adapter idle and replay.
+- **Parity harness adapter↔core** (`packages/plugin/tests/parity.test.ts`, K13-011): loops every `tests/replay/fixtures/*.json`, deep-compares adapter wiring (KevinEnv) vs core wiring; swapped-order probe proves sensitivity.
+- **Contract `scanRoots` plumbing** (`packages/core/src/contract.ts`, K13-012, D13-05): `ContractInput.scanRoots?` + `resolveScanRoots(env?:KevinEnv)` (monorepo `[plugin/src,core/src]` else packed walk-up), `describeContract(opts?)` uses it — values **unchanged**, golden `contract_frozen` 6/6 green.
+- **Purity scans** (`packages/core/tests/core_purity_scan.test.ts`, K13-007 + `packages/core/tests/no_host_dep.test.ts`, K13-013) — isolation asserted mechanically (absence-run: `Move-Item node_modules/@opencode-ai → .bak` → `npx vitest --pool=forks` 3/3 green).
+
+#### Changed
+
+- **Migrations relocated** `migrations/` → `packages/core/migrations/` (K13-003): core build `tsc && node ./scripts/copy-migrations.mjs` ships `dist/migrations`; plugin build no longer copies migrations; `verify-pack` extended ×2 + offline consumer smoke (`npm install <core.tgz> <tui.tgz> <plugin.tgz>` → Migrate → `012`).
+- **Threaded `KevinEnv` through 7 core violations** (K13-006): `Materializer(root→env.dataRoot)`, `Retrospective(dir)`, `Curator(env)`, `kevin_audit(tuiRoot)`, `kevin_bench(cwd)`, `kevin_doctor(zodRoot)`, `sqlite-adapter(createRequire)`; adapter builds `kevinEnv={projectRoot,dataRoot:materializerRoot}` and passes it everywhere. `process.cwd/homedir/node:os` grep post-change = 0 except `env.ts` (was 8 hits across 7 files).
+- **Build graph** (`package.json`): `build` order `core → tui → plugin`; `typecheck` delegates `-w`; root stays `private` workspaces manager.
+- **Exports**: `packages/plugin` keeps `main:dist/plugin/index.js`, `types:dist/plugin/index.d.ts`, `exports["./tui"]` bare specifier `@jmtrin/opencode-kevin-tui/dist/index.*` (tui isolated); `packages/core` exports types-first.
+
+#### Fixed
+
+- **Contract purity regression** (K13-013 tail): `contract.ts:resolveScanRoots` used `process.cwd()` directly, tripping `core_purity_scan`; refactored to `resolveEnv(env).projectRoot`.
+- **Exact pin D13-06**: `packages/plugin` pins `@jmtrin/kevin-core@1.3.0` and `@jmtrin/opencode-kevin-tui@1.3.0` exact (verified by `verify-pack` P4); coordinated versions `1.3.0` both packages, `KEVIN_VERSION` sourced from plugin `1.3.0`.
+- **Upgrade note**: no user action required; drop-in reorganization, DB untouched (no migration), `opencode.json` `plugin: ["@jmtrin/opencode-kevin"]` unchanged.
+
+### Verification
+
+- `npm install` + `npm run typecheck` + `npm run verify:pack` (core 9 + plugin 7 + consumer 2 = 18 checks) + `npx vitest run packages/plugin/tests/parity.test.ts tests/unit/contract_frozen.test.ts` (9/9) + `bench:check` within budget — all green. Empty diffs archived (K13-016 sha256 `e3b0c442...`).
+
 ## [1.2.0] - 2026-08-28
 
 ### Added — Surface

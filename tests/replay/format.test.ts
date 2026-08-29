@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
 	parseTranscript,
 	replayTranscriptSchema,
-} from "../../plugin/replay-types.js";
+} from "@jmtrin/kevin-core";
 
 const fixturePath = join(__dirname, "fixtures", "basic-typescript-loop.json");
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as unknown;

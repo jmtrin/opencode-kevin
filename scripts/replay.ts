@@ -11,8 +11,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseTranscript } from "../plugin/replay-types.js";
-import { replay } from "../plugin/replay.js";
+import { parseTranscript } from "@jmtrin/kevin-core";
+import { replay } from "@jmtrin/kevin-core";
 
 const fixturesDir = join(
 	dirname(fileURLToPath(import.meta.url)),

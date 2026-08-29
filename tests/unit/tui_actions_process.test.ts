@@ -3,19 +3,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ArtifactWriter } from "../../plugin/ArtifactWriter.js";
-import { ConflictDetector } from "../../plugin/ConflictDetector.js";
-import { Curator } from "../../plugin/Curator.js";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Store } from "../../plugin/Store.js";
+import { ArtifactWriter } from "@jmtrin/kevin-core";
+import { ConflictDetector } from "@jmtrin/kevin-core";
+import { Curator } from "@jmtrin/kevin-core";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 import {
 	consumeMailbox,
 	processActions,
 	proposalToken,
 	readMailbox,
-} from "../../plugin/TuiActions.js";
-import { kevinApprove } from "../../plugin/kevin_approve.js";
-import { Metrics } from "../../plugin/metrics.js";
+} from "@jmtrin/kevin-core";
+import { kevinApprove } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 function setupEnv(): {
 	store: Store;
@@ -39,7 +39,7 @@ function setupEnv(): {
 		"008_v07_truth.sql",
 		"009_v08_team.sql",
 	]) {
-		store.exec(readFileSync(join(process.cwd(), "migrations", file), "utf8"));
+		store.exec(readFileSync(join(process.cwd(), "packages/core/migrations", file), "utf8"));
 	}
 	const tmpDir = mkdtempSync(join(tmpdir(), "tui-proc-"));
 	const agentsPath = join(tmpDir, "AGENTS.md");
@@ -117,7 +117,7 @@ describe("K12-007 — processActions executing existing handlers", () => {
 					decision: "approve",
 				}),
 			reject: (id: string) => curator.transition(id, "reject"),
-			acknowledge: (id: string) => require("../../plugin/ConflictDetector.js"), // dummy
+			acknowledge: (id: string) => {}, // dummy
 			metrics,
 		};
 		// Use non-throw acknowledge

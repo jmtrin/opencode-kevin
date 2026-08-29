@@ -9,13 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryService } from "../../plugin/MemoryService.js";
-import { Migrate } from "../../plugin/Migrate.js";
-import { RepoTruth } from "../../plugin/RepoTruth.js";
-import { Store } from "../../plugin/Store.js";
-import { KevinPlugin } from "../../plugin/index.js";
-import { buildKevinFacts } from "../../plugin/kevin_facts.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { MemoryService } from "@jmtrin/kevin-core";
+import { Migrate } from "@jmtrin/kevin-core";
+import { RepoTruth } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
+import { buildKevinFacts } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 let tmpRoot: string;
 let drops: string[] = [];
@@ -47,7 +47,7 @@ function makeMigrationsDir(): string {
 		"007_v06_pull.sql",
 		"008_v07_truth.sql",
 	]) {
-		copyFileSync(join(process.cwd(), "migrations", file), join(dir, file));
+		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
 	}
 	return dir;
 }

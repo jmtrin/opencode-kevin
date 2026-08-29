@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { Store } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 describe("K12-001 — metrics upsert for 1.2.0 counters", () => {
 	it("first incr on missing row creates value 1 via flush", () => {

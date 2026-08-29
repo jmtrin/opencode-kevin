@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ContextInjector } from "../../plugin/ContextInjector.js";
-import type { Memory, MemoryService } from "../../plugin/MemoryService.js";
-import { QualityGate } from "../../plugin/QualityGate.js";
-import { Store } from "../../plugin/Store.js";
-import { Metrics } from "../../plugin/metrics.js";
+import { ContextInjector } from "@jmtrin/kevin-core";
+import type { Memory, MemoryService } from "@jmtrin/kevin-core";
+import { QualityGate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
+import { Metrics } from "@jmtrin/kevin-core";
 
 function mem(confidence: number): Memory {
 	return {

@@ -7,8 +7,8 @@ import {
 	FIX_ARGS_TRUNCATE,
 	enrichAtPromotion,
 	extractFixArgs,
-} from "../../plugin/LessonFixer.js";
-import { KevinPlugin } from "../../plugin/index.js";
+} from "@jmtrin/kevin-core";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let hooks: Awaited<ReturnType<typeof KevinPlugin>>;

@@ -3,7 +3,7 @@ import {
 	type GateReason,
 	type GateVerdict,
 	QualityGate,
-} from "../../plugin/QualityGate.js";
+} from "@jmtrin/kevin-core";
 
 interface MemoryArg {
 	id: string;

@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { KevinPlugin } from "../../plugin/index.js";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let root: string;
 let migrationsDir: string;
 
 beforeEach(() => {
 	root = mkdtempSync(join(tmpdir(), "kevin-no-resolve-"));
-	migrationsDir = join(root, "migrations");
+	migrationsDir = join(root, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -22,7 +22,7 @@ beforeEach(() => {
 		"008_v07_truth.sql",
 	])
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 });

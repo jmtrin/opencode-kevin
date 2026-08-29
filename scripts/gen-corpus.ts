@@ -10,8 +10,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { MemoryScope } from "../plugin/MemoryService.js";
-import { fnv1a64 } from "../plugin/fingerprint.js";
+import type { MemoryScope } from "@jmtrin/kevin-core";
+import { fnv1a64 } from "@jmtrin/kevin-core";
 
 export const CORPUS_SEED = 0x4b455649;
 export const MEMORY_COUNT = 400;

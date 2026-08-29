@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { HOOK_NAMES, Migrate } from "../../plugin/Migrate.js";
-import { Store } from "../../plugin/Store.js";
+import { HOOK_NAMES, Migrate } from "@jmtrin/kevin-core";
+import { Store } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(__dirname, "..", "..", "migrations");
+const MIGRATIONS_DIR = join(__dirname, "..", "..", "packages/core/migrations");
 
 // v0.9.0 (K9-001 / plan §6.1, D9-08) — every migration SQL read from disk,
 // so the chain under test is exactly what ships.

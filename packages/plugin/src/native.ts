@@ -1,5 +1,5 @@
-import { type Materializer, SKILL_TOPIC } from "./Materializer.js";
-import type { Store } from "./Store.js";
+import { type Materializer, SKILL_TOPIC } from "@jmtrin/kevin-core";
+import type { Store } from "@jmtrin/kevin-core";
 // v0.9.0 (K9-013 / plan §5.4, D9-02/D9-10/D9-11)
 //
 // The additive v2 surface. Everything here is an enhancement: with the
@@ -11,7 +11,7 @@ import type { Store } from "./Store.js";
 // loads and the import never executes. Containment is asserted by
 // K9-013's source scan.
 import type { HostSurface } from "./host.js";
-import { uuidv7 } from "./uuid.js";
+import { uuidv7 } from "@jmtrin/kevin-core";
 
 /** The surface `attachNative()` returned. `verified` is filled by the
  * read-back checks (K9-014/015) once the host ran `setup()`. */

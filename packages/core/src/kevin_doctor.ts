@@ -1,5 +1,6 @@
 import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { resolveEnv, type KevinEnv } from "./env.js";
 import {
 	type HookName,
 	type HookReport,
@@ -221,7 +222,7 @@ function lastRegistration(
 }
 
 export interface DoctorOptions {
-	/** Directory to walk for zod copies; defaults to process.cwd(). */
+	/** Directory to walk for zod copies; defaults to env.projectRoot. */
 	readonly zodRoot?: string;
 }
 
@@ -230,6 +231,7 @@ export function buildDoctor(
 	host: HostSurface,
 	settings: SettingsReader,
 	options: DoctorOptions = {},
+	env?: KevinEnv,
 ): DoctorReport {
 	// The host block comes from the frozen probe result captured at
 	// construction — kevin_doctor never re-probes (K9-004: probe once,
@@ -261,7 +263,7 @@ export function buildDoctor(
 			reason: `perf budget exceeded: ${breaches.join(", ")}`,
 		};
 	}
-	const zod = countZodCopies(options.zodRoot ?? process.cwd());
+	const zod = countZodCopies(options.zodRoot ?? resolveEnv(env).projectRoot);
 	const enabled =
 		settings.getSetting("native_registration_enabled", "0") === "1";
 	return {

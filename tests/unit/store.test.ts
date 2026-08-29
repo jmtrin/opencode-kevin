@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { Store } from "../../plugin/Store.js";
+import { Store } from "@jmtrin/kevin-core";
 
 let dirs: string[] = [];
 
