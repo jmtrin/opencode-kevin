@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
  */
 describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 	function pluginFiles(): string[] {
-		return readdirSync(join(process.cwd(), "plugin")).filter((f) =>
+		return readdirSync(join(process.cwd(), "packages/core/src")).filter((f) =>
 			f.endsWith(".ts"),
 		);
 	}
@@ -22,7 +22,7 @@ describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 	function scan(re: RegExp): { file: string; line: number; text: string }[] {
 		const sites: { file: string; line: number; text: string }[] = [];
 		for (const file of pluginFiles()) {
-			const src = readFileSync(join(process.cwd(), "plugin", file), "utf8");
+			const src = readFileSync(join(process.cwd(), "packages/core/src", file), "utf8");
 			const lines = src.split("\n");
 			for (let i = 0; i < lines.length; i++) {
 				if (re.test(lines[i])) {
@@ -80,7 +80,7 @@ describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 
 	it("the writer binding in kevin_approve.ts is the ArtifactWriter", () => {
 		const src = readFileSync(
-			join(process.cwd(), "plugin", "kevin_approve.ts"),
+			join(process.cwd(), "packages/core/src", "kevin_approve.ts"),
 			"utf8",
 		);
 		expect(src).toMatch(/writer: ArtifactWriter/);

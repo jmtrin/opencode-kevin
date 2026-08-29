@@ -42,7 +42,7 @@ let retrospective: Retrospective;
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-e2e-retro-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	retroDir = join(tmpRoot, "retrospectives");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), FIXTURE_SQL);

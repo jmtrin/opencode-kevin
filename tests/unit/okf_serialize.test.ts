@@ -175,7 +175,7 @@ describe("K8-011 — canonicalize + serialize (plan §5.3/§5.4)", () => {
 		// The deriveConfidence contract: exported, called on read, never
 		// inside serialize's body.
 		const okfSrc = readFileSync(
-			join(process.cwd(), "plugin", "okf.ts"),
+			join(process.cwd(), "packages/core/src", "okf.ts"),
 			"utf8",
 		);
 		const serializeBody = okfSrc

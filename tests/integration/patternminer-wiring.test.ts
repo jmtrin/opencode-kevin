@@ -18,7 +18,7 @@ let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-pm-wire-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	copyFileSync(
 		join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
@@ -122,7 +122,7 @@ describe("PatternMiner wiring (K2-022) — session.idle triggers mine()", () => 
 		// Re-instantiate a separate plugin harness with a patched migration
 		// 003 that seeds patternminer_enabled = '1' instead of the default '0'.
 		const tmp2 = mkdtempSync(join(tmpdir(), "kevin-pm-wire-on-"));
-		const mig2 = join(tmp2, "migrations");
+		const mig2 = join(tmp2, "packages/core/migrations");
 		mkdirSync(mig2, { recursive: true });
 		copyFileSync(
 			join(process.cwd(), "packages/core/migrations", "001_initial.sql"),

@@ -18,19 +18,19 @@ afterEach(() => {
 	store.close();
 });
 
-describe("K11-001 migration 012_v11_drift", () => {
-	it("applies 012 and seeds metrics and indexes", async () => {
+describe("K11-001 migration 013_v11_drift", () => {
+	it("applies 013 and seeds metrics and indexes", async () => {
 		const migrate = new Migrate(store, migrationsDir);
 		const result = await migrate.run();
-		expect(result.to).toBe("012");
-		expect(result.applied).toContain("012");
+		expect(result.to).toBe("013");
+		expect(result.applied).toContain("013");
 
 		const version = store
 			.prepare(
 				"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 			)
 			.get() as { version: string };
-		expect(version.version).toBe("012");
+		expect(version.version).toBe("013");
 
 		// indexes exist
 		const idx = store
@@ -61,8 +61,8 @@ describe("K11-001 migration 012_v11_drift", () => {
 		await migrate.run();
 		const second = await migrate.run();
 		expect(second.applied).toEqual([]);
-		expect(second.from).toBe("012");
-		expect(second.to).toBe("012");
+		expect(second.from).toBe("013");
+		expect(second.to).toBe("013");
 
 		// no duplicate metric rows
 		const count = store
@@ -74,26 +74,26 @@ describe("K11-001 migration 012_v11_drift", () => {
 	});
 
 	it("backfills ts_ms for legacy tool_calls rows", async () => {
-		// create a DB at 011, insert legacy row, then migrate to 012
-		const tmp = mkdtempSync(join(tmpdir(), "kevin-m012-"));
+		// create a DB at 011, insert legacy row, then migrate to 013
+		const tmp = mkdtempSync(join(tmpdir(), "kevin-m013-"));
 		const legacyStore = new Store({ path: ":memory:" });
 		try {
 			const m011 = new Migrate(legacyStore, migrationsDir);
-			// Run only up to 011 by using a filtered migrationsDir that excludes 012
+			// Run only up to 011 by using a filtered migrationsDir that excludes 013
 			// We achieve this by running migrate on a clone that we control:
-			// Instead, manually run migrations 001-011 via Migrate with a temp dir copy stripped of 012
-			// Simpler: run full migrate then rollback? Instead we test backfill by inserting before 012 is applied.
+			// Instead, manually run migrations 001-011 via Migrate with a temp dir copy stripped of 013
+			// Simpler: run full migrate then rollback? Instead we test backfill by inserting before 013 is applied.
 			// We'll do: create store, apply migrations up to 011 using real dir but mocking file list:
-			// Use Migrate with custom postApply that stops? Easier: directly create tables then insert legacy row before 012's ALTER.
-			// Approach: run migrate normally to get schema up to 012, then manually reset to 011 state for test.
-			// Instead we test backfill logic directly: insert a legacy row with old schema before 012, then run 012.
+			// Use Migrate with custom postApply that stops? Easier: directly create tables then insert legacy row before 013's ALTER.
+			// Approach: run migrate normally to get schema up to 013, then manually reset to 011 state for test.
+			// Instead we test backfill logic directly: insert a legacy row with old schema before 013, then run 013.
 
-			// To simulate legacy DB, we create a separate store with 011 only by copying migrations without 012 to a temp dir
+			// To simulate legacy DB, we create a separate store with 011 only by copying migrations without 013 to a temp dir
 			const { mkdirSync, readdirSync, copyFileSync } = await import("node:fs");
 			const tmpMig = join(tmp, "migs");
 			mkdirSync(tmpMig, { recursive: true });
 			const files = readdirSync(migrationsDir).filter(
-				(f) => f !== "012_v11_drift.sql",
+				(f) => f !== "013_v11_drift.sql",
 			);
 			for (const f of files)
 				copyFileSync(join(migrationsDir, f), join(tmpMig, f));
@@ -128,7 +128,7 @@ describe("K11-001 migration 012_v11_drift", () => {
 				// ignore if table not yet
 			}
 
-			// Now run 012 on this DB by pointing to full migrationsDir
+			// Now run 013 on this DB by pointing to full migrationsDir
 			await new Migrate(store011, migrationsDir).run();
 
 			// Verify ts_ms was backfilled as seconds*1000 from strftime

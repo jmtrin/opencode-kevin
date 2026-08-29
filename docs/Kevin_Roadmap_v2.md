@@ -887,5 +887,7 @@ for the leader; Kevin's active-user base on the order of low hundreds (downloads
 
 **Status update 2026-08-28:** v1.3.0 "Bedrock" shipped — 26/32/56 unchanged (reorganization-only), migrations 012, principles 45–47, decisions D13-01…D13-08 cited (see `docs/Kevin_v1.3.0_Plan.md` / `docs/Kevin_v1.3.0_Task.md`). Zero behavior diff; hostless core `@jmtrin/kevin-core` ships with same contract (C-06 frozen). C-10 preview at `packages/core/src/index.ts`.
 
+**Status update 2026-08-29:** v1.4.0 "Bridge" shipped — 26 tools (plugin) + 11 MCP, 35 settings, 61 metrics, 013 migrations, principles 48–50, decisions D14-01…D14-08 cited (see `docs/Kevin_v1.4.0_Plan.md` / `docs/Kevin_v1.4.0_Task.md`). MCP stdio bridge, `busy_timeout=5000` WAL concurrency, `kevin_audit` mcp block. No behavior diff on plugin fixtures; new bridge gated off by default.
+
 **Author:** ox-alpha
 **Date:** 2026-08-25 (updated 2026-08-28)

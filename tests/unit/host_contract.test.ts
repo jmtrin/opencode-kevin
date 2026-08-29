@@ -21,7 +21,7 @@ if (!existsSync(join(PLUGIN_PKG, "dist", "index.d.ts"))) {
 	);
 }
 const DIST = join(PLUGIN_PKG, "dist");
-const PLUGIN_SRC = join(__dirname, "..", "..", "plugin");
+const PLUGIN_SRC = join(__dirname, "..", "..", "packages/core/src");
 
 const read = (rel: string): string => readFileSync(join(DIST, rel), "utf8");
 

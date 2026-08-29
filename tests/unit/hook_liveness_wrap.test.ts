@@ -139,7 +139,7 @@ describe("K9-009 — HookLiveness.wrap()", () => {
 		// metrics cadence. The scan is scoped to the wrap() method body so
 		// flush()'s legitimate statements do not trip it.
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "HookLiveness.ts"),
+			join(process.cwd(), "packages/core/src", "HookLiveness.ts"),
 			"utf8",
 		);
 		const start = source.indexOf("wrap<T>(hooks: T): T {");

@@ -1,6 +1,6 @@
 {
   "name": "@jmtrin/kevin-core",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Kevin core — host-agnostic deterministic brain (Bedrock)",
   "type": "module",
   "main": "dist/index.js",

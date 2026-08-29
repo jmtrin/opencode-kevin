@@ -30,7 +30,7 @@ afterEach(() => {
 
 describe("K8-006 — resolve() runs exactly once at plugin init", () => {
 	it("is called exactly once with process.cwd()", async () => {
-		const migrationsDir = join(tmpRoot, "migrations");
+		const migrationsDir = join(tmpRoot, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const file of MIGRATION_FILES) {
 			copyFileSync(

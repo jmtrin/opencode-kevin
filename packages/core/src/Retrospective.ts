@@ -117,6 +117,12 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	// v1.2.0 (K12-001 / plan §4) — surface metrics; labels required by BUG-014 regression.
 	tui_snapshots_flushed: "Snapshots TUI generados",
 	tui_actions_invoked: "Acciones TUI invocadas",
+	// v1.4.0 (K14-003 / plan §4.3) — MCP bridge metrics; labels required by BUG-014.
+	mcp_requests_total: "Solicitudes MCP totales",
+	mcp_reads_served: "Lecturas MCP servidas",
+	mcp_writes_accepted: "Escrituras MCP aceptadas",
+	mcp_writes_refused: "Escrituras MCP rechazadas",
+	mcp_errors_total: "Errores MCP totales",
 };
 
 function originLabel(

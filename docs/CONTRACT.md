@@ -41,14 +41,14 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 32 `kevin_settings` keys and their string-typed defaults (31 at 1.1.0 + `tui_snapshots_enabled` since 1.2.0).
+- **Covers:** the 35 `kevin_settings` keys and their string-typed defaults (31 at 1.1.0 + `tui_snapshots_enabled` since 1.2.0 + `mcp_write_enabled`, `mcp_approve_enabled`, `mcp_repo_override` since 1.4.0).
 - **Consumer may rely on:** every listed key is accepted by `kevin_config`; unknown keys error.
 
 ## C-05 — Metric key names
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 56 `kevin_metrics` keys (51 at 1.0.0 + `bench_regression_failures`, `forget_requests_total`, `forget_tombstones_published` since 1.1.0 + `tui_snapshots_flushed`, `tui_actions_invoked` since 1.2.0).
+- **Covers:** the 61 `kevin_metrics` keys (51 at 1.0.0 + `bench_regression_failures`, `forget_requests_total`, `forget_tombstones_published` since 1.1.0 + `tui_snapshots_flushed`, `tui_actions_invoked` since 1.2.0 + `mcp_requests_total`, `mcp_reads_served`, `mcp_writes_accepted`, `mcp_writes_refused`, `mcp_errors_total` since 1.4.0).
 - **Consumer may rely on:** counters are monotonic integers; absent keys are zero.
 
 ## C-06 — Package entry points
@@ -62,7 +62,7 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** forward-only
 - **Since:** 0.1.0
-- **Covers:** schema version `012`, migrations are forward-only (`packages/core/migrations/*.sql` apply in order, never rewritten; moved from `migrations/` in v1.3.0 Bedrock).
+- **Covers:** schema version `013`, migrations are forward-only (`packages/core/migrations/*.sql` apply in order, never rewritten; moved from `migrations/` in v1.3.0 Bedrock, `013_v14_bridge` adds `channel` + 5 MCP metrics in 1.4.0).
 - **Consumer may rely on:** forward-only migrations; `Migrate.run()` idempotent.
 
 ## C-08 — Filesystem locations

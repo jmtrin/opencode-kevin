@@ -11,7 +11,7 @@ let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-compact-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const m of [
 		"001_initial.sql",

@@ -147,7 +147,7 @@ describe("K6-010 — inferability classifier (plan §5.3)", () => {
 
 	it("the module imports nothing from plugin/Store.js, node:fs or node:crypto", () => {
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "inferability.ts"),
+			join(process.cwd(), "packages/core/src", "inferability.ts"),
 			"utf8",
 		);
 		expect(source).not.toContain("Store.js");

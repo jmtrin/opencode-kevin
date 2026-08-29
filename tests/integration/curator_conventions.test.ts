@@ -29,7 +29,7 @@ let migrationsDir: string;
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-ccur-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",

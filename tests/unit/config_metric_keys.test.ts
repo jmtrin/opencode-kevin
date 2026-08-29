@@ -125,8 +125,8 @@ describe("K9-003 — derived registration coverage (Native)", () => {
 		// labels with the perf/contract surface seeded by migration 011.
 		// v1.2.0 (K12-001 / plan §4): 31 -> 32 settings, 54 -> 56 metric
 		// labels with the surface surface.
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(32);
-		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(56);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(35);
+		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(61);
 	});
 
 	it("fails if a future migration seeds a key that is not registered", () => {
@@ -147,7 +147,7 @@ let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-configkeysv09-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of MIGRATION_FILES) {
 		copyFileSync(join(MIGRATIONS_DIR, file), join(migrationsDir, file));

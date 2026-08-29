@@ -181,7 +181,7 @@ describe("K9-014 — native skill registration with read-back verification", () 
 
 	it("the draft never escapes the transform callback (source scan)", () => {
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "native.ts"),
+			join(process.cwd(), "packages/plugin/src", "native.ts"),
 			"utf8",
 		);
 		const lines = source.split("\n");
@@ -230,7 +230,7 @@ describe("K9-014 — native skill registration with read-back verification", () 
 
 	it("the v2 specifier stays contained in native.ts (dynamic import only)", () => {
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "native.ts"),
+			join(process.cwd(), "packages/plugin/src", "native.ts"),
 			"utf8",
 		);
 		expect(source.includes(V2_SPECIFIER)).toBe(true);

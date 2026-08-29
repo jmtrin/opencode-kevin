@@ -21,19 +21,19 @@ import { Store } from "@jmtrin/kevin-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "001_initial.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "001_initial.sql"),
 	"utf8",
 );
 const SQL_003 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "003_v02_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "003_v02_signal.sql"),
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "004_v03_knowledge.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "004_v03_knowledge.sql"),
 	"utf8",
 );
 const SQL_005 = readFileSync(
-	join(__dirname, "..", "..", "migrations", "005_v04_signal.sql"),
+	join(__dirname, "..", "..", "packages/core/migrations", "005_v04_signal.sql"),
 	"utf8",
 );
 
@@ -43,7 +43,7 @@ let store: Store;
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-enrich-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const [name, sql] of [
 		["001_initial.sql", SQL_001],

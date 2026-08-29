@@ -82,15 +82,15 @@ describe("K8-010 — computeEntryId (plan §3.3, D8-05)", () => {
 	});
 
 	it("plugin/okf.ts imports neither fingerprint nor normalize (source scan)", () => {
-		const src = readFileSync(join(process.cwd(), "plugin", "okf.ts"), "utf8");
+		const src = readFileSync(join(process.cwd(), "packages/core/src", "okf.ts"), "utf8");
 		expect(src).not.toMatch(/import\s+\{[^}]*\bfingerprint\b/);
 		expect(src).not.toMatch(/import\s+\{[^}]*\bnormalize\b/);
 		// The only import from fingerprint.ts is fnv1a64.
 		expect(src).toMatch(/import \{ fnv1a64 \} from "\.\/fingerprint\.js"/);
 		// Sanity: the whole plugin tree only imports fnv1a64 from fingerprint.js.
-		for (const f of readdirSync(join(process.cwd(), "plugin"))) {
+		for (const f of readdirSync(join(process.cwd(), "packages/core/src"))) {
 			if (!f.endsWith(".ts")) continue;
-			const text = readFileSync(join(process.cwd(), "plugin", f), "utf8");
+			const text = readFileSync(join(process.cwd(), "packages/core/src", f), "utf8");
 			expect(
 				text.match(/from "\.\/fingerprint\.js"/g)?.length ?? 0,
 			).toBeLessThanOrEqual(1);

@@ -37,7 +37,7 @@ describe("K7-019/020 — pure SQL audit mix", () => {
 
 	it("partitions injections by memory type and excludes unknown outcomes from precision", async () => {
 		const store = new Store({ path: ":memory:" });
-		const dir = join(mkdtempSync(join(tmpdir(), "kevin-mix2-")), "migrations");
+		const dir = join(mkdtempSync(join(tmpdir(), "kevin-mix2-")), "packages/core/migrations");
 		mkdirSync(dir, { recursive: true });
 		for (const file of [
 			"001_initial.sql",

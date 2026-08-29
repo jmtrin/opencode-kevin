@@ -23,7 +23,7 @@ const PROJECT_B = "project-b";
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-repo-scope-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -191,7 +191,7 @@ describe("K7-006 — project-scoped storage + mtime skip", () => {
 	});
 
 	it("the source-scan finds no unscoped FROM repo_facts read", () => {
-		const dir = join(process.cwd(), "plugin");
+		const dir = join(process.cwd(), "packages/core/src");
 		const files = readdirSync(dir).filter(
 			(f) => f.endsWith(".ts") && f !== "Migrate.ts",
 		);

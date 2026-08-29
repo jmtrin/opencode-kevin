@@ -23,7 +23,7 @@ const ctx: ToolContext = {
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-tools-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	copyFileSync(
 		join(process.cwd(), "packages/core/migrations", "001_initial.sql"),

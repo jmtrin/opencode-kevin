@@ -10,7 +10,7 @@ let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-configkeys-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -186,7 +186,7 @@ describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
 		// to 31 (C-04).
 		// v1.2.0 (K12-001 / plan §4): tui_snapshots_enabled brings the total
 		// to 32 (C-04).
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(32);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(35);
 	});
 
 	it("a new key rejected by kevin_config set is a config surface defect", async () => {

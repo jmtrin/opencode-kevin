@@ -361,7 +361,7 @@ const HOOKS_RECOVERED = [
 describe("K9-022 — End-to-end degradation drill (plan \u00A7\u20099, exit criterion)", () => {
 	beforeEach(() => {
 		tmpRoot = mkdtempSync(join(tmpdir(), "kevin-degradation-"));
-		migrationsDir = join(tmpRoot, "migrations");
+		migrationsDir = join(tmpRoot, "packages/core/migrations");
 		dbPath = join(tmpRoot, "kevin.db");
 	});
 

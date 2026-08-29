@@ -18,7 +18,7 @@ const MIGRATIONS = [
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-trace-e2e-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const name of MIGRATIONS) {
 		copyFileSync(

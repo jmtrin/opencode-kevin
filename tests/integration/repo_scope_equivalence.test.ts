@@ -128,7 +128,7 @@ describe("K8-007 — retrieval scoped on repo_id + equivalence proof (plan §5.7
 
 		// Migrate the snapshot to 009 through the real Migrate (back-fill hook
 		// included) — the production path.
-		const migrationsDir = join(tmpRoot, "migrations");
+		const migrationsDir = join(tmpRoot, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const f of [...V07_MIGRATIONS, "009_v08_team.sql"]) {
 			writeFileSync(join(migrationsDir, f), SQL(f));
@@ -172,7 +172,7 @@ describe("K8-007 — retrieval scoped on repo_id + equivalence proof (plan §5.7
 			v07.getRelevant({ query: "queue", scope: "project", bump: false }),
 		);
 
-		const migrationsDir = join(tmpRoot, "migrations");
+		const migrationsDir = join(tmpRoot, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const f of [...V07_MIGRATIONS, "009_v08_team.sql"]) {
 			writeFileSync(join(migrationsDir, f), SQL(f));
@@ -199,7 +199,7 @@ describe("K8-007 — retrieval scoped on repo_id + equivalence proof (plan §5.7
 				"UPDATE kevin_settings SET value = '1' WHERE key = 'deterministic_retrieval'",
 			)
 			.run();
-		const migrationsDir = join(tmpRoot, "migrations");
+		const migrationsDir = join(tmpRoot, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const f of [...V07_MIGRATIONS, "009_v08_team.sql"]) {
 			writeFileSync(join(migrationsDir, f), SQL(f));
@@ -243,7 +243,7 @@ describe("K8-007 — retrieval scoped on repo_id + equivalence proof (plan §5.7
 
 	it("new memories are written with both repo_id and project_id populated", async () => {
 		const store = makeV07Store();
-		const migrationsDir = join(tmpRoot, "migrations");
+		const migrationsDir = join(tmpRoot, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const f of [...V07_MIGRATIONS, "009_v08_team.sql"]) {
 			writeFileSync(join(migrationsDir, f), SQL(f));
@@ -279,7 +279,7 @@ describe("K8-007 — retrieval scoped on repo_id + equivalence proof (plan §5.7
 
 	it("supersession is scoped on repo_id once the identity is resolved", async () => {
 		const store = makeV07Store();
-		const migrationsDir = join(tmpRoot, "migrations");
+		const migrationsDir = join(tmpRoot, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const f of [...V07_MIGRATIONS, "009_v08_team.sql"]) {
 			writeFileSync(join(migrationsDir, f), SQL(f));
@@ -325,7 +325,7 @@ describe("K8-007 — retrieval scoped on repo_id + equivalence proof (plan §5.7
 
 	it("no retrieval path filters on project_id (source scan) and rankScore is v0.7.0's", () => {
 		const src = readFileSync(
-			join(__dirname, "..", "..", "plugin", "MemoryService.ts"),
+			join(__dirname, "..", "..", "packages/core/src", "MemoryService.ts"),
 			"utf8",
 		);
 		// The acceptance scan: `project_id = ?` inside a SELECT. Every

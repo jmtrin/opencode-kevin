@@ -15,7 +15,7 @@ let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-fixargs-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -24,7 +24,7 @@ beforeEach(async () => {
 		"005_v04_signal.sql",
 	]) {
 		copyFileSync(
-			join(process.cwd(), "migrations", file),
+			join(process.cwd(), "packages/core/migrations", file),
 			join(migrationsDir, file),
 		);
 	}

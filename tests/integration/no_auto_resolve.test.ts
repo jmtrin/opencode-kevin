@@ -41,7 +41,7 @@ describe("K7-016 — never-auto-resolve guard", () => {
 		// Source-level guard: the only `resolve` call is the tool module. The
 		// idle hook invokes detect only, never acknowledge/resolve.
 		const idleSource = (await import("node:fs")).readFileSync(
-			join(process.cwd(), "plugin", "index.ts"),
+			join(process.cwd(), "packages/plugin/src", "index.ts"),
 			"utf8",
 		);
 		const idleSection = idleSource.slice(
@@ -62,7 +62,7 @@ describe("K7-016 — never-auto-resolve guard", () => {
 		// The default is TEXT '0'; the idle source guard is asserted above and
 		// this test ensures the setting path remains explicit rather than truthy.
 		const source = (await import("node:fs")).readFileSync(
-			join(process.cwd(), "plugin", "index.ts"),
+			join(process.cwd(), "packages/plugin/src", "index.ts"),
 			"utf8",
 		);
 		expect(source).toContain(

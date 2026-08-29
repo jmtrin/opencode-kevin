@@ -219,7 +219,7 @@ describe("proposal lifecycle (K6-013)", () => {
 	});
 
 	it("no code path deletes a curation_proposals row", () => {
-		for (const dir of ["plugin", "migrations"]) {
+		for (const dir of ["packages/core/src", "packages/core/migrations"]) {
 			for (const file of readdirSync(join(process.cwd(), dir))) {
 				const src = readFileSync(join(process.cwd(), dir, file), "utf8");
 				expect(src).not.toMatch(/DELETE FROM curation_proposals/i);

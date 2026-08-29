@@ -82,7 +82,7 @@ describe("K8-027 — OKF v1/v2 format separation", () => {
 
 	it("a source scan proves no import edge between okf.ts and the v1 modules", () => {
 		const read = (f: string): string =>
-			readFileSync(join(process.cwd(), "plugin", f), "utf8");
+			readFileSync(join(process.cwd(), "packages/core/src", f), "utf8");
 		const okfSrc = read("okf.ts");
 		const exportSrc = read("okf-export.ts");
 		const importSrc = read("okf-import.ts");
@@ -94,12 +94,12 @@ describe("K8-027 — OKF v1/v2 format separation", () => {
 	});
 
 	it("a source scan proves importOkf has exactly one call site, unreachable from kevin_sync", () => {
-		const files = readdirSync(join(process.cwd(), "plugin")).filter((f) =>
+		const files = readdirSync(join(process.cwd(), "packages/core/src")).filter((f) =>
 			f.endsWith(".ts"),
 		);
 		const callSites: string[] = [];
 		for (const f of files) {
-			const src = readFileSync(join(process.cwd(), "plugin", f), "utf8");
+			const src = readFileSync(join(process.cwd(), "packages/core/src", f), "utf8");
 			for (const line of src.split(/\r?\n/)) {
 				if (
 					/\bimportOkf\(/.test(line) &&

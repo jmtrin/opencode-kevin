@@ -9,7 +9,9 @@ export type PerfScope =
 	| "session.compacting"
 	| "event"
 	| "session.idle"
-	| "dispose";
+	| "dispose"
+	| "mcp.read"
+	| "mcp.write";
 
 export interface Budget {
 	readonly scope: PerfScope;
@@ -26,6 +28,8 @@ export const BUDGETS: readonly Budget[] = [
 	{ scope: "event", p95Ms: 5, maxMs: 25 },
 	{ scope: "session.idle", p95Ms: 150, maxMs: 600 },
 	{ scope: "dispose", p95Ms: 50, maxMs: 250 },
+	{ scope: "mcp.read", p95Ms: 25, maxMs: 100 },
+	{ scope: "mcp.write", p95Ms: 50, maxMs: 250 },
 ] as const;
 
 export interface PerfStat {

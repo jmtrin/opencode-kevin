@@ -38,7 +38,7 @@ let memories: MemoryService;
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-e2e-mem-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), FIXTURE_SQL);
 	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), MIGRATION_003_SQL);

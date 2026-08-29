@@ -23,7 +23,7 @@ function fixtureRoot(): string {
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-repo-scan-migrate-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	store = new Store({ path: ":memory:" });
 });

@@ -169,7 +169,7 @@ describe("K6-005 — ArtifactWriter.plan()", () => {
 
 	it("the module contains no file-write call yet", () => {
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "ArtifactWriter.ts"),
+			join(process.cwd(), "packages/core/src", "ArtifactWriter.ts"),
 			"utf8",
 		);
 		expect(source).not.toContain("writeFileSync");

@@ -553,6 +553,8 @@ The declared budgets, and why each number is what it is:
 | `event` | 5 ms | 25 ms | The non-idle branches — session created, tool success/failure routing. |
 | `session.idle` | 150 ms | 600 ms | Off the interactive path but on the host's event loop: ledger settle, reflector boosts, pattern mining. Wide, but bounded and measured for the first time. |
 | `dispose` | 50 ms | 250 ms | Final flush plus a SQLite close. |
+| `mcp.read` | 25 ms | 100 ms | MCP read bridge: ranked recall with same gates, local SQLite only. |
+| `mcp.write` | 50 ms | 250 ms | Gated MCP write: same pipeline as plugin save, double-gate check. |
 
 Five rules, each with a test:
 

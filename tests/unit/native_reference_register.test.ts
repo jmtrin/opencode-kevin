@@ -241,7 +241,7 @@ describe("K9-015 — reference.transform registration (plan §5.4, D6-14)", () =
 
 	it("remove() is never called anywhere in native.ts", () => {
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "native.ts"),
+			join(process.cwd(), "packages/plugin/src", "native.ts"),
 			"utf8",
 		);
 		expect(source.match(/\.remove\s*\(/)).toBeNull();

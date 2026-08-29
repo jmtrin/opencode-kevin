@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 function makeMigrationsDir(): string {
-	const dir = join(tmpRoot, "migrations");
+	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		if (file.startsWith("00") || file === "009_v08_team.sql") {
@@ -298,7 +298,7 @@ describe("K8-017 — projection into memories (plan §5.5, D8-10)", () => {
 
 	it("no code path in SharedLayer.ts writes status for any reason other than a tombstone (source scan)", () => {
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "SharedLayer.ts"),
+			join(process.cwd(), "packages/core/src", "SharedLayer.ts"),
 			"utf8",
 		);
 		const statusWrites = source.match(/SET\s+status\s*=\s*'archived'/g) ?? [];

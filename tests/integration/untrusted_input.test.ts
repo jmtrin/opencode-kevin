@@ -42,7 +42,7 @@ afterEach(() => {
 function openMigrated(): Store {
 	const store = new Store({ path: join(tmpRoot, "kevin.db") });
 	openStore = store;
-	const dir = join(tmpRoot, "migrations");
+	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
@@ -121,7 +121,7 @@ describe("K10-027 — the untrusted-input boundary holds end to end", () => {
 	});
 
 	it("applyExport has exactly one call site in the plugin", () => {
-		const pluginDir = join(process.cwd(), "plugin");
+		const pluginDir = join(process.cwd(), "packages/core/src");
 		let sites = 0;
 		for (const f of readdirSync(pluginDir)) {
 			if (!f.endsWith(".ts")) continue;

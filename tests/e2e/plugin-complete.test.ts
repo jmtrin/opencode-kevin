@@ -16,7 +16,7 @@ let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-e2e-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	copyFileSync(
 		join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
@@ -707,7 +707,7 @@ describe("K3-026: cap", () => {
 
 	beforeEach(async () => {
 		tmpRootCap = mkdtempSync(join(tmpdir(), "kevin-cap-"));
-		const migrationsDir = join(tmpRootCap, "migrations");
+		const migrationsDir = join(tmpRootCap, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		copyFileSync(
 			join(process.cwd(), "packages/core/migrations", "001_initial.sql"),

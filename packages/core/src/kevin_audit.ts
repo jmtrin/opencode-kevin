@@ -178,6 +178,18 @@ export interface AuditReport {
 		dashboard_last_write_age_s: number | null;
 		bridge_interceptions: number;
 	};
+	/**
+	 * v1.4.0 (K14-016) — MCP bridge block. Reads the five MCP counters and
+	 * channel split. Omitted on pre-013 DBs (partial:true).
+	 */
+	mcp?: {
+		requests: number;
+		reads: number;
+		writes_accepted: number;
+		writes_refused: number;
+		errors: number;
+		channel_split: { plugin: number; mcp: number };
+	};
 	partial: boolean;
 }
 
@@ -966,6 +978,45 @@ export function buildAudit(
 		tui = undefined;
 	}
 
+	// v1.4.0 (K14-016) — MCP block, gated on channel column
+	let mcp: AuditReport["mcp"];
+	try {
+		const hasChannel = (() => {
+			try {
+				store.prepare("SELECT channel FROM kevin_injections LIMIT 1").get();
+				return true;
+			} catch { return false; }
+		})();
+		if (!hasChannel) {
+			partial = true;
+			mcp = undefined;
+		} else {
+			const getMetric = (k: string): number => {
+				try {
+					const row = store.prepare("SELECT value FROM kevin_metrics WHERE key = ?").get(k) as { value: number } | undefined;
+					return row?.value ?? metrics.get(k as never) ?? 0;
+				} catch { return metrics.get(k as never) ?? 0; }
+			};
+			const plugin = (() => {
+				try { return (store.prepare("SELECT COUNT(*) as c FROM kevin_injections WHERE channel = 'plugin'").get() as { c: number }).c; } catch { return 0; }
+			})();
+			const mcpCount = (() => {
+				try { return (store.prepare("SELECT COUNT(*) as c FROM kevin_injections WHERE channel = 'mcp'").get() as { c: number }).c; } catch { return 0; }
+			})();
+			mcp = {
+				requests: getMetric("mcp_requests_total"),
+				reads: getMetric("mcp_reads_served"),
+				writes_accepted: getMetric("mcp_writes_accepted"),
+				writes_refused: getMetric("mcp_writes_refused"),
+				errors: getMetric("mcp_errors_total"),
+				channel_split: { plugin, mcp: mcpCount },
+			};
+		}
+	} catch {
+		partial = true;
+		mcp = undefined;
+	}
+
 	return {
 		memories,
 		injections,
@@ -983,6 +1034,7 @@ export function buildAudit(
 		perf,
 		contract,
 		tui,
+		mcp,
 		partial,
 	};
 }

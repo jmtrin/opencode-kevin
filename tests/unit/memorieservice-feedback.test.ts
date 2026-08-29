@@ -32,7 +32,7 @@ let store: Store;
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-fb-v026-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	writeFileSync(join(migrationsDir, "001_initial.sql"), SQL_001);
 	writeFileSync(join(migrationsDir, "003_v02_signal.sql"), SQL_003);

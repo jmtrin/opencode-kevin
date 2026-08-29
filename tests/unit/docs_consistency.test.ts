@@ -63,8 +63,8 @@ describe("K10-025 — cross-version consistency pass", () => {
 		expect(monotone(settings)).toBe(true);
 		// The last rung must match the shipped surface, not the prose.
 		expect(tools.at(-1)).toBe(26);
-		expect(metrics.at(-1)).toBe(56);
-		expect(settings.at(-1)).toBe(32);
+		expect(metrics.at(-1)).toBe(61);
+		expect(settings.at(-1)).toBe(35);
 		// Migrations ladder and principles range as declared.
 		expect(t).toMatch(/migrations `00\d` → `012`/);
 		expect(t).toMatch(/principles 39/);

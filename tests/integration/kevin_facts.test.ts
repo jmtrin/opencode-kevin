@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 function makeMigrationsDir(): string {
-	const dir = join(tmpRoot, "migrations");
+	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",

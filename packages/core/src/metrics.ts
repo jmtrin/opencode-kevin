@@ -67,6 +67,12 @@ export const METRIC_KEYS = [
 	// release — rows are created on first incr via upsert (K12-001).
 	"tui_snapshots_flushed",
 	"tui_actions_invoked",
+	// v1.4.0 (K14-003 / plan §4.3, D14-??) — MCP bridge metrics; seeds via 013.
+	"mcp_requests_total",
+	"mcp_reads_served",
+	"mcp_writes_accepted",
+	"mcp_writes_refused",
+	"mcp_errors_total",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

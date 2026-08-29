@@ -175,7 +175,7 @@ describe("K6-017 — Materializer topic bundles (plan §5.6, D6-14)", () => {
 
 	it("module source contains no node:fs import and no direct file-writing calls", () => {
 		const src = readFileSync(
-			join(process.cwd(), "plugin", "Materializer.ts"),
+			join(process.cwd(), "packages/core/src", "Materializer.ts"),
 			"utf8",
 		);
 		expect(src).not.toMatch(/node:fs/);

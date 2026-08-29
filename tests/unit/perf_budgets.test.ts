@@ -110,7 +110,7 @@ describe("Perf budgets and statistics (K10-011)", () => {
 		expect(idle.withinBudget).toBe(true);
 	});
 
-	it("the eight budgets in code match plan §5.2 exactly", () => {
+	it("the ten budgets in code match plan §5.2 exactly", () => {
 		const md = readFileSync(PLAN, "utf8");
 		const section = md.slice(
 			md.indexOf("The declared budgets"),
@@ -126,7 +126,7 @@ describe("Perf budgets and statistics (K10-011)", () => {
 			expect(Number(nums?.[1]), `${b.scope} p95`).toBe(b.p95Ms);
 			expect(Number(nums?.[2]), `${b.scope} max`).toBe(b.maxMs);
 		}
-		expect(BUDGETS).toHaveLength(8);
+		expect(BUDGETS).toHaveLength(10);
 	});
 
 	it("checkRows flags a p95 breach naming the scope, its p95 and its budget", () => {

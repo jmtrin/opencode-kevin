@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(__dirname, "..", "..");
 
-const SCAN_DIRS = ["plugin", "scripts", "tests"];
+const SCAN_DIRS = ["packages/core/src", "scripts", "tests"];
 
 const ZOD_PATTERNS: ReadonlyArray<{ label: string; re: RegExp }> = [
 	// Anchored at line start so prose/string literals that merely mention

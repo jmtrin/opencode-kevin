@@ -111,6 +111,9 @@ export const KEVIN_CONFIG_KEYS = [
 	"perf_flush_on_idle",
 	"contract_report_enabled",
 	"tui_snapshots_enabled",
+	"mcp_write_enabled",
+	"mcp_approve_enabled",
+	"mcp_repo_override",
 ] as const;
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
-export const KEVIN_VERSION = "1.3.0";
+export const KEVIN_VERSION = "1.4.0";

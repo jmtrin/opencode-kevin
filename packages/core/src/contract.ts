@@ -129,6 +129,25 @@ export const CONTRACT_METRIC_ADDITIONS: readonly {
 	// v1.2.0 (K12-001 / plan §4, D12-??) — surface metrics (no migration this release)
 	{ name: "tui_snapshots_flushed", since: "1.2.0" },
 	{ name: "tui_actions_invoked", since: "1.2.0" },
+	// v1.4.0 (K14-006 / plan §4.3) — MCP bridge metrics (seeded by 013)
+	{ name: "mcp_requests_total", since: "1.4.0" },
+	{ name: "mcp_reads_served", since: "1.4.0" },
+	{ name: "mcp_writes_accepted", since: "1.4.0" },
+	{ name: "mcp_writes_refused", since: "1.4.0" },
+	{ name: "mcp_errors_total", since: "1.4.0" },
+];
+
+/**
+ * v1.4.0 (K14-006 / plan §4.3) — config keys added after the freeze,
+ * each carrying the `since` the deprecation policy requires (C-04).
+ */
+export const CONTRACT_CONFIG_ADDITIONS: readonly {
+	name: string;
+	since: string;
+}[] = [
+	{ name: "mcp_approve_enabled", since: "1.4.0" },
+	{ name: "mcp_repo_override", since: "1.4.0" },
+	{ name: "mcp_write_enabled", since: "1.4.0" },
 ];
 
 /**
@@ -171,7 +190,14 @@ export function describeContract(_input?: ContractInput): PublicContract {
 	const toolValue = {
 		tools: [[...CONTRACT_TOOL_NAMES].sort(), toolAdditions].flat(),
 	};
-	const settingValue = { keys: [...KEVIN_CONFIG_KEYS].sort() };
+	// v1.4.0 — config keys added after freeze carry `since` (C-04)
+	const configAdditions = [...CONTRACT_CONFIG_ADDITIONS].sort((a, b) =>
+		a.name.localeCompare(b.name),
+	);
+	const baseConfigKeys = [...KEVIN_CONFIG_KEYS]
+		.filter((k) => !configAdditions.some((a) => a.name === k))
+		.sort();
+	const settingValue = { keys: [...baseConfigKeys, ...configAdditions].flat() };
 	// v1.1.0 — metric keys added after freeze carry `since` (C-05)
 	const metricAdditions = [...CONTRACT_METRIC_ADDITIONS].sort((a, b) =>
 		a.name.localeCompare(b.name),
@@ -248,7 +274,7 @@ export function describeContract(_input?: ContractInput): PublicContract {
 			stability: "forward-only",
 			since: "0.1.0",
 			value: {
-				schema_version: "012",
+				schema_version: "013",
 				migrations_forward_only: true,
 			},
 		},

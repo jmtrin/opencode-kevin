@@ -64,7 +64,7 @@ async function boot(
 	migrations: string[],
 	input: Record<string, unknown>,
 ): Promise<void> {
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const name of migrations) {
 		copyFileSync(

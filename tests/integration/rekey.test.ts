@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 function makeMigrationsDir(): string {
-	const dir = join(tmpRoot, "migrations");
+	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		if (file.startsWith("00") || file === "009_v08_team.sql") {
@@ -357,7 +357,7 @@ describe("K8-009 — kevin_project rekey (plan §5.1, D8-03)", () => {
 	});
 
 	it("no code path outside the kevin_project tool handler calls performRekey (source scan)", () => {
-		const pluginDir = join(process.cwd(), "plugin");
+		const pluginDir = join(process.cwd(), "packages/core/src");
 		const hits: Record<string, number> = {};
 		for (const f of readdirSync(pluginDir)) {
 			if (!f.endsWith(".ts")) continue;

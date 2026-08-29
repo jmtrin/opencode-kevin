@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 function makeMigrationsDir(): string {
-	const dir = join(tmpRoot, "migrations");
+	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	const files = [
 		"001_initial.sql",
@@ -247,7 +247,7 @@ describe("K8-022 — kevin_sync tool + session.idle wiring (plan §5.5)", () => 
 	});
 
 	it("source scan: import() is reachable only from kevin_sync and session.idle", () => {
-		const src = readFileSync(join(process.cwd(), "plugin", "index.ts"), "utf8");
+		const src = readFileSync(join(process.cwd(), "packages/plugin/src", "index.ts"), "utf8");
 		const importSites = [...src.matchAll(/sharedLayer\.import\(/g)];
 		expect(importSites).toHaveLength(1);
 		const syncSites = [...src.matchAll(/syncSharedLayer\(/g)];

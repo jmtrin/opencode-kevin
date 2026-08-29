@@ -4,6 +4,35 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-08-29
+
+### Bridge — cross-harness memory via MCP (no user action required for existing users)
+
+> 1.4.0 opens Kevin's local SQLite to every MCP harness with the same ranked recall. Existing plugin behaviour (26 tools, 35 settings, 61 metrics, migrations 001→013) is **byte-identical** on the same fixtures; new surface is additive and gated.
+
+#### Added
+
+- **MCP Bridge `@jmtrin/kevin-mcp` (K14-002…K14-013, D14-01)** — stdio MCP server (SDK 1.30.0) with 11 tools: 7 reads (`query/get/recall/why/status/trace/feedback` + `ping`) always on with provenance `{repo_id, identity_source, channel:"mcp"}` and token ceiling `ceil(chars/4)` + `pull_mcp` ledger, 3 gated writes (`save` behind `mcp_write_enabled='1'`, `approve/share` double-gated `mcp_write_enabled && mcp_approve_enabled` + `mcp_writes_refused/accepted` counters). Single binary `npx @jmtrin/kevin-mcp [--repo <id>]`, stderr `ready` line, SIGINT/SIGTERM flush, `busy_timeout=5000` WAL concurrency, harness recipes `docs/harnesses/{claude-code,codex,cursor,windsurf,gemini-cli,opencode}.md` + demo `docs/demo-cross-harness.md`.
+- **RepoIdentity + MCP identity** (`packages/mcp/src/identity.ts`, K14-007): `KEVIN_REPO → mcp_repo_override → RepoIdentity.resolve` (declared hex-16 → remote hash → path), `validateDeclaredId`, `assertScope` `repo_mismatch` guard on every tool (reads+writes), heals OKF `#repo` header on rekey.
+- **Migration 013 `013_v14_bridge.sql` (K14-003)** — `ALTER kevin_injections ADD channel TEXT DEFAULT 'plugin' CHECK(channel IN ('plugin','mcp'))` via table rebuild (expands hook CHECK to include `pull_mcp`), 5 metrics `mcp_requests_total/reads_served/writes_accepted/writes_refused/errors_total` seeds, `schema_version 013`, `Store` `PRAGMA busy_timeout=5000` (K14-005).
+- **Settings trio + metrics + contract** (K14-006): `KEVIN_CONFIG_KEYS` 32→35 (`mcp_write_enabled`, `mcp_approve_enabled`, `mcp_repo_override`), `METRIC_KEY_LABELS` 56→61, `C-04/C-05` since `1.4.0` + `C-07` `012→013` in `packages/core/src/contract.ts` + golden `tests/fixtures/contract/v1.json` 35/61, `CONTRACT.md` updated.
+- **Perf scopes `mcp.read`/`mcp.write`** (K14-015): budgets p95 25/100 and 50/250 in `packages/core/src/perf.ts` + `packages/mcp/src/perf-mcp.ts` ring reuse, flush every 100 requests or SIGINT to `perf_samples`; `kevin_audit` gains `mcp{requests,reads,writes_accepted/refused,errors,channel_split{plugin,mcp}}` (K14-016, omitted pre-013 `partial:true`).
+- **Distribution ordering** (`docs/DISTRIBUTION.md`, K14-019): publish `core → tui → plugin → mcp` exact pins `1.4.0`, smoke `npx @jmtrin/kevin-mcp --help`.
+
+#### Changed
+
+- **Build graph**: `build` order `core → tui → plugin → mcp`; `typecheck -w` includes `mcp`; `packages/mcp` exact pins `core 1.4.0`; `DISTRIBUTION` ordering documented.
+- **InjectionLedger + ContextInjector** (`packages/core/src/InjectionLedger.ts`, K14-004): `InjectionHook` + `pull_mcp`, `record(input, channel?)` with `hasColumn` probes for `injected_at_ms`/`channel`; `kevinRecall` → `pull_mcp` ledger with token budget.
+
+#### Fixed
+
+- **Contract digest drift**: golden `v1.json` regenerated for 35/61, `C-07` 013, `KEVIN_VERSION 1.4.0` coordinated across 4 packages.
+- **Packaging**: `npm pack --dry-run -w @jmtrin/kevin-mcp` 15 files including LICENSE, consumer `Store+Migrate` → `013` smoke.
+
+#### Verification
+
+- `npm run typecheck` (4 packages + root), `npm run build` (4), `npx vitest` (218 files, 1459 tests — 13 → 35/61 adjusted, budgets 8→10), `npm pack --dry-run` ×4, `tests/integration/mcp_concurrency.test.ts` 500×500 WAL stress <60s, `purity_scan` stdio-only green.
+
 ## [1.3.0] - 2026-08-29
 
 ### Bedrock — REORGANIZATION-ONLY (no user action required)

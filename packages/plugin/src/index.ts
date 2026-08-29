@@ -153,6 +153,11 @@ export const KEVIN_CONFIG_KEYS = [
 	// return { error: "unknown_key" } while `kevin_config list` still
 	// shows it.
 	"tui_snapshots_enabled",
+	// v1.4.0 (K14-006 / plan §4) — the three MCP bridge settings seeded by migration 013
+	// Omitting makes `kevin_config set` return { error: "unknown_key" } while list shows them.
+	"mcp_write_enabled",
+	"mcp_approve_enabled",
+	"mcp_repo_override",
 ] as const;
 // v1.1.0 (K11-007 / D11-08) — no new settings in 1.1.0; thresholds are constants (D11-03)
 

@@ -184,7 +184,7 @@ describe("normalizeRemote — URL folding", () => {
 describe("K8-005 source hygiene", () => {
 	it("plugin/RepoIdentity.ts contains no child_process, execSync or spawn", () => {
 		const src = readFileSync(
-			join(process.cwd(), "plugin", "RepoIdentity.ts"),
+			join(process.cwd(), "packages/core/src", "RepoIdentity.ts"),
 			"utf8",
 		);
 		expect(src).not.toContain("child_process");

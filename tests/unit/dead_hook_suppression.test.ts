@@ -189,7 +189,7 @@ describe("K9-011 — error path and dead-hook suppression", () => {
 			return out;
 		};
 		const hits: string[] = [];
-		for (const file of scan(join(REPO_ROOT, "plugin"))) {
+		for (const file of scan(join(REPO_ROOT, "packages/core/src"))) {
 			if (readFileSync(file, "utf8").includes(forbidden)) hits.push(file);
 		}
 		expect(hits).toEqual([]);
@@ -199,7 +199,7 @@ describe("K9-011 — error path and dead-hook suppression", () => {
 		// K9-011 AC 4: the ranking/budget/gate machinery is untouched — this
 		// task adds a counter and nothing else.
 		const source = readFileSync(
-			join(REPO_ROOT, "plugin", "QualityGate.ts"),
+			join(REPO_ROOT, "packages/core/src", "QualityGate.ts"),
 			"utf8",
 		);
 		const start = source.indexOf("export type GateReason =");

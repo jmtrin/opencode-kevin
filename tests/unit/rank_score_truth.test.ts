@@ -19,7 +19,7 @@ let migrationsDir: string;
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-rank-truth-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -260,7 +260,7 @@ describe("K7-008 — truth_penalty in rankScore()", () => {
 
 	it("applyTruthPenalty contains no UPDATE memories SET status (source scan)", () => {
 		const src = readFileSync(
-			join(process.cwd(), "plugin", "MemoryService.ts"),
+			join(process.cwd(), "packages/core/src", "MemoryService.ts"),
 			"utf8",
 		);
 		const methodStart = src.indexOf("applyTruthPenalty(");

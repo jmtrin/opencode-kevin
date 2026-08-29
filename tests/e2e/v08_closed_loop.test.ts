@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 function makeMigrationsDir(): string {
-	const dir = join(tmpRoot, "migrations");
+	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	for (const file of [
 		"001_initial.sql",
@@ -320,7 +320,7 @@ describe("K8-024 — two-clone closed-loop e2e (plan §5.5, exit criterion)", ()
 				else if (entry.name.endsWith(".ts")) files.push(full);
 			}
 		};
-		walk(join(process.cwd(), "plugin"));
+		walk(join(process.cwd(), "packages/core/src"));
 		expect(files.length).toBeGreaterThan(30);
 		const forbidden =
 			/child_process|node:http|node:net|node:https|\bfetch\s*\(/;

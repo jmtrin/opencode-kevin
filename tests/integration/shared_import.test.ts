@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 function makeMigrationsDir(): string {
-	const dir = join(tmpRoot, "migrations");
+	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
 	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
 		if (file.startsWith("00") || file === "009_v08_team.sql") {
@@ -209,9 +209,9 @@ describe("K8-016 — SharedLayer.import() + okf_imports + hash skip (plan §5.5)
 	});
 
 	it("okf_imports is append-only: a source scan finds no UPDATE okf_imports anywhere", () => {
-		for (const f of readdirSync(join(process.cwd(), "plugin"))) {
+		for (const f of readdirSync(join(process.cwd(), "packages/core/src"))) {
 			if (!f.endsWith(".ts")) continue;
-			const src = readFileSync(join(process.cwd(), "plugin", f), "utf8");
+			const src = readFileSync(join(process.cwd(), "packages/core/src", f), "utf8");
 			expect(
 				src.match(/UPDATE\s+okf_imports/i),
 				`UPDATE okf_imports found in plugin/${f}`,

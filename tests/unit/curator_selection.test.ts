@@ -310,7 +310,7 @@ describe("K6-012 — Curator.candidates() + renderBlock() (plan §5.4)", () => {
 
 	it("the module imports no filesystem module", () => {
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "Curator.ts"),
+			join(process.cwd(), "packages/core/src", "Curator.ts"),
 			"utf8",
 		);
 		expect(source).not.toContain("node:fs");

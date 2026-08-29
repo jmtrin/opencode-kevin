@@ -26,7 +26,8 @@ import { uuidv7 } from "./uuid.js";
  * them `effective` forever and inflate `precision_rate`. The caller
  * (ContextInjector.recordInjections) skips them.
  */
-export type InjectionHook = "pre_prompt" | "compacting";
+export type InjectionHook = "pre_prompt" | "compacting" | "pull_mcp";
+export type InjectionChannel = "plugin" | "mcp";
 // v0.5.0 (K5-005 / plan §5.1, D5-01) — a fourth outcome: an injection
 // whose fingerprint neither recurred nor was followed by a linked fix is
 // `inconclusive`. Absence of recurrence is not evidence of effect.
@@ -73,10 +74,33 @@ export class InjectionLedger {
 	/**
 	 * Records one injected memory. Idempotent at the row level (UUID PK);
 	 * duplicates are expected only via the caller's per-session seen-set.
+	 * v1.4.0 (K14-004 / plan §4.3, D14-04/D14-05) — optional channel, defaults to
+	 * "plugin"; written only when the column exists so pre-013 DBs keep working.
 	 */
-	record(input: InjectionRecordInput): void {
-		// v1.1.0 (K11-003 / plan §5.2, D11-01) — dual-write injected_at_ms when column exists
-		if (hasColumn(this.store, "kevin_injections", "injected_at_ms")) {
+	record(
+		input: InjectionRecordInput,
+		channel: InjectionChannel = "plugin",
+	): void {
+		const hasMs = hasColumn(this.store, "kevin_injections", "injected_at_ms");
+		const hasChannel = hasColumn(this.store, "kevin_injections", "channel");
+		if (hasMs && hasChannel) {
+			this.store
+				.prepare(
+					`INSERT INTO kevin_injections
+					   (id, memory_id, fingerprint, session_id, hook, tokens, outcome, injected_at_ms, channel)
+					 VALUES (?, ?, ?, ?, ?, ?, 'unmeasured', ?, ?)`,
+				)
+				.run(
+					uuidv7(),
+					input.memoryId,
+					input.fingerprint,
+					input.sessionId,
+					input.hook,
+					input.tokens,
+					Date.now(),
+					channel,
+				);
+		} else if (hasMs) {
 			this.store
 				.prepare(
 					`INSERT INTO kevin_injections
@@ -91,6 +115,22 @@ export class InjectionLedger {
 					input.hook,
 					input.tokens,
 					Date.now(),
+				);
+		} else if (hasChannel) {
+			this.store
+				.prepare(
+					`INSERT INTO kevin_injections
+					   (id, memory_id, fingerprint, session_id, hook, tokens, outcome, channel)
+					 VALUES (?, ?, ?, ?, ?, ?, 'unmeasured', ?)`,
+				)
+				.run(
+					uuidv7(),
+					input.memoryId,
+					input.fingerprint,
+					input.sessionId,
+					input.hook,
+					input.tokens,
+					channel,
 				);
 		} else {
 			this.store

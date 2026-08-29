@@ -58,7 +58,7 @@ function upgradedCopy(version: string): Store {
 	return store;
 }
 
-describe("K10-028 — every historical schema_version upgrades to 012 (K13-009)", () => {
+describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)", () => {
 	it("eleven fixtures exist, one per version 001..011", () => {
 		for (const v of VERSIONS) expect(fixturePath(v)).toBeTruthy();
 		const names = readdirSync(
@@ -68,7 +68,7 @@ describe("K10-028 — every historical schema_version upgrades to 012 (K13-009)"
 	});
 
 	for (const v of VERSIONS) {
-		it(`v${v}: one Migrate.run() reaches '012' with rows intact; dual _ms backfill + metric seeds; second run is no-op (K13-009)`, async () => {
+		it(`v${v}: one Migrate.run() reaches '013' with rows intact; dual _ms backfill + metric seeds; second run is no-op (K13-009)`, async () => {
 			const store = upgradedCopy(v);
 			const result = await new Migrate(
 				store,
@@ -81,7 +81,7 @@ describe("K10-028 — every historical schema_version upgrades to 012 (K13-009)"
 					"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 				)
 				.get() as { version: string };
-			expect(versionRow.version).toBe("012");
+			expect(versionRow.version).toBe("013");
 
 			const mem = store
 				.prepare("SELECT type, content FROM memories WHERE id = ?")
@@ -108,15 +108,15 @@ describe("K10-028 — every historical schema_version upgrades to 012 (K13-009)"
 				join(process.cwd(), "packages/core/migrations"),
 			).run();
 			expect(second.applied).toEqual([]);
-			expect(second.from).toBe("012");
-			expect(second.to).toBe("012");
+			expect(second.from).toBe("013");
+			expect(second.to).toBe("013");
 
 			const memAgain = store
 				.prepare("SELECT content FROM memories WHERE id = ?")
 				.get("fix-mem-1") as { content: string };
 			expect(memAgain.content).toBe(mem.content);
 
-			// K13-009 / 012_v11_drift — dual _ms backfill sanity + metric seeds
+			// K13-009 / 013_v11_drift — dual _ms backfill sanity + metric seeds
 			// tool_calls.ts_ms exists and is backfilled for the fixture row (if table existed at that version)
 			try {
 				const tcRow = store
@@ -132,10 +132,10 @@ describe("K10-028 — every historical schema_version upgrades to 012 (K13-009)"
 			} catch {
 				// pre-tool_calls DB (should not happen after 001) — ignore
 			}
-			// 012 metric seeds present
+			// 013 metric seeds present
 			for (const key of ["bench_regression_failures", "forget_requests_total", "forget_tombstones_published"]) {
 				const row = store.prepare("SELECT value FROM kevin_metrics WHERE key = ?").get(key) as { value: number } | undefined;
-				expect(row, `v${v}: metric ${key} should exist after 012`).toBeDefined();
+				expect(row, `v${v}: metric ${key} should exist after 013`).toBeDefined();
 				expect(row?.value).toBe(0);
 			}
 			// indexes exist

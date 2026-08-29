@@ -17,7 +17,7 @@ describe("K8-026 — the plugin never spawns processes or touches the network", 
 				else if (entry.name.endsWith(".ts")) files.push(full);
 			}
 		};
-		walk(join(process.cwd(), "plugin"));
+		walk(join(process.cwd(), "packages/core/src"));
 		expect(files.length).toBeGreaterThan(40);
 
 		// Strip comments first — prose may mention `https://` or the word

@@ -46,7 +46,7 @@ function addToolCall(opts: {
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-e2e-settle-"));
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const f of readdirSync(MIGRATIONS_DIR)) {
 		copyFileSync(join(MIGRATIONS_DIR, f), join(migrationsDir, f));

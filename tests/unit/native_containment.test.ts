@@ -105,7 +105,7 @@ describe("K9-013 — dynamic-import containment", () => {
 		// constant-definition line; every other occurrence must be a
 		// dynamic `import(` usage of that constant.
 		const source = readFileSync(
-			join(process.cwd(), "plugin", "native.ts"),
+			join(process.cwd(), "packages/plugin/src", "native.ts"),
 			"utf8",
 		);
 		const lines = source.split("\n");

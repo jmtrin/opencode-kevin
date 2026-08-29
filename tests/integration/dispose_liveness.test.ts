@@ -30,7 +30,7 @@ let migrationsDir: string;
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-dispose-"));
 	dbPath = join(tmpRoot, "kevin.db");
-	migrationsDir = join(tmpRoot, "migrations");
+	migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of MIGRATIONS) {
 		copyFileSync(

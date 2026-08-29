@@ -109,7 +109,7 @@ let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-configkeysv08-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const file of MIGRATION_FILES) {
 		copyFileSync(
@@ -190,7 +190,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 			expect(out.ok).toBe(true);
 			expect(out.key).toBe(key);
 		}
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(32);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(35);
 		const listed = await runConfig({ action: "list" });
 		for (const key of [
 			...V08_SETTING_KEYS,

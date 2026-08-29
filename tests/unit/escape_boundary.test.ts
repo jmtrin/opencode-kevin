@@ -124,7 +124,7 @@ describe("K10-027 — escape.ts: one pure function per container", () => {
 
 	it("the boundary module imports nothing", () => {
 		const src = readFileSync(
-			join(process.cwd(), "plugin", "escape.ts"),
+			join(process.cwd(), "packages/core/src", "escape.ts"),
 			"utf8",
 		);
 		expect(src).not.toMatch(/^\s*import\b/m);

@@ -24,7 +24,7 @@ const MIGRATIONS = [
 
 beforeEach(async () => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-feedback-e2e-"));
-	const migrationsDir = join(tmpRoot, "migrations");
+	const migrationsDir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(migrationsDir, { recursive: true });
 	for (const name of MIGRATIONS) {
 		copyFileSync(
@@ -144,7 +144,7 @@ describe("K5-011 — kevin_feedback tool (D5-02/D5-07)", () => {
 
 	it("gracefully reports when migration 006 is missing", async () => {
 		// Rebuild hooks with a 001-005 migration dir; the tool must not crash.
-		const oldMigrationsDir = join(tmpRoot, "migrations");
+		const oldMigrationsDir = join(tmpRoot, "packages/core/migrations");
 		const pre006Dir = join(tmpRoot, "pre006");
 		mkdirSync(pre006Dir, { recursive: true });
 		for (const name of [

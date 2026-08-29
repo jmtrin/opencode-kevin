@@ -225,7 +225,7 @@ describe("K6-023 — kevin_audit tool reports the emission states from the init 
 	});
 
 	async function boot(input: Record<string, unknown>): Promise<void> {
-		const migrationsDir = join(tmpRoot, "migrations");
+		const migrationsDir = join(tmpRoot, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
 		for (const name of MIGRATIONS_007) {
 			copyFileSync(
