@@ -14,7 +14,7 @@ import { createReadTools } from "./tools/read.js";
 import { createWriteTools } from "./tools/write.js";
 import { buildProvenance } from "./provenance.js";
 
-const KEVIN_VERSION = "1.4.0";
+const KEVIN_VERSION = "1.5.0";
 
 const { values } = parseArgs({
   options: {
@@ -141,21 +141,10 @@ const registry: ToolDef[] = [
 
 // Register with MCP server
 for (const tool of registry) {
-  // SDK expects zod-like? We pass empty schema via inputSchema passthrough; use registerTool with zod raw shape
-  // For compatibility, we register with empty zod object via SDK's internal conversion
-  // Use any to bypass typing
   (server as unknown as { registerTool: (name: string, cfg: unknown, fn: unknown) => void }).registerTool(
     tool.name,
     { description: tool.description, inputSchema: tool.inputSchema as never },
-    async (args: Record<string, unknown>) => {
-      // Wrap already does metrics; but ping needs manual wrap? Use tool.handler directly with wrapper already applied for read/write tools.
-      // For ping, apply wrap
-      if (tool.name === "ping") {
-        const w = wrap("mcp.read", tool.handler);
-        return await w(args);
-      }
-      return await tool.handler(args).then((r) => ({ content: [{ type: "text" as const, text: JSON.stringify(r) }] }));
-    },
+    wrap("mcp.read", tool.handler),
   );
 }
 

@@ -158,6 +158,12 @@ export const KEVIN_CONFIG_KEYS = [
 	"mcp_write_enabled",
 	"mcp_approve_enabled",
 	"mcp_repo_override",
+	// v1.5.0 (K15-001 / plan §4) — the four Diaspora settings (no migration this release)
+	// skills_canonical_dir is a path, others are TEXT flags compared with === "1".
+	"skills_canonical_dir",
+	"skills_mirror_claude",
+	"skills_mirror_cursor",
+	"import_host_memory",
 ] as const;
 // v1.1.0 (K11-007 / D11-08) — no new settings in 1.1.0; thresholds are constants (D11-03)
 
@@ -241,6 +247,7 @@ export function performRekey(
 	toRepoId: string,
 	opts: { confirm: boolean; force?: boolean },
 ): RekeyResult {
+	if (!/^[0-9a-f]{16}$/.test(toRepoId)) return { action: "rekey", ok: false, reason: "invalid repo_id" } as RekeyResult;
 	// The 009 migration carries the repo_id column AND the shared-layer
 	// tables; without it there is nothing to re-key.
 	if (!hasRepoIdColumn(store)) {
@@ -402,6 +409,18 @@ export const KevinPlugin: Plugin = async (input, options) => {
 				"INSERT OR IGNORE INTO kevin_settings (key, value) VALUES (?, ?)",
 			)
 			.run("tui_snapshots_enabled", "1");
+	} catch {
+		// pre-003 DB without kevin_settings — nothing to seed
+	}
+	// v1.5.0 (K15-001) — Diaspora settings: ensure defaults on existing DBs.
+	try {
+		const ins = store.prepare(
+			"INSERT OR IGNORE INTO kevin_settings (key, value) VALUES (?, ?)",
+		);
+		ins.run("skills_canonical_dir", ".agents/skills");
+		ins.run("skills_mirror_claude", "0");
+		ins.run("skills_mirror_cursor", "0");
+		ins.run("import_host_memory", "0");
 	} catch {
 		// pre-003 DB without kevin_settings — nothing to seed
 	}
@@ -1637,18 +1656,25 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			}),
 			kevin_export: tool({
 				description:
-					"Exporta memorias curadas (decision, rule, pattern) como markdown o formato OKF. v0.3.0.",
+					"Exporta memorias curadas (decision, rule, pattern) como markdown, OKF o MIF (v1.5.0). v0.3.0.",
 				args: {
 					format: tool.schema
-						.enum(["okf", "markdown"])
+						.enum(["okf", "markdown", "mif"])
 						.default("okf")
-						.describe("okf | markdown"),
+						.describe("okf | markdown | mif"),
+					redact_pii: tool.schema.boolean().optional().default(false).describe("Cuando true, aplica redaccion SECRET_PATTERNS sobre el contenido (MIF honour-when-flagged, defecto false para preservar 1.x)"),
 				},
 				async execute(args) {
-					// v0.8.0 (K8-027) — the v1 export is scoped to this
-					// plugin's project: the global database holds several
-					// projects' memories, and a committed export must not
-					// leak another project's knowledge.
+					// v1.5.0 (K15-009) — MIF branch
+					if ((args.format as string) === "mif") {
+						const { toMif } = await import("@jmtrin/kevin-core");
+						const rows = store.prepare("SELECT * FROM memories WHERE status='active'").all() as unknown as import("@jmtrin/kevin-core").Memory[];
+						// scope filter to projectId like okf-export does? Use same as exportOkf: filter by project_id = ?
+						const scoped = projectId ? rows.filter((r: unknown) => (r as { project_id?: string }).project_id === projectId || (r as { project_id?: string }).project_id === projectId) : rows;
+						const envelope = toMif(scoped as never, { redactPii: args.redact_pii === true });
+						try { metrics.incr("mif_exports_total" as never, 1); } catch {}
+						return { title: "Export completado", output: JSON.stringify(envelope, null, 2) };
+					}
 					const output =
 						args.format === "markdown"
 							? exportMarkdown(store, projectId)
@@ -1661,11 +1687,44 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			}),
 			kevin_import: tool({
 				description:
-					"Importa un bundle markdown de conocimiento (v0.3.0). Cada entrada se guarda como context con origin='imported'.",
+					"Importa un bundle markdown de conocimiento (v0.3.0) o MIF / host memories (v1.5.0). Para host, requiere import_host_memory='1' (gate).",
 				args: {
-					bundle: tool.schema.string().min(1),
+					bundle: tool.schema.string().optional(),
+					format: tool.schema.enum(["okf", "markdown", "mif"]).optional().describe("okf | markdown | mif (mif requiere bundle JSON)"),
+					source: tool.schema.enum(["bundle", "claude-memory", "codex-memories"]).optional().describe("bundle (default) | claude-memory | codex-memories (requiere gate)"),
 				},
 				async execute(args) {
+					const src = (args.source as string) ?? "bundle";
+					if (src === "claude-memory" || src === "codex-memories") {
+						const { importHostMemories } = await import("@jmtrin/kevin-core");
+						const report = importHostMemories({ store, memoryService, metrics: metrics as unknown as import("@jmtrin/kevin-core").Metrics, env: kevinEnv, source: src as "claude-memory" | "codex-memories" });
+						if (report.error === "disabled") {
+							return { title: "Import no realizado (gate deshabilitado)", output: JSON.stringify({ error: "disabled", hint: "Ejecuta kevin_config set import_host_memory 1 para habilitar" }) };
+						}
+						return { title: "Import completado", output: JSON.stringify(report) };
+					}
+					if ((args.format as string) === "mif") {
+						if (!args.bundle) return { title: "Import error", output: JSON.stringify({ error: "missing_bundle", hint: "bundle requerido para formato mif" }) };
+						try {
+							const env = JSON.parse(args.bundle);
+							const { fromMif } = await import("@jmtrin/kevin-core");
+							const { candidates } = fromMif(env);
+							let imported = 0;
+							let duplicates = 0;
+							for (const c of candidates) {
+								const fp = c.content ? (await import("@jmtrin/kevin-core")).fingerprint(c.content) : "";
+								const exists = store.prepare("SELECT 1 FROM memories WHERE fingerprint = ? LIMIT 1").get(fp);
+								if (exists) { duplicates++; continue; }
+								memoryService.save({ type: (c.type as "context"|"rule"|"pattern"|"decision") ?? "context", content: c.content, scope: "project", origin: "imported", fingerprint: fp, metadata: c.metadata as unknown as Record<string, unknown> });
+								imported++;
+							}
+							try { metrics.incr("mif_imports_total" as never, 1); } catch {}
+							return { title: "Import completado", output: JSON.stringify({ imported, duplicates, unknownFieldsPreserved: candidates[0]?.unknownFields ? Object.keys(candidates[0].unknownFields) : [] }) };
+						} catch (e) {
+							return { title: "Import error", output: JSON.stringify({ error: "bad_json", message: (e as Error).message }) };
+						}
+					}
+					if (!args.bundle) return { title: "Import error", output: JSON.stringify({ error: "missing_bundle" }) };
 					const result = importOkf(args.bundle, memoryService);
 					return {
 						title: "Import completado",
@@ -2599,6 +2658,25 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							}
 						} catch {
 							// best-effort — snapshot failure must not break idle
+						}
+						// v1.5.0 (K15-007) — skill bundle refresh after snapshots flush
+						try {
+							const manifestPath = join(materializerRoot, "skills-manifest.json");
+							const shouldRefresh = memoryService.getSetting("skills_mirror_claude", "0") === "1" || memoryService.getSetting("skills_mirror_cursor", "0") === "1" || memoryService.getSetting("skills_canonical_dir", ".agents/skills") !== "" || existsSync(manifestPath);
+							// spec: run when ANY skill setting is on OR manifest exists; canonical_dir always set so we check manifest existence as primary gate plus mirror flags
+							const hasManifest = existsSync(manifestPath);
+							const mirrorActive = memoryService.getSetting("skills_mirror_claude", "0") === "1" || memoryService.getSetting("skills_mirror_cursor", "0") === "1";
+							if (hasManifest || mirrorActive) {
+								const { refreshSkillBundle } = await import("@jmtrin/kevin-core");
+								const bundles = materializer.topicBundles();
+								const canonicalDir = memoryService.getSetting("skills_canonical_dir", ".agents/skills");
+								const mirrors: Array<"claude"|"cursor"> = [];
+								if (memoryService.getSetting("skills_mirror_claude", "0") === "1") mirrors.push("claude");
+								if (memoryService.getSetting("skills_mirror_cursor", "0") === "1") mirrors.push("cursor");
+								refreshSkillBundle({ projectRoot, canonicalDir, mirrors, topics: bundles, repoId: sessionIdentity.repoId, manifestPath, metrics: metrics as unknown as { incr: (k:string)=>void } });
+							}
+						} catch {
+							// best-effort
 						}
 						// v1.0.0 (K10-013 / D10-08) — the session recorded work:
 						// arm the deferred dispose settlement. The ISO timestamp

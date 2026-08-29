@@ -94,7 +94,7 @@ export function parseGitConfigRemote(
 		if (currentSection !== "remote") continue;
 
 		const eq = line.indexOf("=");
-		if (eq === -1) return null;
+		if (eq === -1) continue;
 		const key = line.slice(0, eq).trim();
 		const value = line.slice(eq + 1).trim();
 		if (key !== "url") continue;

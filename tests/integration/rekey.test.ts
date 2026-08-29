@@ -357,16 +357,25 @@ describe("K8-009 — kevin_project rekey (plan §5.1, D8-03)", () => {
 	});
 
 	it("no code path outside the kevin_project tool handler calls performRekey (source scan)", () => {
-		const pluginDir = join(process.cwd(), "packages/core/src");
+		// v1.3.0 Bedrock: performRekey lives in packages/plugin/src/index.ts
+		const dirs = ["packages/plugin/src", "packages/core/src"];
 		const hits: Record<string, number> = {};
-		for (const f of readdirSync(pluginDir)) {
-			if (!f.endsWith(".ts")) continue;
-			const src = readFileSync(join(pluginDir, f), "utf8");
-			const n = src.match(/performRekey\(/g)?.length ?? 0;
-			if (n > 0) hits[f] = n;
+		for (const pluginDir of dirs) {
+			for (const f of readdirSync(join(process.cwd(), pluginDir))) {
+				if (!f.endsWith(".ts")) continue;
+				const src = readFileSync(join(pluginDir, f), "utf8");
+				const n = src.match(/performRekey\(/g)?.length ?? 0;
+				if (n > 0) hits[`${pluginDir}/${f}`] = n;
+			}
 		}
-		// Exactly two occurrences, both in index.ts: the export definition
+		// Exactly two occurrences, both in plugin index.ts: the export definition
 		// and the single call inside the kevin_project tool handler.
-		expect(hits).toEqual({ "index.ts": 2 });
+		// Normalize to basename for assertion.
+		const byBase: Record<string, number> = {};
+		for (const [k, v] of Object.entries(hits)) {
+			const base = k.split("/").pop() as string;
+			byBase[base] = (byBase[base] ?? 0) + v;
+		}
+		expect(byBase).toEqual({ "index.ts": 2 });
 	});
 });

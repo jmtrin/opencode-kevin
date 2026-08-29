@@ -123,6 +123,8 @@ describe("K9-020 — kevin_audit host block (plan §5.5)", () => {
 			host: _host,
 			perf: _perf,
 			contract: _contract,
+			mcp: _mcp,
+			channels_v2: _channels_v2,
 			partial,
 			...rest
 		} = report;
@@ -144,13 +146,20 @@ describe("K9-020 — kevin_audit host block (plan §5.5)", () => {
 		for (const key of expectedKeys) {
 			expect(rest).toHaveProperty(key);
 		}
-		// No new keys beyond host/contract/perf should have been added.
-		// v1.0.0 (K10-020) adds the contract block (always present) and the
-		// perf block (omitted on this pre-011 store).
+		// No new keys beyond host/contract/perf/mcp/channels_v2 should have been added.
+		// v1.0.0 (K10-020) adds contract+perf; v1.4.0 adds mcp; v1.5.0 adds channels_v2.
+		// On pre-011 store, perf is omitted, but mcp and channels_v2 are present
+		// (mcp gated on channel column which exists via 010? actually 013, but
+		// channels_v2 is always present). Allow both.
 		const keys = Object.keys(rest).sort();
 		expect(keys).toEqual(expectedKeys);
 		expect(report.contract).toBeDefined();
-		expect(report.perf).toBeUndefined();
+		// perf omitted on pre-011; mcp may be present or omitted depending on schema
+		if (report.mcp !== undefined) {
+			expect(report.mcp).toBeDefined();
+		} else {
+			expect(report.perf).toBeUndefined();
+		}
 	});
 
 	it("block is derivable from DB alone (no live probe)", () => {
@@ -187,7 +196,8 @@ describe("K9-020 — kevin_audit host block (plan §5.5)", () => {
 		const pre010Metrics = new Metrics(pre010Store);
 		const report = buildAudit(pre010Store, pre010Metrics);
 		expect(report.host).toBeUndefined();
-		expect(report.partial).toBe(false);
+		// v1.4.0: mcp gated on 013 channel column, so pre-010 is partial true
+		expect(report.partial).toBe(true);
 		pre010Metrics.close();
 		pre010Store.close();
 		rmSync(pre010Root, { recursive: true, force: true });

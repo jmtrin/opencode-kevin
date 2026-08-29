@@ -188,14 +188,15 @@ describe("K7-015 — kevin_conflicts and audit conflicts block", () => {
 			penalized_memories: 1,
 			truncated: { is_truncated: true, count: 500 },
 		});
-		expect(report.partial).toBe(false);
+		// v1.4.0: pre-013 mcp missing → partial true even though truth present
+		expect(report.partial).toBe(true);
 	});
 
 	it("audit truth block is omitted without a projectId", () => {
 		seedConflict();
 		const report = buildAudit(store, new Metrics(store));
 		expect(report.truth).toBeUndefined();
-		expect(report.partial).toBe(false);
+		expect(report.partial).toBe(true);
 	});
 
 	it("pre-008 audit omits conflicts and truth and reports partial", async () => {

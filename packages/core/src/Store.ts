@@ -22,6 +22,7 @@ export interface StoreOptions {
 export class Store {
 	private db: SqliteAdapter;
 	private closed = false;
+	private txDepth = 0;
 
 	constructor(options: StoreOptions) {
 		this.db = createDatabase(options.path);
@@ -37,8 +38,17 @@ export class Store {
 
 	transaction<T>(fn: () => T): T {
 		if (this.closed) throw new Error("Store is closed");
-		const tx = this.db.transaction(fn);
-		return tx();
+		if (this.txDepth > 0) return fn();
+		this.txDepth++;
+		try {
+			const tx = this.db.transaction(fn);
+			const result = tx();
+			this.txDepth--;
+			return result;
+		} catch (e) {
+			this.txDepth--;
+			throw e;
+		}
 	}
 
 	exec(sql: string): void {

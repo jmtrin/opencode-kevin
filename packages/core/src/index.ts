@@ -74,6 +74,10 @@ export * from "./kevin_propose.js";
 export { kevinPublish } from "./kevin_publish.js";
 export type { PublishResult } from "./kevin_publish.js";
 export * from "./kevin_why.js";
+export * from "./skills-validate.js";
+export * from "./skills-emit.js";
+export * from "./mif.js";
+export * from "./import-host.js";
 
 // KEVIN_CONFIG_KEYS and related constants — moved from adapter index so core owns the source of truth (C-04).
 // Duplicated here to allow adapter to import from core; adapter will re-export them.
@@ -114,6 +118,10 @@ export const KEVIN_CONFIG_KEYS = [
 	"mcp_write_enabled",
 	"mcp_approve_enabled",
 	"mcp_repo_override",
+	"skills_canonical_dir",
+	"skills_mirror_claude",
+	"skills_mirror_cursor",
+	"import_host_memory",
 ] as const;
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
-export const KEVIN_VERSION = "1.4.0";
+export const KEVIN_VERSION = "1.5.0";

@@ -186,7 +186,8 @@ describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
 		// to 31 (C-04).
 		// v1.2.0 (K12-001 / plan §4): tui_snapshots_enabled brings the total
 		// to 32 (C-04).
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(35);
+		// v1.4.0: mcp_* 3 → 35, v1.5.0: skills_* 3 + import_host_memory 1 → 39 (C-04).
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(39);
 	});
 
 	it("a new key rejected by kevin_config set is a config surface defect", async () => {

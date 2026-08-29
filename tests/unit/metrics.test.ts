@@ -75,7 +75,7 @@ describe("Metrics", () => {
 		const store = new Store({ path: ":memory:" });
 		const m = new Metrics(store);
 		const snap = m.snapshot();
-		// All 44 keys still present at zero (39 + v1.1 bench/forget + v1.2 tui).
+		// All 52 keys still present at zero (39 + v1.1 bench/forget + v1.2 tui + v1.4 mcp 5 + v1.5 diaspora 3).
 		// v0.8.0 (K8-003) adds the six Team keys.
 		expect(Object.keys(snap).sort()).toEqual(
 			[
@@ -102,6 +102,13 @@ describe("Metrics", () => {
 				"memories_archived",
 				"memories_contradicted",
 				"memories_superseded",
+				"mcp_errors_total",
+				"mcp_reads_served",
+				"mcp_requests_total",
+				"mcp_writes_accepted",
+				"mcp_writes_refused",
+				"mif_exports_total",
+				"mif_imports_total",
 				"okf_merge_folds",
 				"patterns_causal",
 				"patterns_mined",
@@ -115,6 +122,7 @@ describe("Metrics", () => {
 				"shared_entries_exported",
 				"shared_entries_imported",
 				"shared_entries_total",
+				"skills_emitted_total",
 				"tokens_injected_compacting",
 				"tokens_injected_pre_prompt",
 				"tool_calls_deduped",
@@ -325,8 +333,9 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 	// verifiable cumulative ladder the later release gates depend on.
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
 	// v1.1.0 adds 3 (bench+forget), v1.2.0 adds 2 (tui) for a total of 44.
+	// v1.4.0 adds 5 (mcp), v1.5.0 adds 3 (skills+mif) for a total of 52.
 	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(44);
+		expect(METRIC_KEYS).toHaveLength(52);
 	});
 
 	it("snapshot() includes all keys", () => {
@@ -478,9 +487,9 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 
 describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
-	// v1.1.0 + v1.2.0 bring the total to 44.
+	// v1.1.0 + v1.2.0 bring the total to 44, v1.4.0+1.5.0 to 52.
 	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(44);
+		expect(METRIC_KEYS).toHaveLength(52);
 	});
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {

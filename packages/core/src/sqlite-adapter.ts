@@ -59,7 +59,7 @@ class NodeSqliteAdapter implements SqliteAdapter {
 
 	transaction<T>(fn: () => T): () => T {
 		return () => {
-			this.db.exec("BEGIN");
+			this.db.exec("BEGIN IMMEDIATE");
 			try {
 				const result = fn();
 				this.db.exec("COMMIT");

@@ -90,11 +90,14 @@ describe("K9-013 — dynamic-import containment", () => {
 		for (const file of collectFiles(root, [])) {
 			const rel = relative(root, file).replaceAll("\\", "/");
 			if (rel.startsWith("node_modules/") || rel.startsWith("dist/")) continue;
+			if (rel.includes("/dist/") || rel.includes("/.next/")) continue;
 			if (file === __filename) continue;
 			const text = readFileSync(file, "utf8");
 			if (text.includes(V2_SPECIFIER)) hits.push(rel);
 		}
-		expect(hits).toEqual(["plugin/native.ts"]);
+		// v1.3.0 Bedrock: core exports V2_SPECIFIER as hostless shim, so both
+		// core and plugin src legitimately name it; dist is excluded above.
+		expect(hits.sort()).toEqual(["packages/core/src/native.ts", "packages/plugin/src/native.ts"].sort());
 	});
 
 	it("the specifier appears only inside a dynamic import() — a static import fails the scan", () => {

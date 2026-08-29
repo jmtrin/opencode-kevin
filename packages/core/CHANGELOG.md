@@ -3,6 +3,10 @@
 All notable changes to the hostless core are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + SemVer.
 
+## [1.5.0] - 2026-08-29
+
+> Diaspora — canonical skills + mirrors + MIF codec + host import; 39 settings, 64 metrics, schema 014, `KEVIN_VERSION 1.5.0`.
+
 ## [1.3.0] - 2026-08-29
 
 > Initial published core. Extracted from `@jmtrin/opencode-kevin` via `git mv` (Bedrock, K13-001…K13-018) — **REORGANIZATION-ONLY**. Zero dependencies, no behavior diff vs 1.2.0 (26/32/56, migrations 012, empty diffs in K13-016).

@@ -31,8 +31,7 @@ export function createReadTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
-        try { metrics.incr("mcp_reads_served" as never, 1); } catch {}
+
         const svc = memService();
         const memories = svc.query({
           text: args.query as string,
@@ -54,8 +53,7 @@ export function createReadTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
-        try { metrics.incr("mcp_reads_served" as never, 1); } catch {}
+
         const svc = memService();
         const mem = svc.getById(args.id as string);
         if (!mem) return { error: "not_found", id: args.id, provenance: buildProvenance(identity) };
@@ -69,8 +67,7 @@ export function createReadTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
-        try { metrics.incr("mcp_reads_served" as never, 1); } catch {}
+
         const svc = memService();
         const memories = svc.getRelevant({
           query: args.query as string | undefined,
@@ -97,8 +94,7 @@ export function createReadTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
-        try { metrics.incr("mcp_reads_served" as never, 1); } catch {}
+
         const res = kevinWhy(store, args.query as string);
         if (!res) return { error: "not_found", query: args.query, provenance: buildProvenance(identity) };
         return { ...res, provenance: buildProvenance(identity, { confidence: res.confidence, evidence_count: res.evidence_count }) };
@@ -110,8 +106,7 @@ export function createReadTools(opts: {
       inputSchema: {},
       handler: async (args: Record<string, unknown>) => {
         // status bypasses mismatch but reports both
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
-        try { metrics.incr("mcp_reads_served" as never, 1); } catch {}
+
         const requested = (args.repo_id as string | undefined) ?? null;
         const mismatch = requested ? assertScope(identity.repoId, requested) : null;
         const memCount = (store.prepare("SELECT COUNT(*) as c FROM memories").get() as { c: number }).c;
@@ -144,8 +139,7 @@ export function createReadTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
-        try { metrics.incr("mcp_reads_served" as never, 1); } catch {}
+
         const svc = memService();
         const memories = svc.getRelevant({ query: args.query as string | undefined, maxTokens: 2500, scope: "all" });
         return { dry_run: true, results: memories.map((m) => ({ id: m.id, type: m.type, scope: m.scope })), provenance: buildProvenance(identity) };
@@ -158,8 +152,7 @@ export function createReadTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
-        try { metrics.incr("mcp_reads_served" as never, 1); } catch {}
+
         const fb = new Feedback(store, metrics);
         try {
           const id = fb.record({ memoryId: args.id as string, verdict: args.verdict as never, sessionId: `mcp:${Date.now()}` });

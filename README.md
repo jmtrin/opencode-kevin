@@ -26,7 +26,7 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-1.4.0-blue)
+![version](https://img.shields.io/badge/version-1.5.0-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
 ![tests](https://img.shields.io/badge/tests-1380%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
@@ -48,6 +48,7 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 1.5.0 — Diaspora](#-whats-new-in-150--diaspora)
 - [What's new in 1.4.0 — Bridge](#-whats-new-in-140--bridge)
 - [What's new in 1.3.0 — Bedrock](#-whats-new-in-130--bedrock)
 - [What's new in 1.2.0 — Surface](#-whats-new-in-120--surface)
@@ -177,6 +178,20 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── AGENTS.md           ← curated knowledge (marker block, human-approved)
 └── knowledge.okf       ← optional team-sharing file (opt-in)
 ```
+
+---
+
+## 🆕 What's new in 1.5.0 — "Diaspora"
+
+> 1.5.0 shares curated knowledge as versioned skills mirrored to every harness and as portable `.mif` memory — same DB, same recall, gated emission.
+
+- 📚 **Canonical skills** — `skills_canonical_dir` (canonical `.md` + `manifest.json`), atomic writes, ≤80/150 caps, deterministic sort, idle refresh after snapshots flush; missing `manifest.json` ⇒ external-edit signal.
+- 🪞 **Mirrors** — `skills_mirror_claude` / `skills_mirror_cursor` exact byte copy of canonical, deleted skills pruned following canonical, single-prefix enforcement.
+- 📦 **MIF portable memory** — `MifDocument` `{version,exported_at,entries{vendor}}`, `kevin_export {mif, redact_pii}` + `kevin_import {mif,claude,codex}` with `SECRET_PATTERNS` redaction, vendor preservation, metrics `mif_exports/imports_total`.
+- 📥 **Host import** — gate `import_host_memory='1'`, Claude `~/.claude.json` lineage + Codex `~/.codex/sessions/*.jsonl` lineage, dedup by lineage hash, `pending` memories with `origin:host`.
+- 📊 **Contracts** — C-04/C-05 since `1.5.0` (+4 settings / +3 metrics → 39/64), C-07 014, golden `v1.json` 39/64, `kevin_audit` channels v2 + perf `skills.emit/mif.codec`.
+
+**Upgrade:** `npm i @jmtrin/kevin-core@1.5.0 @jmtrin/opencode-kevin@1.5.0 @jmtrin/opencode-kevin-tui@1.5.0 @jmtrin/kevin-mcp@1.5.0` — DB auto-migrates to 014; emission/mirrors gated off until canonical/mirror paths set, host import gated off until `import_host_memory='1'`.
 
 ---
 

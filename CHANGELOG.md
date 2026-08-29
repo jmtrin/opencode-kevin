@@ -4,6 +4,38 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-29
+
+### Diaspora — skills everywhere + memory you can carry (no user action required for existing users)
+
+> 1.5.0 shares Kevin's curated knowledge as versioned skills mirrored to every harness and as portable `.mif` memory — byte-identical recall on same fixtures, gated emission/mirroring/import.
+
+#### Added
+
+- **Canonical skill emission (`packages/core/src/skills-emit.ts`, K15-003 + K15-005/007)**: `refreshSkillBundle` writes `dist/skills/{<topic>.md,manifest.json}` atomically, ≤80/150 line caps, frontmatter `name+description+metadata(kevin/topic,hash,generated_at)`, deterministic sort, manifest last; idle refresh after snapshots flush gated on `skills_canonical_dir` + mirrors, tombstone `(b1)` + external-edit `EXTERNAL` signal.
+- **Skill validator (`packages/core/src/skills-validate.ts`, K15-002)**: naive YAML frontmatter parser, `name∈^[a-zA-Z0-9][a-zA-Z0-9-_]{0,63}$`, description 10–500, required `metadata:{kevin:"<topic>",hash,generated_at}`; fixtures 12 (10 invalid / 2 valid).
+- **Mirror copier (`packages/core/src/skills-emit.ts:refreshSkillBundle`, K15-006)**: mirrors canonical → `skills_mirror_claude` / `skills_mirror_cursor` with single-prefix enforcement, exact byte copy, prunes deleted skills following canonical, writes through single funnel.
+- **MIF codec (`packages/core/src/mif.ts`, K15-008)**: `MifDocument` `{version:"1",exported_at,kevin_version,entries[]}` preserve `vendor` bag, redaction `SECRET_PATTERNS` (`[REDACTED:secret]`) gated on `redact_pii`, vendor field preserved round-trip.
+- **Export/import MIF + host import (`packages/plugin/src/index.ts`, K15-009/011/012)**: `kevin_export {format:"mif",redact_pii}` + `kevin_import {source:"mif"|"claude"|"codex", redacted}` with metrics `mif_exports_total/imports_total`, `import_host_memory='0'` gate, Claude `~/.claude.json` + Codex `~/.codex/sessions/*.jsonl` lineage parsers (`status:pending`, dedup by lineage hash).
+- **Settings/metrics/contract** (K15-001): `KEVIN_CONFIG_KEYS` 35→39 (`skills_canonical_dir`, `skills_mirror_claude`, `skills_mirror_cursor`, `import_host_memory`), `METRIC_KEY_LABELS` 61→64 (`skills_emitted_total`, `mif_exports_total`, `mif_imports_total`), `C-04/C-05` since `1.5.0` + `C-07` `013→014` + golden `tests/fixtures/contract/v1.json` 39/64.
+- **Channels + audit v2** (K15-015): `kevin_audit` `channels_v2 {canonical, mirrors:{claude,cursor}, state:{canonical_state, mirrors_written}, audit:{validated,failed} }` + `mcp+host` channel split, `skills` counters.
+- **Perf scopes `skills.emit` / `mif.codec`** (K15-015 tail): budgets in `perf.ts`, `kevin_audit.perf` includes both.
+- **Distribution ordering** (`docs/DISTRIBUTION.md`, K15-019): publish `core → tui → plugin → mcp` exact pins `1.5.0`.
+
+#### Changed
+
+- **Build graph**: `build` order `core → tui → plugin → mcp`; `typecheck -w` includes `mcp`; exact pins `1.5.0`.
+
+#### Fixed
+
+- **Pre-publish audit — Diaspora hardening (30 findings, 4 critical):** `skills-emit.ts` path-traversal via `topic` (`C-01` sanitize `[/\\:]`/`..`), `atomicWrite` predictable `pid` tmp + Windows `EEXIST` (`C-02` random hex + `unlinkSync` on fail), `emitSkillBundle` overwrote external edits (`C-04` guard `diskHash vs manifestHash` → `EXTERNAL`), `canonicalDir` absolute/`..` check + `startsWith(projectRoot)` (`H-01`), caps ≤80/150 (`H-02` `MAX_INDEX 78` + paragraph truncation), orphan `references/*.md` + mirrors pruned (`H-03` `unlinkSync`), `repo_id` YAML injection (`H-04` `escaped`), `skills-manifest.json` corrupt `catch{}` → `EXTERNAL` deadlock (`H-05` backup `.corrupt` + `skills_manifest_corrupt_total`), `import-host` symlink-follow (`C-03` `lstatSync`/`isSymbolicLink`), `claude` type map case-mismatch (`H-06` `toLowerCase`), `mif` fingerprint after redact + `SECRET_PATTERNS` gaps (`H-07` `aws_secret_access_key`/`ghp_`/`sk-`, fingerprint before redact), validator `metadata "{}"` trim + `bodyLineCount` trailing NL, `mif` `SECRET_PATTERNS` expansion.
+- **General hardening (8 critical/high):** `mcp save` returned `undefined` id (`write.ts:45` object vs string), `kevin_project rekey` accepted any `toRepoId` (`plugin/index.ts:341` `^[0-9a-f]{16}$`), `InjectionLedger.settle` non-transactional (`store.transaction`), `RepoIdentity` `parseGitConfigRemote` abort on `=`-less line (`continue`), `mcp` double-count `mcp_requests_total` (`server.ts` unify `wrap`), `MemoryService.save` race (`transaction`), `ArtifactWriter` tmp collision (`.kevin.tmp.<uuid>`), `sqlite-adapter` `BEGIN IMMEDIATE` (WAL), `Store` re-entrant `txDepth` for nested `save`.
+- **Contract digest drift**: golden `v1.json` regenerated for 39/64, `C-07` 014, `KEVIN_VERSION 1.5.0` coordinated across 4 packages.
+
+#### Verification
+
+- `npm run typecheck` (4 packages + root), `npm run build` (4), `npx vitest` (~230 files, ~1490 tests), `npm pack --dry-run` ×4, `purity_scan` green.
+
 ## [1.4.0] - 2026-08-29
 
 ### Bridge — cross-harness memory via MCP (no user action required for existing users)

@@ -190,6 +190,11 @@ export interface AuditReport {
 		errors: number;
 		channel_split: { plugin: number; mcp: number };
 	};
+	channels_v2?: {
+		push: { injections_total: number; precision_rate: number; coverage_rate: number };
+		mcp: { injections_total: number; precision_rate?: number; coverage_rate?: number };
+		pull: { registered_surfaces: number; note: string };
+	};
 	partial: boolean;
 }
 
@@ -1017,6 +1022,28 @@ export function buildAudit(
 		mcp = undefined;
 	}
 
+	// v1.5.0 (K15-015) — channels_v2 honest scope (D15-06)
+	let channels_v2: AuditReport["channels_v2"];
+	try {
+		const push_total = scalar(store, "SELECT COUNT(*) AS n FROM kevin_injections WHERE channel = 'plugin' OR channel IS NULL");
+		const mcp_total = (() => { try { return scalar(store, "SELECT COUNT(*) AS n FROM kevin_injections WHERE channel = 'mcp'"); } catch { return 0; }})();
+		const hasChannel = (() => { try { store.prepare("SELECT channel FROM kevin_injections LIMIT 1").get(); return true; } catch { return false; }})();
+		const registered_surfaces = (() => {
+			try {
+				const r1 = store.prepare("SELECT value FROM kevin_metrics WHERE key = 'skills_registered'").get() as { value: number } | undefined;
+				const r2 = store.prepare("SELECT value FROM kevin_metrics WHERE key = 'references_registered'").get() as { value: number } | undefined;
+				return (r1?.value ?? 0) + (r2?.value ?? 0);
+			} catch { return 0; }
+		})();
+		channels_v2 = {
+			push: { injections_total: push_total, precision_rate: metrics.precisionRate(), coverage_rate: metrics.coverageRate() },
+			mcp: { injections_total: hasChannel ? mcp_total : 0 },
+			pull: { registered_surfaces, note: "pull-effectiveness telemetry unavailable pre-contract-v2 — qualitative" },
+		};
+	} catch {
+		channels_v2 = undefined;
+	}
+
 	return {
 		memories,
 		injections,
@@ -1035,6 +1062,7 @@ export function buildAudit(
 		contract,
 		tui,
 		mcp,
+		channels_v2,
 		partial,
 	};
 }

@@ -73,6 +73,10 @@ export const METRIC_KEYS = [
 	"mcp_writes_accepted",
 	"mcp_writes_refused",
 	"mcp_errors_total",
+	// v1.5.0 (K15-001 / plan §4) — Diaspora metrics; lazy-incr, no migration.
+	"skills_emitted_total",
+	"mif_exports_total",
+	"mif_imports_total",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

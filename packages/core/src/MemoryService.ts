@@ -582,44 +582,45 @@ export class MemoryService {
 		// supersession a navigable audit trail. Guarded: pre-006 DBs lack
 		// the column (same migration as `ignored`).
 		const supersedableTypes: MemoryType[] = ["decision", "rule"];
-		if (fp !== null && supersedableTypes.includes(input.type)) {
-			const withSupersededBy = this.hasIgnoredColumn();
-			const setClause = withSupersededBy
-				? "SET status = 'superseded', superseded_by = ?, updated_at = datetime('now')"
-				: "SET status = 'superseded', updated_at = datetime('now')";
-			// v0.8.0 (K8-007 / plan §5.7) — once the 009 column exists and an
-			// identity is resolved, supersession is scoped on repo_id (NULL
-			// rows are global); project_id stays as the pre-009 scope.
-			const scopedOnRepoId = this.hasRepoIdColumn() && this.repoId !== null;
-			const whereScope = scopedOnRepoId
-				? "AND (repo_id IS ? OR repo_id IS NULL)"
-				: "AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))";
-			const scopeParams: unknown[] = scopedOnRepoId
-				? [this.repoId]
-				: [projectId, projectId];
-			this.store
-				.prepare(
-					`UPDATE memories
-					 ${setClause}
-					 WHERE fingerprint = ?
-					   AND type = ?
-					   AND status = 'active'
-					   ${whereScope}`,
-				)
-				.run(
-					...(withSupersededBy
-						? [id, fp, input.type, ...scopeParams]
-						: [fp, input.type, ...scopeParams]),
-				);
-			const after = this.store.prepare("SELECT changes() AS n").get() as {
-				n: number;
-			};
-			if (after.n > 0) {
-				this.metrics?.incr("memories_superseded", 1);
-			}
-		}
-
 		try {
+			this.store.transaction(() => {
+			if (fp !== null && supersedableTypes.includes(input.type)) {
+				const withSupersededBy = this.hasIgnoredColumn();
+				const setClause = withSupersededBy
+					? "SET status = 'superseded', superseded_by = ?, updated_at = datetime('now')"
+					: "SET status = 'superseded', updated_at = datetime('now')";
+				// v0.8.0 (K8-007 / plan §5.7) — once the 009 column exists and an
+				// identity is resolved, supersession is scoped on repo_id (NULL
+				// rows are global); project_id stays as the pre-009 scope.
+				const scopedOnRepoId = this.hasRepoIdColumn() && this.repoId !== null;
+				const whereScope = scopedOnRepoId
+					? "AND (repo_id IS ? OR repo_id IS NULL)"
+					: "AND (project_id IS ? OR (project_id IS NULL AND ? IS NULL))";
+				const scopeParams: unknown[] = scopedOnRepoId
+					? [this.repoId]
+					: [projectId, projectId];
+				this.store
+					.prepare(
+						`UPDATE memories
+						 ${setClause}
+						 WHERE fingerprint = ?
+						   AND type = ?
+						   AND status = 'active'
+						   ${whereScope}`,
+					)
+					.run(
+						...(withSupersededBy
+							? [id, fp, input.type, ...scopeParams]
+							: [fp, input.type, ...scopeParams]),
+					);
+				const after = this.store.prepare("SELECT changes() AS n").get() as {
+					n: number;
+				};
+				if (after.n > 0) {
+					this.metrics?.incr("memories_superseded", 1);
+				}
+			}
+
 			// v0.4.0 (BUG-008) — recurrence_count is only persisted when the
 			// column exists (migration 005); pre-005 DBs get the legacy shape.
 			// v0.6.0 (K6-011 / plan §5.3) — the inferable verdict is persisted
@@ -684,6 +685,7 @@ export class MemoryService {
 			const insert = `INSERT INTO memories (${columns.join(", ")})
            VALUES (${params.map(() => "?").join(", ")})`;
 			this.store.prepare(insert).run(...params);
+			});
 			return id;
 		} catch (err) {
 			const msg = (err as { message?: string } | undefined)?.message ?? "";

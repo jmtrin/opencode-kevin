@@ -148,6 +148,17 @@ export class Materializer {
 			.all() as CuratedRow[];
 	}
 
+	/** K15-003 — topic bundles for skill emit (deterministic) */
+	topicBundles(): Array<{ topic: string; content: string }> {
+		const rows = this.curatedRows();
+		const bundles: Array<{ topic: string; content: string }> = [];
+		for (const g of this.groupByTopic(rows)) {
+			const body = renderRows(g.rows);
+			if (body !== "") bundles.push({ topic: g.topic, content: body });
+		}
+		return bundles;
+	}
+
 	/** The rendered skill body over all curated memories; "" when empty. */
 	skillBody(): string {
 		return renderRows(this.curatedRows());

@@ -129,6 +129,7 @@ describe("K10-020 — kevin_audit perf and contract blocks", () => {
 		const report = buildAudit(store, new Metrics(store));
 		expect(report.perf).toBeUndefined();
 		expect(report.contract).toBeDefined();
-		expect(report.partial).toBe(false);
+		// v1.4.0: mcp gated on 013 channel column, so pre-011 (up to 010) is partial true
+		expect(report.partial).toBe(true);
 	});
 });

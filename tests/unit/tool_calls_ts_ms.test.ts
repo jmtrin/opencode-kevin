@@ -56,7 +56,7 @@ describe("K11-002 ToolCallObserver ts_ms", () => {
 			const tmpMig = join(tmp, "migs");
 			mkdirSync(tmpMig, { recursive: true });
 			const files = readdirSync(migrationsDir).filter(
-				(f) => f !== "012_v11_drift.sql",
+				(f) => f !== "012_v11_drift.sql" && f !== "013_v14_bridge.sql",
 			);
 			for (const f of files)
 				copyFileSync(join(migrationsDir, f), join(tmpMig, f));

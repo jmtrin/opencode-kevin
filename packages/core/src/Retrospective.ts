@@ -123,6 +123,10 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	mcp_writes_accepted: "Escrituras MCP aceptadas",
 	mcp_writes_refused: "Escrituras MCP rechazadas",
 	mcp_errors_total: "Errores MCP totales",
+	// v1.5.0 (K15-001 / plan §4) — Diaspora metrics; labels required by BUG-014.
+	skills_emitted_total: "Skills emitidos (total)",
+	mif_exports_total: "Exportaciones MIF totales",
+	mif_imports_total: "Importaciones MIF totales",
 };
 
 function originLabel(

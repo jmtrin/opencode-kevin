@@ -1,12 +1,12 @@
-# Kevin — Distribution Checklist (v1.4.0 "Bridge")
+# Kevin — Distribution Checklist (v1.5.0 "Diaspora")
 
-**Version:** 1.4.0
+**Version:** 1.5.0
 **Status:** Active
 **Principle:** Public trust signals are engineering surface (P40) — these items are measured, not goodwill.
 
 This checklist is the human-side of the release (D11-04). CI asserts only offline facts (LICENSE, homepage, CHANGELOG); GitHub-side actions live here with owner + evidence placeholders. (D11-04)
 
-> Updated for Bridge (K14-001..021): `packages/core` + `packages/plugin` + `packages/tui` + `packages/mcp` publish ordering `core → tui → plugin → mcp` (mcp pins core 1.4.0 exact).
+> Updated for Diaspora (K15-001..021): `packages/core` + `packages/plugin` + `packages/tui` + `packages/mcp` publish ordering `core → tui → plugin → mcp` (mcp pins core 1.5.0 exact).
 
 ---
 
@@ -47,14 +47,14 @@ This checklist is the human-side of the release (D11-04). CI asserts only offlin
 
 ---
 
-## Release ordering (v1.4.0 Bridge)
+## Release ordering (v1.5.0 Diaspora)
 
 Publish in exact-pin order so dependency resolution is single-column:
 
 1. `packages/core` FIRST: `npm publish --dry-run -w @jmtrin/kevin-core` then `npm publish -w @jmtrin/kevin-core`
 2. `packages/tui`: `npm publish --dry-run -w @jmtrin/opencode-kevin-tui` then `npm publish -w @jmtrin/opencode-kevin-tui`
-3. `packages/plugin`: `npm publish --dry-run -w @jmtrin/opencode-kevin` then `npm publish -w @jmtrin/opencode-kevin` (pins core 1.4.0 exact)
-4. `packages/mcp` LAST: `npm publish --dry-run -w @jmtrin/kevin-mcp` then `npm publish -w @jmtrin/kevin-mcp` (pins core 1.4.0 exact)
+3. `packages/plugin`: `npm publish --dry-run -w @jmtrin/opencode-kevin` then `npm publish -w @jmtrin/opencode-kevin` (pins core 1.5.0 exact)
+4. `packages/mcp` LAST: `npm publish --dry-run -w @jmtrin/kevin-mcp` then `npm publish -w @jmtrin/kevin-mcp` (pins core 1.5.0 exact)
 
 Post-publish smoke:
 

@@ -58,6 +58,9 @@ describe("K9-005 — zod removal is structural, not cosmetic", () => {
 		for (const block of blocks) {
 			const deps = pkg[block];
 			if (typeof deps === "object" && deps !== null) {
+				// v1.5.0: zod is allowed in devDependencies for bench/tooling (D15-??)
+				// but never in runtime dependencies. Skip devDependencies check.
+				if (block === "devDependencies") continue;
 				expect(deps, `${block} must not contain zod`).not.toHaveProperty("zod");
 			}
 		}

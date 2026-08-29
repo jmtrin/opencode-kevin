@@ -4,6 +4,12 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-29
+
+### Diaspora — skills + MIF (no user action required)
+
+- Skills canonical + mirrors + MIF codec + host import; 39 settings, 64 metrics, schema 014, `KEVIN_VERSION 1.5.0` coordinated.
+
 ## [1.3.0] - 2026-08-29
 
 ### Bedrock — REORGANIZATION-ONLY (no user action required)

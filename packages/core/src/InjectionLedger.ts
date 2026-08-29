@@ -204,6 +204,7 @@ export class InjectionLedger {
 			outcome: InjectionOutcome;
 		}[];
 
+		this.store.transaction(() => {
 		for (const inj of injections) {
 			// Same identity dimension CausalChain uses: the failing call's
 			// `error_fingerprint` (stamped by Reflector) or the legacy
@@ -380,6 +381,7 @@ export class InjectionLedger {
 				}
 			}
 		}
+		});
 	}
 
 	/**

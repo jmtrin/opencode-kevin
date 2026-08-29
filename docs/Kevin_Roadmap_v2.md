@@ -413,7 +413,7 @@ Estimated cadence (project history: ~1 minor/month): v1.1.0 Sep 2026, v1.2.0 Oct
 v1.3.0 Nov–Dec 2026, v1.4.0 Dec 2026–Jan 2027, v1.5.0 Feb 2027, v2.0.0 Mar–Apr 2027.
 Dates are indicative; exit criteria rule.
 
-Cumulative ladders (monotone; every digit traceable to the §5 scopes): tools 10 → 13 → 16 → 18 → 21 → 23 → 25 → 26; setting keys 6 → 9 → 14 → 18 → 23 → 27 → 31 → 32; metric keys 13 → 22 → 28 → 33 → 39 → 45 → 51 → 54 → 56; migrations `001` → `012`; principles 39–44; decisions D11…D16; tasks K11…K16.
+Cumulative ladders (monotone; every digit traceable to the §5 scopes): tools 10 → 13 → 16 → 18 → 21 → 23 → 25 → 26; setting keys 6 → 9 → 14 → 18 → 23 → 27 → 31 → 32 → 35 → 39; metric keys 13 → 22 → 28 → 33 → 39 → 45 → 51 → 54 → 56 → 61 → 64; migrations `001` → `013`; principles 39–44; decisions D11…D16; tasks K11…K16.
 
 ### 5.1 v1.1.0 — "Drift"
 

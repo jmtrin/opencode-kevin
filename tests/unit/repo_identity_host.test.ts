@@ -293,7 +293,8 @@ describe("K9-006 — source scan: repo_id is written only by kevin_project rekey
 		// code path that writes repo_id on existing rows. The migration
 		// back-fill (Migrate.ts) writes only where repo_id IS NULL — it
 		// fills legacy rows, it never changes an id.
-		const dirs = ["plugin"];
+		// v1.3.0 Bedrock: plugin moved to packages/plugin/src, core to packages/core/src
+		const dirs = ["packages/plugin/src", "packages/core/src"];
 		const files: string[] = [];
 		for (const dir of dirs) {
 			const abs = join(REPO_ROOT, dir);

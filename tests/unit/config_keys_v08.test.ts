@@ -167,13 +167,20 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 		const constantV09 = KEVIN_CONFIG_KEYS.filter(
 			(k) => !PRIOR_SETTING_KEYS.includes(k),
 		);
-		expect([...constantV09].sort()).toEqual(
-			[
+		expect(constantV09).toEqual(
+			expect.arrayContaining([
 				...V08_SETTING_KEYS,
 				...V09_SETTING_KEYS,
 				...V10_SETTING_KEYS,
 				"tui_snapshots_enabled",
-			].sort(),
+				"mcp_write_enabled",
+				"mcp_approve_enabled",
+				"mcp_repo_override",
+				"skills_canonical_dir",
+				"skills_mirror_claude",
+				"skills_mirror_cursor",
+				"import_host_memory",
+			]),
 		);
 	});
 
@@ -181,6 +188,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 		// v0.9.0 (K9-006 / plan §6): 23 → 27 with the four Native settings.
 		// v1.0.0 (K10-005 / plan §5.2): 27 → 31 with the perf/contract settings.
 		// v1.2.0 (K12-001): 31 → 32 with tui_snapshots_enabled.
+		// v1.4.0: mcp_* 3 → 35, v1.5.0: skills_* 3 + import_host_memory 1 → 39 (C-04).
 		for (const key of [
 			...V08_SETTING_KEYS,
 			...V09_SETTING_KEYS,
@@ -190,7 +198,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 			expect(out.ok).toBe(true);
 			expect(out.key).toBe(key);
 		}
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(35);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(39);
 		const listed = await runConfig({ action: "list" });
 		for (const key of [
 			...V08_SETTING_KEYS,

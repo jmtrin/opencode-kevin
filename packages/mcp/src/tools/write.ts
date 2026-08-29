@@ -37,20 +37,20 @@ export function createWriteTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
+
         if (!isWriteEnabled()) {
           try { metrics.incr("mcp_writes_refused" as never, 1); } catch {}
           return { error: "disabled", hint: "set mcp_write_enabled=1", provenance: buildProvenance(identity) };
         }
         const svc = new MemoryService(store, metrics, identity.repoId);
         try {
-          const mem = svc.save({
+          const id = svc.save({
             type: args.type as never,
             content: args.content as string,
             scope: (args.scope as "project" | "session") ?? "project",
           });
           try { metrics.incr("mcp_writes_accepted" as never, 1); } catch {}
-          return { id: (mem as unknown as { id: string }).id, provenance: buildProvenance(identity) };
+          return { id, provenance: buildProvenance(identity) };
         } catch (e) {
           try { metrics.incr("mcp_errors_total" as never, 1); } catch {}
           return { error: "save_failed", detail: (e as Error).message, provenance: buildProvenance(identity) };
@@ -64,7 +64,7 @@ export function createWriteTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
+
         if (!isWriteEnabled() || !isApproveEnabled()) {
           try { metrics.incr("mcp_writes_refused" as never, 1); } catch {}
           return { error: "disabled", hint: "set mcp_write_enabled=1 and mcp_approve_enabled=1", provenance: buildProvenance(identity) };
@@ -89,7 +89,7 @@ export function createWriteTools(opts: {
       handler: async (args: Record<string, unknown>) => {
         const mismatch = assertScope(identity.repoId, args.repo_id as string | undefined);
         if (mismatch) return mismatch;
-        try { metrics.incr("mcp_requests_total" as never, 1); } catch {}
+
         if (!isWriteEnabled() || !isApproveEnabled()) {
           try { metrics.incr("mcp_writes_refused" as never, 1); } catch {}
           return { error: "disabled", hint: "set mcp_write_enabled=1 and mcp_approve_enabled=1", provenance: buildProvenance(identity) };

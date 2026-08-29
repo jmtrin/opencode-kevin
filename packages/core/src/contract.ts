@@ -135,6 +135,10 @@ export const CONTRACT_METRIC_ADDITIONS: readonly {
 	{ name: "mcp_writes_accepted", since: "1.4.0" },
 	{ name: "mcp_writes_refused", since: "1.4.0" },
 	{ name: "mcp_errors_total", since: "1.4.0" },
+	// v1.5.0 (K15-001 / plan §4) — Diaspora metrics; lazy-incr.
+	{ name: "mif_exports_total", since: "1.5.0" },
+	{ name: "mif_imports_total", since: "1.5.0" },
+	{ name: "skills_emitted_total", since: "1.5.0" },
 ];
 
 /**
@@ -148,6 +152,11 @@ export const CONTRACT_CONFIG_ADDITIONS: readonly {
 	{ name: "mcp_approve_enabled", since: "1.4.0" },
 	{ name: "mcp_repo_override", since: "1.4.0" },
 	{ name: "mcp_write_enabled", since: "1.4.0" },
+	// v1.5.0 (K15-001 / plan §4) — Diaspora settings; since 1.5.0.
+	{ name: "import_host_memory", since: "1.5.0" },
+	{ name: "skills_canonical_dir", since: "1.5.0" },
+	{ name: "skills_mirror_claude", since: "1.5.0" },
+	{ name: "skills_mirror_cursor", since: "1.5.0" },
 ];
 
 /**

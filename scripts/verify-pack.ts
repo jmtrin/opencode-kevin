@@ -126,8 +126,8 @@ try {
 
 	// C1: name/version
 	if (pkgJson.name !== "@jmtrin/kevin-core") fail("C1", `core name is "${pkgJson.name}" expected "@jmtrin/kevin-core"`);
-	if (pkgJson.version !== "1.3.0") fail("C1", `core version is "${pkgJson.version}" expected "1.3.0"`);
-	pass("C1", "core name @jmtrin/kevin-core version 1.3.0");
+	if (pkgJson.version !== "1.5.0") fail("C1", `core version is "${pkgJson.version}" expected "1.5.0"`);
+	pass("C1", "core name @jmtrin/kevin-core version 1.5.0");
 
 	// C2: exports/main/types exist
 	{
@@ -258,8 +258,8 @@ try {
 	if (pkgJson.name !== "@jmtrin/opencode-kevin") fail("P1", `plugin name is "${pkgJson.name}" expected "@jmtrin/opencode-kevin"`);
 	if (pkgJson.main !== "dist/plugin/index.js") fail("P1", `plugin main is "${pkgJson.main}" expected "dist/plugin/index.js"`);
 	if (pkgJson.types !== "dist/plugin/index.d.ts") fail("P1", `plugin types is "${pkgJson.types}" expected "dist/plugin/index.d.ts"`);
-	if (pkgJson.version !== "1.3.0") fail("P1", `plugin version is "${pkgJson.version}" expected "1.3.0"`);
-	pass("P1", "plugin name/main/types verbatim (C-06) and version 1.3.0");
+	if (pkgJson.version !== "1.5.0") fail("P1", `plugin version is "${pkgJson.version}" expected "1.5.0"`);
+	pass("P1", "plugin name/main/types verbatim (C-06) and version 1.5.0");
 
 	// P2: exports exist
 	{
@@ -302,13 +302,13 @@ try {
 		pass("P3", `plugin exports["./tui"] types-first and points to tui package`);
 	}
 
-	// P4: deps pin exact 1.3.0
+	// P4: deps pin exact 1.5.0
 	{
 		const corePin = pkgJson.dependencies?.["@jmtrin/kevin-core"];
-		if (corePin !== "1.3.0") fail("P4", `plugin @jmtrin/kevin-core dep is "${corePin}" expected exact "1.3.0"`);
+		if (corePin !== "1.5.0") fail("P4", `plugin @jmtrin/kevin-core dep is "${corePin}" expected exact "1.5.0"`);
 		const tuiPin = pkgJson.dependencies?.["@jmtrin/opencode-kevin-tui"];
-		if (tuiPin !== "1.3.0") fail("P4", `plugin @jmtrin/opencode-kevin-tui dep is "${tuiPin}" expected "1.3.0"`);
-		pass("P4", "plugin deps pin @jmtrin/kevin-core and tui at 1.3.0 exact");
+		if (tuiPin !== "1.5.0") fail("P4", `plugin @jmtrin/opencode-kevin-tui dep is "${tuiPin}" expected "1.5.0"`);
+		pass("P4", "plugin deps pin @jmtrin/kevin-core and tui at 1.5.0 exact");
 	}
 
 	// P5: no sql inside plugin tarball
@@ -375,7 +375,7 @@ try {
   const r = await m.run();
   if (r.applied.length === 0) throw new Error("Migrate.run applied 0");
   const row = store.prepare("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1").get();
-  if (!row || row.version !== "012") throw new Error("schema_version not 012: " + JSON.stringify(row));
+  if (!row || row.version !== "013") throw new Error("schema_version not 013: " + JSON.stringify(row));
   // smoke 2: plugin factory importable
   const plugin = await import("@jmtrin/opencode-kevin");
   if (!plugin.KevinPlugin && !plugin.default) throw new Error("KevinPlugin not exported");

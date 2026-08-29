@@ -64,6 +64,9 @@ describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 		// v1.2.0 (K12-003/K12-017) — TUI projection writers (TuiSnapshots,
 		// DashboardHtml, TuiActions, tui) also target ~/.opencode-kevin/tui
 		// — same allowed directory, hence allowlisted.
+		// v1.5.0 (K15-003/006) — skills-emit.ts writes canonical/mirror skills under
+		// <projectRoot>/.agents/skills and .claude/.cursor mirrors — same isolated
+		// funnel, allowlisted (D15-04).
 		const sites = scan(/\bwriteFileSync\b/);
 		expect(sites.length).toBeGreaterThan(0);
 		for (const site of sites) {
@@ -74,6 +77,7 @@ describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 				"DashboardHtml.ts",
 				"TuiActions.ts",
 				"tui.ts",
+				"skills-emit.ts",
 			]).toContain(site.file);
 		}
 	});

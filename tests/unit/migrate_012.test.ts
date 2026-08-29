@@ -93,7 +93,7 @@ describe("K11-001 migration 013_v11_drift", () => {
 			const tmpMig = join(tmp, "migs");
 			mkdirSync(tmpMig, { recursive: true });
 			const files = readdirSync(migrationsDir).filter(
-				(f) => f !== "013_v11_drift.sql",
+				(f) => f !== "012_v11_drift.sql" && f !== "013_v14_bridge.sql",
 			);
 			for (const f of files)
 				copyFileSync(join(migrationsDir, f), join(tmpMig, f));

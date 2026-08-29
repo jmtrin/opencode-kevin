@@ -94,18 +94,21 @@ describe("K8-027 — OKF v1/v2 format separation", () => {
 	});
 
 	it("a source scan proves importOkf has exactly one call site, unreachable from kevin_sync", () => {
-		const files = readdirSync(join(process.cwd(), "packages/core/src")).filter((f) =>
-			f.endsWith(".ts"),
-		);
+		// v1.3.0 Bedrock: core is hostless, so kevin_import lives in the plugin adapter.
+		// Scan both core and plugin src; exactly one call site expected in plugin.
+		const scanDirs = ["packages/core/src", "packages/plugin/src"];
 		const callSites: string[] = [];
-		for (const f of files) {
-			const src = readFileSync(join(process.cwd(), "packages/core/src", f), "utf8");
-			for (const line of src.split(/\r?\n/)) {
-				if (
-					/\bimportOkf\(/.test(line) &&
-					!line.includes("export function importOkf")
-				) {
-					callSites.push(`${f}: ${line.trim()}`);
+		for (const dir of scanDirs) {
+			const files = readdirSync(join(process.cwd(), dir)).filter((f) => f.endsWith(".ts"));
+			for (const f of files) {
+				const src = readFileSync(join(process.cwd(), dir, f), "utf8");
+				for (const line of src.split(/\r?\n/)) {
+					if (
+						/\bimportOkf\(/.test(line) &&
+						!line.includes("export function importOkf")
+					) {
+						callSites.push(`${dir}/${f}: ${line.trim()}`);
+					}
 				}
 			}
 		}

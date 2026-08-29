@@ -313,7 +313,7 @@ export class ArtifactWriter {
 		// Rule 7 — write to `<path>.kevin.tmp` in the same directory (same
 		// filesystem, so rename is atomic), fsync, close, then rename over the
 		// target. Never write the target path directly, never truncate-then-write.
-		const tmpPath = `${plan.path}.kevin.tmp`;
+		const tmpPath = `${plan.path}.kevin.tmp.${uuidv7()}`;
 		let fd: number | undefined;
 		try {
 			fd = openSync(tmpPath, "w");
