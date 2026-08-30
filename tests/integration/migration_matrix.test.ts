@@ -7,9 +7,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Migrate } from "@jmtrin/kevin-core";
 import { Store } from "@jmtrin/kevin-core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const VERSIONS = [
 	"001",
@@ -81,7 +81,7 @@ describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)"
 					"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 				)
 				.get() as { version: string };
-			expect(versionRow.version).toBe("013");
+			expect(versionRow.version).toBe("014");
 
 			const mem = store
 				.prepare("SELECT type, content FROM memories WHERE id = ?")
@@ -108,8 +108,8 @@ describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)"
 				join(process.cwd(), "packages/core/migrations"),
 			).run();
 			expect(second.applied).toEqual([]);
-			expect(second.from).toBe("013");
-			expect(second.to).toBe("013");
+			expect(second.from).toBe("014");
+			expect(second.to).toBe("014");
 
 			const memAgain = store
 				.prepare("SELECT content FROM memories WHERE id = ?")
@@ -123,7 +123,10 @@ describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)"
 					.prepare("SELECT ts, ts_ms FROM tool_calls WHERE id = 'fix-tool-1'")
 					.get() as { ts: string | null; ts_ms: number | null } | undefined;
 				if (tcRow) {
-					expect(tcRow.ts_ms, `v${v}: tool_calls.ts_ms should be backfilled`).not.toBeNull();
+					expect(
+						tcRow.ts_ms,
+						`v${v}: tool_calls.ts_ms should be backfilled`,
+					).not.toBeNull();
 					const expected = store
 						.prepare("SELECT CAST(strftime('%s', ?) AS INTEGER) * 1000 as v")
 						.get(tcRow.ts) as { v: number };
@@ -133,14 +136,25 @@ describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)"
 				// pre-tool_calls DB (should not happen after 001) — ignore
 			}
 			// 013 metric seeds present
-			for (const key of ["bench_regression_failures", "forget_requests_total", "forget_tombstones_published"]) {
-				const row = store.prepare("SELECT value FROM kevin_metrics WHERE key = ?").get(key) as { value: number } | undefined;
-				expect(row, `v${v}: metric ${key} should exist after 013`).toBeDefined();
+			for (const key of [
+				"bench_regression_failures",
+				"forget_requests_total",
+				"forget_tombstones_published",
+			]) {
+				const row = store
+					.prepare("SELECT value FROM kevin_metrics WHERE key = ?")
+					.get(key) as { value: number } | undefined;
+				expect(
+					row,
+					`v${v}: metric ${key} should exist after 013`,
+				).toBeDefined();
 				expect(row?.value).toBe(0);
 			}
 			// indexes exist
 			const idx = store
-				.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_tool_calls_ts_ms','idx_injections_injected_ms')")
+				.prepare(
+					"SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_tool_calls_ts_ms','idx_injections_injected_ms')",
+				)
 				.all() as { name: string }[];
 			const idxNames = idx.map((r) => r.name);
 			expect(idxNames).toContain("idx_tool_calls_ts_ms");

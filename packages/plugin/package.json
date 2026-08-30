@@ -1,58 +1,50 @@
 {
-  "name": "@jmtrin/opencode-kevin",
-  "version": "1.5.0",
-  "description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
-  "type": "module",
-  "main": "dist/plugin/index.js",
-  "types": "dist/plugin/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/plugin/index.d.ts",
-      "import": "./dist/plugin/index.js"
-    },
-    "./tui": {
-      "types": "@jmtrin/opencode-kevin-tui/dist/index.d.ts",
-      "import": "@jmtrin/opencode-kevin-tui/dist/index.js"
-    }
-  },
-  "files": [
-    "dist/plugin"
-  ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "prepublishOnly": "npm run build",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@opencode-ai/plugin": "^1.18.16",
-    "@jmtrin/kevin-core": "1.5.0",
-    "@jmtrin/opencode-kevin-tui": "1.5.0"
-  },
-  "optionalDependencies": {
-    "better-sqlite3": "^12.11.0"
-  },
-  "engines": {
-    "node": ">=22.5.0",
-    "opencode": "^1.18.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/jmtrin/opencode-kevin.git"
-  },
-  "homepage": "https://github.com/jmtrin/opencode-kevin#readme",
-  "bugs": {
-    "url": "https://github.com/jmtrin/opencode-kevin/issues"
-  },
-  "keywords": [
-    "opencode",
-    "plugin",
-    "memory",
-    "learning",
-    "ai"
-  ],
-  "author": "jmtrin",
-  "publishConfig": {
-    "access": "public"
-  },
-  "license": "MIT"
+	"name": "@jmtrin/opencode-kevin",
+	"version": "2.0.0",
+	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
+	"type": "module",
+	"main": "dist/plugin/index.js",
+	"types": "dist/plugin/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/plugin/index.d.ts",
+			"import": "./dist/plugin/index.js"
+		},
+		"./tui": {
+			"types": "@jmtrin/opencode-kevin-tui/dist/index.d.ts",
+			"import": "@jmtrin/opencode-kevin-tui/dist/index.js"
+		}
+	},
+	"files": ["dist/plugin"],
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"prepublishOnly": "npm run build",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@opencode-ai/plugin": "^1.18.16",
+		"@jmtrin/kevin-core": "2.0.0",
+		"@jmtrin/opencode-kevin-tui": "2.0.0"
+	},
+	"optionalDependencies": {
+		"better-sqlite3": "^12.11.0"
+	},
+	"engines": {
+		"node": ">=22.5.0",
+		"opencode": "^1.18.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/jmtrin/opencode-kevin.git"
+	},
+	"homepage": "https://github.com/jmtrin/opencode-kevin#readme",
+	"bugs": {
+		"url": "https://github.com/jmtrin/opencode-kevin/issues"
+	},
+	"keywords": ["opencode", "plugin", "memory", "learning", "ai"],
+	"author": "jmtrin",
+	"publishConfig": {
+		"access": "public"
+	},
+	"license": "MIT"
 }

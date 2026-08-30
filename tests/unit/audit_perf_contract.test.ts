@@ -2,12 +2,12 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Store } from "@jmtrin/kevin-core";
 import { contractDigest, describeContract } from "@jmtrin/kevin-core";
 import { buildAudit } from "@jmtrin/kevin-core";
 import { Metrics } from "@jmtrin/kevin-core";
 import { BUDGETS } from "@jmtrin/kevin-core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(
 	fileURLToPath(new URL(".", import.meta.url)),
@@ -65,7 +65,7 @@ describe("K10-020 — kevin_audit perf and contract blocks", () => {
 		await new Migrate(store, MIGRATIONS_DIR).run();
 		const report = buildAudit(store, new Metrics(store));
 		expect(report.contract).toEqual({
-			contract_version: 1,
+			contract_version: 2,
 			digest: contractDigest(describeContract()),
 			clause_count: describeContract().clauses.length,
 			deprecated_count: 0,
@@ -124,7 +124,9 @@ describe("K10-020 — kevin_audit perf and contract blocks", () => {
 
 	it("a pre-011 database omits the perf block without marking partial", () => {
 		for (const name of PRE_011) {
-			store.exec(readFileSync(join(REPO_ROOT, "packages/core/migrations", name), "utf8"));
+			store.exec(
+				readFileSync(join(REPO_ROOT, "packages/core/migrations", name), "utf8"),
+			);
 		}
 		const report = buildAudit(store, new Metrics(store));
 		expect(report.perf).toBeUndefined();

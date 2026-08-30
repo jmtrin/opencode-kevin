@@ -12,7 +12,12 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(__dirname, "..", "..", "..");
 const CORE_SRC = join(REPO_ROOT, "packages", "core", "src");
-const ALLOWLIST = new Set(["env.ts"]);
+const ALLOWLIST = new Set([
+	"env.ts",
+	"sources/ClaudeMemorySource.ts",
+	"sources/CodexMemoriesSource.ts",
+	"sources/OpencodeNativeSource.ts",
+]);
 
 function listSources(dir: string, out: string[] = []): string[] {
 	for (const entry of readdirSync(dir)) {

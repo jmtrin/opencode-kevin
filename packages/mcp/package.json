@@ -1,37 +1,35 @@
 {
-  "name": "@jmtrin/kevin-mcp",
-  "version": "1.5.0",
-  "description": "Kevin MCP — stdio bridge for any MCP harness (Bridge)",
-  "type": "module",
-  "bin": {
-    "kevin-mcp": "dist/server.js"
-  },
-  "main": "dist/server.js",
-  "types": "dist/server.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
-  },
-  "dependencies": {
-    "@jmtrin/kevin-core": "1.5.0",
-    "@modelcontextprotocol/sdk": "1.30.0",
-    "zod": "^3.25.0"
-  },
-  "engines": {
-    "node": ">=22.5.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "license": "MIT"
+	"name": "@jmtrin/kevin-mcp",
+	"version": "2.0.0",
+	"description": "Kevin MCP — stdio bridge for any MCP harness (Bridge)",
+	"type": "module",
+	"bin": {
+		"kevin-mcp": "dist/server.js"
+	},
+	"main": "dist/server.js",
+	"types": "dist/server.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/server.d.ts",
+			"import": "./dist/server.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"typecheck": "tsc --noEmit",
+		"prepublishOnly": "npm run build"
+	},
+	"dependencies": {
+		"@jmtrin/kevin-core": "2.0.0",
+		"@modelcontextprotocol/sdk": "1.30.0",
+		"zod": "^3.25.0"
+	},
+	"engines": {
+		"node": ">=22.5.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"license": "MIT"
 }

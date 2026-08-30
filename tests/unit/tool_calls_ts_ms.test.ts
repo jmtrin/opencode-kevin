@@ -7,10 +7,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Migrate } from "@jmtrin/kevin-core";
 import { Store } from "@jmtrin/kevin-core";
 import { ToolCallObserver } from "@jmtrin/kevin-core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const migrationsDir = join(process.cwd(), "packages/core/migrations");
 
@@ -70,7 +70,7 @@ describe("K11-002 ToolCallObserver ts_ms", () => {
 					"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 				)
 				.get() as { version: string };
-			expect(version.version).toBe("011");
+			expect(version.version).toBe("014");
 
 			// should not throw and should not have ts_ms column
 			const obs = new ToolCallObserver(s011, null);

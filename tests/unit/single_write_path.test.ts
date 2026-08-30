@@ -22,7 +22,10 @@ describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 	function scan(re: RegExp): { file: string; line: number; text: string }[] {
 		const sites: { file: string; line: number; text: string }[] = [];
 		for (const file of pluginFiles()) {
-			const src = readFileSync(join(process.cwd(), "packages/core/src", file), "utf8");
+			const src = readFileSync(
+				join(process.cwd(), "packages/core/src", file),
+				"utf8",
+			);
 			const lines = src.split("\n");
 			for (let i = 0; i < lines.length; i++) {
 				if (re.test(lines[i])) {
@@ -78,6 +81,7 @@ describe("single write path (K6-014/K6-017/K8-019 / D6-01, D8-08)", () => {
 				"TuiActions.ts",
 				"tui.ts",
 				"skills-emit.ts",
+				"okf-shards.ts",
 			]).toContain(site.file);
 		}
 	});

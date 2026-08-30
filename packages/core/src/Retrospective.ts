@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolveEnv, type KevinEnv } from "./env.js";
 import type { MemoryService } from "./MemoryService.js";
 import type { Store } from "./Store.js";
+import { type KevinEnv, resolveEnv } from "./env.js";
 import type { Metrics } from "./metrics.js";
 import { uuidv7 } from "./uuid.js";
 
@@ -127,6 +127,10 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	skills_emitted_total: "Skills emitidos (total)",
 	mif_exports_total: "Exportaciones MIF totales",
 	mif_imports_total: "Importaciones MIF totales",
+	// v2.0.0 (K16-012 / plan §4.4) — Commonwealth metrics
+	source_syncs_total: "Sincronizaciones de fuentes (total)",
+	source_dedup_skips_total: "Skips por dedup de fuentes (total)",
+	okf_v3_files_written: "Archivos OKF v3 escritos",
 };
 
 function originLabel(

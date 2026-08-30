@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { MARKER_BEGIN, MARKER_END } from "./ArtifactWriter.js";
-import { resolveEnv, type KevinEnv } from "./env.js";
 import { METRIC_KEY_LABELS } from "./Retrospective.js";
+import { type KevinEnv, resolveEnv } from "./env.js";
 import { fnv1a64 } from "./fingerprint.js";
 import { KEVIN_CONFIG_KEYS, KEVIN_VERSION } from "./index.js";
 import { MAX_ENTRIES, MAX_LINE_BYTES } from "./okf.js";
@@ -42,7 +42,128 @@ export function resolveScanRoots(env?: KevinEnv): string[] {
 	return [monorepoPlugin, monorepoCore];
 }
 
-export const CONTRACT_VERSION = 1;
+export const CONTRACT_VERSION = 2;
+
+// v2.0.0 (K16-001 / plan §4.1) — C-10 core exports (names + kinds, since 1.3.0)
+// Explicit export list at packages/core/src/index.ts — keep minimal.
+export const CONTRACT_CORE_EXPORTS: readonly { name: string; kind: string }[] =
+	[
+		{ name: "Archiver", kind: "class" },
+		{ name: "ArtifactWriter", kind: "class" },
+		{ name: "CausalChain", kind: "class" },
+		{ name: "ChatBridge", kind: "module" },
+		{ name: "ConflictDetector", kind: "class" },
+		{ name: "ContextInjector", kind: "class" },
+		{ name: "ConventionMiner", kind: "class" },
+		{ name: "Curator", kind: "class" },
+		{ name: "DashboardHtml", kind: "module" },
+		{ name: "Feedback", kind: "class" },
+		{ name: "HookLiveness", kind: "class" },
+		{ name: "InjectionLedger", kind: "class" },
+		{ name: "LessonFixer", kind: "module" },
+		{ name: "Materializer", kind: "class" },
+		{ name: "MemoryService", kind: "class" },
+		{ name: "Migrate", kind: "class" },
+		{ name: "PatternMiner", kind: "class" },
+		{ name: "QualityGate", kind: "class" },
+		{ name: "Reflector", kind: "class" },
+		{ name: "RepoIdentity", kind: "module" },
+		{ name: "RepoTruth", kind: "class" },
+		{ name: "Retrospective", kind: "class" },
+		{ name: "SharedLayer", kind: "class" },
+		{ name: "Store", kind: "class" },
+		{ name: "ToolCallObserver", kind: "class" },
+		{ name: "TuiSnapshots", kind: "module" },
+		{ name: "buildAudit", kind: "function" },
+		{ name: "buildDoctor", kind: "function" },
+		{ name: "buildKevinContract", kind: "function" },
+		{ name: "computeConfidence", kind: "function" },
+		{ name: "describeContract", kind: "function" },
+		{ name: "escapeForFence", kind: "function" },
+		{ name: "escapeForMarkerBlock", kind: "function" },
+		{ name: "fingerprint", kind: "function" },
+		{ name: "fnv1a64", kind: "function" },
+		{ name: "kevin_approve", kind: "function" },
+		{ name: "kevin_bench", kind: "function" },
+		{ name: "kevin_forget", kind: "function" },
+		{ name: "kevin_why", kind: "function" },
+		{ name: "resolveEnv", kind: "function" },
+		{ name: "uuidv7", kind: "function" },
+	] as const;
+
+// v2.0.0 (K16-001) — C-11 MCP tool names/shapes + refusal vocabulary, since 1.4.0
+export const CONTRACT_MCP_TOOLS: readonly string[] = [
+	"approve",
+	"feedback",
+	"get",
+	"ping",
+	"query",
+	"recall",
+	"save",
+	"share",
+	"status",
+	"trace",
+	"why",
+] as const;
+export const CONTRACT_MCP_REFUSALS: readonly string[] = [
+	"disabled",
+	"repo_mismatch",
+	"not_okf",
+	"version_ahead",
+	"unknown_entry",
+	"parse_damaged",
+	"line_too_long",
+	"below_floor",
+	"not_curated",
+	"too_many_entries",
+] as const;
+
+// v2.0.0 (K16-001) — C-12 emitted skills layout, since 1.5.0
+export const CONTRACT_SKILLS_LAYOUT = {
+	canonical_dir: ".agents/skills",
+	skill_dir: "kevin-knowledge",
+	files: ["SKILL.md", "references/*.md"],
+	frontmatter_fields: [
+		"name",
+		"description",
+		"metadata.generator",
+		"metadata.repo_id",
+	],
+	mirror_policy:
+		"copy (not symlink) to .claude/skills and .cursor/skills when enabled",
+} as const;
+
+// v2.0.0 (K16-001) — C-13 MIF profile, since 1.5.0
+export const CONTRACT_MIF_PROFILE = {
+	envelope_version: 1,
+	format: "mif",
+	field_mapping: {
+		entry_id: "id",
+		statement: "content",
+		type: "type",
+		scope: "metadata.scope",
+		fingerprint: "metadata.fingerprint",
+		confidence: "metadata.confidence",
+		created_at: "timestamp",
+	},
+	redaction: "SECRET_PATTERNS (PII)",
+	dedup: "content-hash (fingerprint)",
+	vendor_extensions_preserved: true,
+} as const;
+
+// v2.0.0 (K16-001) — C-14 MemorySources, since 2.0.0
+export const CONTRACT_MEMORY_SOURCES = {
+	sources: [
+		{ name: "opencode-plugin", precedence: 10 },
+		{ name: "claude-memory", precedence: 20 },
+		{ name: "codex-memories", precedence: 30 },
+		{ name: "opencode-native", precedence: 40 },
+	],
+	dedup_rule:
+		"lower precedence wins attribution; losers counted in source_dedup_skips_total",
+	conflict_kind: "source_pair",
+	precedence_order: [10, 20, 30, 40],
+} as const;
 
 export type Stability = "frozen" | "forward-only";
 
@@ -113,6 +234,7 @@ export const CONTRACT_TOOL_ADDITIONS: readonly {
 	{ name: "kevin_bench", since: "1.0.0" },
 	{ name: "kevin_contract", since: "1.0.0" },
 	{ name: "kevin_forget", since: "1.1.0" },
+	{ name: "kevin_sources", since: "2.0.0" },
 ];
 
 /**
@@ -139,6 +261,10 @@ export const CONTRACT_METRIC_ADDITIONS: readonly {
 	{ name: "mif_exports_total", since: "1.5.0" },
 	{ name: "mif_imports_total", since: "1.5.0" },
 	{ name: "skills_emitted_total", since: "1.5.0" },
+	// v2.0.0 (K16-012 / plan §4.4) — Commonwealth metrics
+	{ name: "source_syncs_total", since: "2.0.0" },
+	{ name: "source_dedup_skips_total", since: "2.0.0" },
+	{ name: "okf_v3_files_written", since: "2.0.0" },
 ];
 
 /**
@@ -157,6 +283,29 @@ export const CONTRACT_CONFIG_ADDITIONS: readonly {
 	{ name: "skills_canonical_dir", since: "1.5.0" },
 	{ name: "skills_mirror_claude", since: "1.5.0" },
 	{ name: "skills_mirror_cursor", since: "1.5.0" },
+	// v2.0.0 (K16-013 / plan §4.4) — Commonwealth settings (retirement of import_host_memory handled via removals)
+	{ name: "okf_write_version", since: "2.0.0" },
+	{ name: "source_claude_memory", since: "2.0.0" },
+	{ name: "source_codex_memories", since: "2.0.0" },
+	{ name: "source_opencode_native", since: "2.0.0" },
+	{ name: "sources_enabled", since: "2.0.0" },
+];
+
+/**
+ * v2.0.0 (K16-004 / plan §5.1) — removed settings (retirements)
+ * Each entry carries `since` 2.0.0 and optional replacement pointer.
+ * Succession test treats these as LEGITIMATE removals via `removed` annotation.
+ */
+export const CONTRACT_REMOVED_CONFIG_KEYS: readonly {
+	name: string;
+	since: string;
+	replacement?: string;
+}[] = [
+	{
+		name: "import_host_memory",
+		since: "2.0.0",
+		replacement: "sources_enabled + source_claude_memory/source_codex_memories",
+	},
 ];
 
 /**
@@ -206,7 +355,17 @@ export function describeContract(_input?: ContractInput): PublicContract {
 	const baseConfigKeys = [...KEVIN_CONFIG_KEYS]
 		.filter((k) => !configAdditions.some((a) => a.name === k))
 		.sort();
-	const settingValue = { keys: [...baseConfigKeys, ...configAdditions].flat() };
+	// v2.0.0 (K16-004/005) — removed keys are filtered from `keys` and surfaced via `removed` annotation with since 2.0.0
+	const removedConfig = [...CONTRACT_REMOVED_CONFIG_KEYS].sort((a, b) =>
+		a.name.localeCompare(b.name),
+	);
+	const filteredConfigAdditions = configAdditions.filter(
+		(a) => !removedConfig.some((r) => r.name === a.name),
+	);
+	const settingValue: Record<string, unknown> = {
+		keys: [...baseConfigKeys, ...filteredConfigAdditions].flat(),
+	};
+	if (removedConfig.length > 0) settingValue.removed = removedConfig;
 	// v1.1.0 — metric keys added after freeze carry `since` (C-05)
 	const metricAdditions = [...CONTRACT_METRIC_ADDITIONS].sort((a, b) =>
 		a.name.localeCompare(b.name),
@@ -283,7 +442,7 @@ export function describeContract(_input?: ContractInput): PublicContract {
 			stability: "forward-only",
 			since: "0.1.0",
 			value: {
-				schema_version: "013",
+				schema_version: "014",
 				migrations_forward_only: true,
 			},
 		},
@@ -316,6 +475,48 @@ export function describeContract(_input?: ContractInput): PublicContract {
 				// frozen invariant strings above are untouched.
 				boundary: [{ name: BOUNDARY_INVARIANT, since: "1.0.0" }],
 			},
+		},
+		{
+			id: "C-10",
+			title: "Core public exports",
+			stability: "frozen",
+			since: "1.3.0",
+			value: {
+				exports: [...CONTRACT_CORE_EXPORTS].sort((a, b) =>
+					a.name.localeCompare(b.name),
+				),
+			},
+		},
+		{
+			id: "C-11",
+			title: "MCP tool names and refusal vocabulary",
+			stability: "frozen",
+			since: "1.4.0",
+			value: {
+				tools: [...CONTRACT_MCP_TOOLS].sort(),
+				refusals: [...CONTRACT_MCP_REFUSALS].sort(),
+			},
+		},
+		{
+			id: "C-12",
+			title: "Emitted skills layout",
+			stability: "frozen",
+			since: "1.5.0",
+			value: CONTRACT_SKILLS_LAYOUT,
+		},
+		{
+			id: "C-13",
+			title: "MIF profile",
+			stability: "frozen",
+			since: "1.5.0",
+			value: CONTRACT_MIF_PROFILE,
+		},
+		{
+			id: "C-14",
+			title: "MemorySources",
+			stability: "frozen",
+			since: "2.0.0",
+			value: CONTRACT_MEMORY_SOURCES,
 		},
 	];
 	return { contractVersion: CONTRACT_VERSION, clauses };
@@ -442,6 +643,35 @@ export function diffContract(
 		// Normalize members: for arrays we care about set equality
 		for (const [mem, _gv] of gMembers) {
 			if (!lMembers.has(mem)) {
+				// v2.0.0 (K16-005) — allow removals that are annotated via `removed` array with since (e.g. import_host_memory)
+				const liveVal = l.value as Record<string, unknown>;
+				if (Array.isArray(liveVal.removed)) {
+					const entry = (liveVal.removed as unknown[]).find((e) => {
+						if (typeof e === "string") return e === mem;
+						if (
+							e !== null &&
+							typeof e === "object" &&
+							"name" in (e as Record<string, unknown>)
+						)
+							return (e as Record<string, unknown>).name === mem;
+						return false;
+					}) as Record<string, unknown> | string | undefined;
+					const hasSince =
+						entry !== null &&
+						typeof entry === "object" &&
+						typeof (entry as Record<string, unknown>).since === "string" &&
+						(entry as Record<string, unknown>).since !== "";
+					if (entry !== undefined && hasSince) {
+						// Annotated removal — treat as allowed (like added_ok). Do not flag as confusing.
+						diffs.push({
+							clauseId: g.id,
+							path: `${g.id}.${mem}`,
+							kind: "added_ok",
+							remedy: `Member ${mem} in ${g.id} was removed with since. Allowed in 2.0.0.`,
+						});
+						continue;
+					}
+				}
 				diffs.push({
 					clauseId: g.id,
 					path: `${g.id}.${mem}`,

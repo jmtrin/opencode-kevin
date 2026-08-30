@@ -163,8 +163,21 @@ export const KEVIN_CONFIG_KEYS = [
 	"skills_canonical_dir",
 	"skills_mirror_claude",
 	"skills_mirror_cursor",
-	"import_host_memory",
+	// v2.0.0 (K16-013 / plan §4.4) — Commonwealth settings (retirement of import_host_memory handled via removals)
+	"sources_enabled",
+	"source_claude_memory",
+	"source_codex_memories",
+	"source_opencode_native",
+	"okf_write_version",
 ] as const;
+// v2.0.0 (K16-004 / plan §5.1) — removed settings contract
+export const REMOVED_SETTINGS = {
+	import_host_memory: {
+		since: "2.0.0",
+		replacement: "sources_enabled + source_claude_memory/source_codex_memories",
+	},
+} as const;
+
 // v1.1.0 (K11-007 / D11-08) — no new settings in 1.1.0; thresholds are constants (D11-03)
 
 // v0.7.0 (K7-003 / plan §5.6, D7-12) — the explicit VALUE domain for
@@ -413,6 +426,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		// pre-003 DB without kevin_settings — nothing to seed
 	}
 	// v1.5.0 (K15-001) — Diaspora settings: ensure defaults on existing DBs.
+	// v2.0.0: import_host_memory retired — seeded via 014 translation then deleted; no longer seeded here.
 	try {
 		const ins = store.prepare(
 			"INSERT OR IGNORE INTO kevin_settings (key, value) VALUES (?, ?)",
@@ -420,7 +434,6 @@ export const KevinPlugin: Plugin = async (input, options) => {
 		ins.run("skills_canonical_dir", ".agents/skills");
 		ins.run("skills_mirror_claude", "0");
 		ins.run("skills_mirror_cursor", "0");
-		ins.run("import_host_memory", "0");
 	} catch {
 		// pre-003 DB without kevin_settings — nothing to seed
 	}
@@ -1687,7 +1700,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 			}),
 			kevin_import: tool({
 				description:
-					"Importa un bundle markdown de conocimiento (v0.3.0) o MIF / host memories (v1.5.0). Para host, requiere import_host_memory='1' (gate).",
+					"Importa un bundle markdown de conocimiento (v0.3.0) o MIF / host memories (v2.0.0 retira import_host_memory; requiere sources_enabled=1 + source_claude_memory/codex-memories=1).",
 				args: {
 					bundle: tool.schema.string().optional(),
 					format: tool.schema.enum(["okf", "markdown", "mif"]).optional().describe("okf | markdown | mif (mif requiere bundle JSON)"),
@@ -1699,7 +1712,7 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						const { importHostMemories } = await import("@jmtrin/kevin-core");
 						const report = importHostMemories({ store, memoryService, metrics: metrics as unknown as import("@jmtrin/kevin-core").Metrics, env: kevinEnv, source: src as "claude-memory" | "codex-memories" });
 						if (report.error === "disabled") {
-							return { title: "Import no realizado (gate deshabilitado)", output: JSON.stringify({ error: "disabled", hint: "Ejecuta kevin_config set import_host_memory 1 para habilitar" }) };
+							return { title: "Import no realizado (gate deshabilitado)", output: JSON.stringify({ error: "disabled", hint: report.hint }) };
 						}
 						return { title: "Import completado", output: JSON.stringify(report) };
 					}
@@ -1729,6 +1742,64 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					return {
 						title: "Import completado",
 						output: JSON.stringify(result),
+					};
+				},
+			}),
+			kevin_sources: tool({
+				description:
+					"Fuentes de memoria (v2.0.0): lista estado de cada MemorySource (enabled, precedence, last_sync). Solo lectura.",
+				args: {
+					action: tool.schema.enum(["list"]).default("list").describe("list"),
+				},
+				async execute(_args) {
+					const settings: Record<string, string> = {};
+					try {
+						const rows = store
+							.prepare(
+								"SELECT key, value FROM kevin_settings WHERE key LIKE 'source%' OR key='sources_enabled' OR key='okf_write_version'",
+							)
+							.all() as { key: string; value: string }[];
+						for (const r of rows) settings[r.key] = r.value;
+					} catch {}
+					let sources: unknown[] = [];
+					try {
+						sources = store
+							.prepare(
+								"SELECT name, enabled, precedence FROM memory_sources ORDER BY precedence",
+							)
+							.all();
+					} catch {
+						sources = [
+							{ name: "opencode-plugin", enabled: 1, precedence: 10 },
+							{
+								name: "claude-memory",
+								enabled: Number(
+									settings["source_claude_memory"] === "1" ? 1 : 0,
+								),
+								precedence: 20,
+							},
+							{
+								name: "codex-memories",
+								enabled: Number(
+									settings["source_codex_memories"] === "1" ? 1 : 0,
+								),
+								precedence: 30,
+							},
+							{
+								name: "opencode-native",
+								enabled: Number(
+									settings["source_opencode_native"] === "1" ? 1 : 0,
+								),
+								precedence: 40,
+							},
+						];
+					}
+					return {
+						title: "Fuentes de memoria",
+						output: JSON.stringify({
+							sources_enabled: settings["sources_enabled"] ?? "1",
+							sources,
+						}),
 					};
 				},
 			}),
@@ -1771,6 +1842,22 @@ export const KevinPlugin: Plugin = async (input, options) => {
 							output: JSON.stringify({
 								error: "missing_key",
 								action: "set",
+							}),
+						};
+					}
+					// v2.0.0 (K16-004) — removed keys return structured removed_in_2.0.0 before unknown_key
+					if (args.key in REMOVED_SETTINGS) {
+						const meta =
+							REMOVED_SETTINGS[
+								args.key as keyof typeof REMOVED_SETTINGS
+							];
+						return {
+							title: "kevin_config",
+							output: JSON.stringify({
+								error: "removed_in_2.0.0",
+								key: args.key,
+								replacement: meta.replacement,
+								since: meta.since,
 							}),
 						};
 					}

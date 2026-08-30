@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Store } from "@jmtrin/kevin-core";
 import { METRIC_KEYS, Metrics, estimateTokens } from "@jmtrin/kevin-core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_001 = readFileSync(
@@ -16,7 +16,13 @@ const SQL_003 = readFileSync(
 	"utf8",
 );
 const SQL_004 = readFileSync(
-	join(__dirname, "..", "..", "packages/core/migrations", "004_v03_knowledge.sql"),
+	join(
+		__dirname,
+		"..",
+		"..",
+		"packages/core/migrations",
+		"004_v03_knowledge.sql",
+	),
 	"utf8",
 );
 const SQL_009 = readFileSync(
@@ -75,63 +81,9 @@ describe("Metrics", () => {
 		const store = new Store({ path: ":memory:" });
 		const m = new Metrics(store);
 		const snap = m.snapshot();
-		// All 52 keys still present at zero (39 + v1.1 bench/forget + v1.2 tui + v1.4 mcp 5 + v1.5 diaspora 3).
-		// v0.8.0 (K8-003) adds the six Team keys.
+		// v2.0.0: 67 keys — compare against METRIC_KEYS directly
 		expect(Object.keys(snap).sort()).toEqual(
-			[
-				"artifact_writes_noop",
-				"artifact_writes_total",
-				"causal_links",
-				"conflicts_detected",
-				"conventions_mined",
-				"duplicate_suppressions",
-				"error_lessons_suppressed",
-				"feedback_negative_total",
-				"feedback_positive_total",
-				"injections_blocked_confidence",
-				"injections_blocked_ignored",
-				"injections_blocked_recurrence",
-				"injections_blocked_seen",
-				"injections_blocked_stale",
-				"injections_blocked_weak",
-				"injections_effective",
-				"injections_from_shared",
-				"injections_inconclusive",
-				"injections_ineffective",
-				"injections_total",
-				"memories_archived",
-				"memories_contradicted",
-				"memories_superseded",
-				"mcp_errors_total",
-				"mcp_reads_served",
-				"mcp_requests_total",
-				"mcp_writes_accepted",
-				"mcp_writes_refused",
-				"mif_exports_total",
-				"mif_imports_total",
-				"okf_merge_folds",
-				"patterns_causal",
-				"patterns_mined",
-				"patterns_promoted_new",
-				"proposals_approved",
-				"proposals_created",
-				"proposals_rejected",
-				"reflections_throttled",
-				"rekey_events",
-				"repo_facts_scanned",
-				"shared_entries_exported",
-				"shared_entries_imported",
-				"shared_entries_total",
-				"skills_emitted_total",
-				"tokens_injected_compacting",
-				"tokens_injected_pre_prompt",
-				"tool_calls_deduped",
-				"bench_regression_failures",
-				"forget_requests_total",
-				"forget_tombstones_published",
-				"tui_actions_invoked",
-				"tui_snapshots_flushed",
-			].sort(),
+			[...(METRIC_KEYS as readonly string[])].sort(),
 		);
 		for (const v of Object.values(snap)) expect(v).toBe(0);
 		m.close();
@@ -334,8 +286,8 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
 	// v1.1.0 adds 3 (bench+forget), v1.2.0 adds 2 (tui) for a total of 44.
 	// v1.4.0 adds 5 (mcp), v1.5.0 adds 3 (skills+mif) for a total of 52.
-	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(52);
+	it("METRIC_KEYS has exactly 43 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(67);
 	});
 
 	it("snapshot() includes all keys", () => {
@@ -404,11 +356,23 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 
 describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 	const SQL_005 = readFileSync(
-		join(__dirname, "..", "..", "packages/core/migrations", "005_v04_signal.sql"),
+		join(
+			__dirname,
+			"..",
+			"..",
+			"packages/core/migrations",
+			"005_v04_signal.sql",
+		),
 		"utf8",
 	);
 	const SQL_006 = readFileSync(
-		join(__dirname, "..", "..", "packages/core/migrations", "006_v05_glassbox.sql"),
+		join(
+			__dirname,
+			"..",
+			"..",
+			"packages/core/migrations",
+			"006_v05_glassbox.sql",
+		),
 		"utf8",
 	);
 	const SQL_007 = readFileSync(
@@ -416,7 +380,13 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 		"utf8",
 	);
 	const SQL_008 = readFileSync(
-		join(__dirname, "..", "..", "packages/core/migrations", "008_v07_truth.sql"),
+		join(
+			__dirname,
+			"..",
+			"..",
+			"packages/core/migrations",
+			"008_v07_truth.sql",
+		),
 		"utf8",
 	);
 
@@ -488,8 +458,8 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
 	// v1.1.0 + v1.2.0 bring the total to 44, v1.4.0+1.5.0 to 52.
-	it("METRIC_KEYS has exactly 39 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(52);
+	it("METRIC_KEYS has exactly 43 keys", () => {
+		expect(METRIC_KEYS).toHaveLength(67);
 	});
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {
@@ -518,7 +488,10 @@ describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 		];
 		for (const f of migrationFiles) {
 			store.exec(
-				readFileSync(join(__dirname, "..", "..", "packages/core/migrations", f), "utf8"),
+				readFileSync(
+					join(__dirname, "..", "..", "packages/core/migrations", f),
+					"utf8",
+				),
 			);
 		}
 		const rows = store.prepare("SELECT key FROM kevin_metrics").all() as {

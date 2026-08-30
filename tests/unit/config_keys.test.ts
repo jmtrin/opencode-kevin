@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../packages/plugin/src/index.js";
+import {
+	KEVIN_CONFIG_KEYS,
+	KevinPlugin,
+} from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
@@ -187,7 +190,8 @@ describe("K7-003 — v0.7.0 config keys (Project Truth)", () => {
 		// v1.2.0 (K12-001 / plan §4): tui_snapshots_enabled brings the total
 		// to 32 (C-04).
 		// v1.4.0: mcp_* 3 → 35, v1.5.0: skills_* 3 + import_host_memory 1 → 39 (C-04).
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(39);
+		// v2.0.0 (K16-013): sources_enabled 1 + source_* 3 + okf_write_version 1 → 43 (C-04, import_host_memory retired).
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(43);
 	});
 
 	it("a new key rejected by kevin_config set is a config surface defect", async () => {

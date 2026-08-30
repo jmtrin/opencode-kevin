@@ -477,7 +477,12 @@ export class RepoTruth {
 		for (const file of ["package.json", "tsconfig.json"]) {
 			try {
 				const st = statSync(join(this.projectRoot, file));
-				out[file] = String(st.mtimeMs);
+				// Include size alongside mtime so a same-tick rewrite with
+				// different bytes is still detected on Windows where mtime
+				// granularity is ~15ms. The stored string is compared as an
+				// opaque token, so legacy rows (bare mtime) will mismatch once
+				// and trigger a re-parse.
+				out[file] = `${String(st.mtimeMs)}:${String(st.size)}`;
 			} catch {
 				out[file] = null;
 			}

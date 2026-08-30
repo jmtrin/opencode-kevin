@@ -22,6 +22,10 @@ import { fnv1a64 } from "./fingerprint.js";
 
 /** OKF v2 format version marker, written on the first header line. */
 export const OKF_VERSION = 2;
+/** v2.0.0 (K16-007) — OKF v3 marker */
+export const OKF_V3 = 3;
+export const OKF_VERSIONS = [2, 3] as const;
+export type OkfVersion = (typeof OKF_VERSIONS)[number];
 
 /** A single canonicalized entry line may not exceed this many bytes. */
 export const MAX_LINE_BYTES = 4096;
@@ -92,6 +96,7 @@ export function serialize(
 	entries: OkfEntry[],
 	repoId: string,
 	version: string,
+	okfVersion: number = OKF_VERSION,
 ): string {
 	if (entries.length > MAX_ENTRIES) {
 		throw new Error(
@@ -102,7 +107,7 @@ export function serialize(
 		a.entry_id < b.entry_id ? -1 : a.entry_id > b.entry_id ? 1 : 0,
 	);
 	const lines: string[] = [
-		`#okf ${OKF_VERSION}`,
+		`#okf ${okfVersion}`,
 		`#repo ${repoId}`,
 		`#generated-by opencode-kevin/${version}`,
 	];
@@ -227,7 +232,7 @@ export function parse(text: string): ParseResult {
 	}
 	const declared = Number(lines[0].slice(5));
 	version = Number.isInteger(declared) && declared >= 0 ? declared : 0;
-	if (version > OKF_VERSION) {
+	if (version > OKF_V3) {
 		// Guessing at a future format's semantics is how corpora get
 		// corrupted — refuse the whole file, never a best-effort parse.
 		return {
@@ -237,6 +242,10 @@ export function parse(text: string): ParseResult {
 			rejected: [{ line: 1, reason: "version_ahead" }],
 			folded: 0,
 		};
+	}
+	if (version !== OKF_VERSION && version !== OKF_V3) {
+		reject(1, "not_okf");
+		return { version, repoId: null, entries: [], rejected, folded: 0 };
 	}
 	if (lines[1]?.startsWith("#repo ")) {
 		repoId = lines[1].slice(6) || null;

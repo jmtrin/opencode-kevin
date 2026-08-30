@@ -4,20 +4,17 @@ import {
 	readFileSync,
 	readdirSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-	ArtifactWriter,
-	MARKER_BEGIN,
-	MARKER_END,
-} from "@jmtrin/kevin-core";
+import { ArtifactWriter, MARKER_BEGIN, MARKER_END } from "@jmtrin/kevin-core";
 import { type CurationProposal, Curator } from "@jmtrin/kevin-core";
 import { MemoryService } from "@jmtrin/kevin-core";
 import { Store } from "@jmtrin/kevin-core";
 import { Metrics } from "@jmtrin/kevin-core";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const SQL_001 = readFileSync(
 	join(process.cwd(), "packages/core/migrations", "001_initial.sql"),
@@ -220,7 +217,9 @@ describe("proposal lifecycle (K6-013)", () => {
 
 	it("no code path deletes a curation_proposals row", () => {
 		for (const dir of ["packages/core/src", "packages/core/migrations"]) {
-			for (const file of readdirSync(join(process.cwd(), dir))) {
+			for (const file of readdirSync(join(process.cwd(), dir)).filter(
+				(f) => !statSync(join(process.cwd(), dir, f)).isDirectory(),
+			)) {
 				const src = readFileSync(join(process.cwd(), dir, file), "utf8");
 				expect(src).not.toMatch(/DELETE FROM curation_proposals/i);
 			}

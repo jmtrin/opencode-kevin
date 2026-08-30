@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
 	MAX_ENTRIES,
 	OKF_VERSION,
@@ -8,6 +7,7 @@ import {
 	parse,
 	serialize,
 } from "@jmtrin/kevin-core";
+import { describe, expect, it } from "vitest";
 
 function entry(overrides: Partial<OkfEntry> = {}): OkfEntry {
 	return {
@@ -67,8 +67,9 @@ describe("K8-012 — parse(): total function + rejection taxonomy (plan §5.4, D
 	});
 
 	it("refuses a version-ahead header with a single version_ahead reject and no best-effort parse", () => {
-		const r = parse(`${header("r", 3)}{"entry_id":"x"}`);
-		expect(r.version).toBe(3);
+		// v2.0.0 (K16-007): 2 and 3 are valid, 4 is ahead
+		const r = parse(`${header("r", 4)}{"entry_id":"x"}`);
+		expect(r.version).toBe(4);
 		expect(r.entries).toEqual([]);
 		expect(r.rejected).toEqual([{ line: 1, reason: "version_ahead" }]);
 	});

@@ -23,7 +23,10 @@ import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { METRIC_KEY_LABELS } from "@jmtrin/kevin-core";
-import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../packages/plugin/src/index.js";
+import {
+	KEVIN_CONFIG_KEYS,
+	KevinPlugin,
+} from "../../packages/plugin/src/index.js";
 
 const MIGRATIONS_DIR = join(process.cwd(), "packages/core/migrations");
 
@@ -125,8 +128,9 @@ describe("K9-003 — derived registration coverage (Native)", () => {
 		// labels with the perf/contract surface seeded by migration 011.
 		// v1.2.0 (K12-001 / plan §4): 31 -> 32 settings, 54 -> 56 metric
 		// labels with the surface surface.
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(39);
-		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(64);
+		// v2.0.0 (K16-013): 39 -> 43 settings, 64 -> 67 metrics (source_* + okf_v3)
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(43);
+		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(67);
 	});
 
 	it("fails if a future migration seeds a key that is not registered", () => {
@@ -144,18 +148,19 @@ describe("K9-003 — derived registration coverage (Native)", () => {
 		const lazyMetrics = Object.keys(METRIC_KEY_LABELS).filter(
 			(k) => !ALL_METRIC_KEYS.includes(k),
 		);
-		// Settings: tui_snapshots_enabled is lazy (v1.2), Diaspora 4 are lazy (v1.5); mcp_* are migrated (013) so not lazy.
+		// Settings: tui_snapshots_enabled is lazy (v1.2), Diaspora 3 are lazy (v1.5, import_host_memory retired in 2.0.0); mcp_* are migrated (013) so not lazy.
+		// v2.0.0 sources 5 + okf_write_version are migrated (014) so not lazy.
 		expect(lazySettings).toEqual(
 			expect.arrayContaining([
-				"import_host_memory",
 				"skills_canonical_dir",
 				"skills_mirror_claude",
 				"skills_mirror_cursor",
 				"tui_snapshots_enabled",
 			]),
 		);
-		expect(lazySettings.length).toBeGreaterThanOrEqual(5);
-		// Metrics: tui 2 + Diaspora 3 are lazy; mcp 5 are migrated (013) so not lazy.
+		expect(lazySettings).not.toContain("import_host_memory");
+		expect(lazySettings.length).toBeGreaterThanOrEqual(4);
+		// Metrics: tui 2 + Diaspora 3 are lazy; mcp 5 and source 3 are migrated (013/014) so not lazy.
 		expect(lazyMetrics).toEqual(
 			expect.arrayContaining([
 				"mif_exports_total",

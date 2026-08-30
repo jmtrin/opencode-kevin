@@ -4,6 +4,13 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-08-30
+
+### Commonwealth — OKF v3 sharding + MemorySources + contract v2 (C-10..C-14)
+
+- Contract v2 (C-10..C-14) with C-04 removal `import_host_memory` → `sources_*` + `okf_write_version`, C-07 schema 014, C-10 core exports, C-11 MCP, C-12 skills layout, C-13 MIF, C-14 MemorySources.
+- OKF v3 sharded writer/reader, migration 014, idle sync orchestrator, dedup + source_pair, kevin_sources tool.
+
 ## [1.5.0] - 2026-08-29
 
 ### Diaspora — skills everywhere + memory you can carry (no user action required for existing users)

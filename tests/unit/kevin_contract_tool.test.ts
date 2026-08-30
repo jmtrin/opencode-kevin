@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import { contractDigest, describeContract } from "@jmtrin/kevin-core";
 import { buildKevinContract } from "@jmtrin/kevin-core";
+import { describe, expect, it } from "vitest";
 
 describe("K10-018 — kevin_contract tool", () => {
 	it("summary returns version, 16-hex digest, package_version and one line per clause", () => {
-		const r = buildKevinContract({ packageVersion: "1.0.0" }, {}) as {
+		const r = buildKevinContract({ packageVersion: "2.0.0" }, {}) as {
 			contract_version: number;
 			digest: string;
 			package_version: string;
@@ -16,9 +16,9 @@ describe("K10-018 — kevin_contract tool", () => {
 			}[];
 			deprecated: string[];
 		};
-		expect(r.contract_version).toBe(1);
+		expect(r.contract_version).toBe(2);
 		expect(r.digest).toMatch(/^[0-9a-f]{16}$/);
-		expect(r.package_version).toBe("1.0.0");
+		expect(r.package_version).toBe("2.0.0");
 		expect(r.clauses.map((c) => c.id)).toEqual([
 			"C-01",
 			"C-02",
@@ -29,6 +29,11 @@ describe("K10-018 — kevin_contract tool", () => {
 			"C-07",
 			"C-08",
 			"C-09",
+			"C-10",
+			"C-11",
+			"C-12",
+			"C-13",
+			"C-14",
 		]);
 		expect(r.deprecated).toEqual([]);
 	});

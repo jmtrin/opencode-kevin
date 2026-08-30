@@ -4,7 +4,7 @@
 
 ```
 ╔══════════════════════════════════════════════╗
-║        @jmtrin/kevin-mcp  1.4.0              ║
+║        @jmtrin/kevin-mcp  2.0.0              ║
 ║        MCP Bridge for Kevin                  ║
 ║        stdio · zero network · WAL            ║
 ╚══════════════════════════════════════════════╝
@@ -14,7 +14,7 @@
 
 **Kevin MCP exposes the local `kevin.db` to Claude Code, Codex, Cursor, Windsurf, Gemini CLI and Opencode through one stdio server.**
 
-![version](https://img.shields.io/badge/version-1.4.0-blue)
+![version](https://img.shields.io/badge/version-2.0.0-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
 ![mcp](https://img.shields.io/badge/MCP-1.30.0-purple)
 ![transport](https://img.shields.io/badge/transport-stdio-black)
@@ -23,6 +23,8 @@
 </div>
 
 > **No new database. No HTTP. One WAL file, two processes.**
+
+> **Commonwealth (2.0.0):** same bridge, same WAL, now with `kevin_sources` provenance and sharded OKF v3 support (`014`) — reader walks `knowledge/` shards, writer gated by `okf_write_version`.
 
 ---
 
@@ -179,7 +181,7 @@ MCP host (any) ────┘        │   ▲                       │
 
 - **Zero network** — forbidden list enforced: `node:http/https/net/dgram, fetch, XMLHttpRequest, SSETransport, HttpTransport, child_process/spawn`; only `node:fs/path/os/sqlite`.
 - **Logs on stderr only** — `stderr ready repo=... mode=ro|rw db=...`; stdout is MCP JSON only.
-- **Lifecycle** — `resolveEnv → Store(busy_timeout) → Migrate(013) → Metrics+Perf → registry`; SIGINT/SIGTERM flush metrics + perf (every 100 req or signal).
+- **Lifecycle** — `resolveEnv → Store(busy_timeout) → Migrate(014) → Metrics+Perf → registry`; SIGINT/SIGTERM flush metrics + perf (every 100 req or signal).
 
 Package layout:
 
@@ -204,7 +206,7 @@ Text settings via `kevin_config` (compare `=== "1"`):
 | `mcp_approve_enabled` | `'0'` | Double-gate for MCP `approve`/`share` |
 | `mcp_repo_override` | `''` | Override RepoIdentity (hex-16) |
 
-Plus the 32 core/plugin keys (`C-04` since `1.4.0` → golden 35 settings). `kevin_audit` block `mcp` appears only on schema `013`+; pre-013 omitted (`partial:true`). Channel split counters in `kevin_metrics` + `kevin_injections.channel`.
+Plus the 40 core/plugin keys (`C-04` since `2.0.0` → golden 43 settings: `+sources_enabled`, `+source_*×3`, `+okf_write_version`, `-import_host_memory`). `kevin_audit` block `mcp` appears only on schema `013`+; pre-013 omitted (`partial:true`). Channel split counters in `kevin_metrics` + `kevin_injections.channel`.
 
 ---
 
@@ -231,7 +233,7 @@ npm pack --dry-run -w @jmtrin/kevin-mcp
 node packages/mcp/dist/server.js --help
 ```
 
-Monorepo publish order: `core → tui → plugin → mcp` (exact `1.4.0` pin), see `docs/DISTRIBUTION.md`.
+Monorepo publish order: `core → tui → plugin → mcp` (exact `2.0.0` pin), see `docs/DISTRIBUTION.md`.
 
 ---
 

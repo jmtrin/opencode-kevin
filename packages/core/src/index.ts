@@ -3,8 +3,26 @@
 export * from "./Store.js";
 export * from "./Migrate.js";
 // MemoryService has duplicate hasRepoIdColumn with columns.ts — export selectively (keep MemoryService's hasRepoIdColumn, columns provides other helpers)
-export { MemoryService, DATE_NOW, mapRow, readOriginCallId, countSupersedeCandidates, hasRepoIdColumn } from "./MemoryService.js";
-export type { Memory, SlimMemory, SlimMemoryWithEvidence, SaveInput, QueryInput, GetRelevantInput, MemoryType, MemoryScope, MemoryOrigin, MemoryUpdateResult } from "./MemoryService.js";
+export {
+	MemoryService,
+	DATE_NOW,
+	mapRow,
+	readOriginCallId,
+	countSupersedeCandidates,
+	hasRepoIdColumn,
+} from "./MemoryService.js";
+export type {
+	Memory,
+	SlimMemory,
+	SlimMemoryWithEvidence,
+	SaveInput,
+	QueryInput,
+	GetRelevantInput,
+	MemoryType,
+	MemoryScope,
+	MemoryOrigin,
+	MemoryUpdateResult,
+} from "./MemoryService.js";
 export * from "./ToolCallObserver.js";
 export * from "./Reflector.js";
 export * from "./ContextInjector.js";
@@ -42,7 +60,17 @@ export * from "./redact.js";
 export * from "./uuid.js";
 export * from "./sqlite-adapter.js";
 // columns has duplicate hasRepoIdColumn with MemoryService — export without that function (MemoryService's version is canonical via index)
-export { hasColumn, hasIgnoredColumn, hasCuratedColumn, hasTruthColumns, hasLayerColumn, hasRecurrenceColumn, hasArchivedColumn, hasFeedbackColumns, hasFeedbackTable } from "./columns.js";
+export {
+	hasColumn,
+	hasIgnoredColumn,
+	hasCuratedColumn,
+	hasTruthColumns,
+	hasLayerColumn,
+	hasRecurrenceColumn,
+	hasArchivedColumn,
+	hasFeedbackColumns,
+	hasFeedbackTable,
+} from "./columns.js";
 export * from "./time-ms.js";
 export * from "./idle-pipeline.js";
 export * from "./replay.js";
@@ -50,19 +78,49 @@ export * from "./replay-types.js";
 export * from "./ChatBridge.js";
 export * from "./DashboardHtml.js";
 // TuiActions duplicates proposalToken with DashboardHtml — export selectively (exclude proposalToken)
-export { deleteMailbox, processActions, readMailbox, writeResults, verifyFresh, consumeMailbox } from "./TuiActions.js";
-export type { MailboxReadResult, PendingProposal, ProcessDeps, ActionStatus } from "./TuiActions.js";
+export {
+	deleteMailbox,
+	processActions,
+	readMailbox,
+	writeResults,
+	verifyFresh,
+	consumeMailbox,
+} from "./TuiActions.js";
+export type {
+	MailboxReadResult,
+	PendingProposal,
+	ProcessDeps,
+	ActionStatus,
+} from "./TuiActions.js";
 export * from "./TuiSnapshots.js";
 // tui view types — shared between core snapshots and tui package (K13-004)
-export type { ProposalView, ConflictView, HealthView, TuiSnapshotSet, TuiAction, ActionResult } from "./tui-types.js";
+export type {
+	ProposalView,
+	ConflictView,
+	HealthView,
+	TuiSnapshotSet,
+	TuiAction,
+	ActionResult,
+} from "./tui-types.js";
 // shims for isolation
 export * from "./capabilities.js";
 export * from "./host.js";
 export { V2_SPECIFIER } from "./native.js";
-export type { NativeDeps, NativeRegistration, SettingsReader } from "./native.js";
+export type {
+	NativeDeps,
+	NativeRegistration,
+	SettingsReader,
+} from "./native.js";
 // kevin_* handlers — avoid duplicate EmissionState / NativeDeps
 export * from "./kevin_approve.js";
-export { buildAudit, type AuditReport, type ChannelReport, type CurationReport, type TruthReport, type EmissionState } from "./kevin_audit.js";
+export {
+	buildAudit,
+	type AuditReport,
+	type ChannelReport,
+	type CurationReport,
+	type TruthReport,
+	type EmissionState,
+} from "./kevin_audit.js";
 export * from "./kevin_bench.js";
 export * from "./kevin_conflicts.js";
 export * from "./kevin_contract.js";
@@ -78,6 +136,9 @@ export * from "./skills-validate.js";
 export * from "./skills-emit.js";
 export * from "./mif.js";
 export * from "./import-host.js";
+export * from "./okf-shards.js";
+export * from "./sources/MemorySource.js";
+export * from "./sources/IdleSync.js";
 
 // KEVIN_CONFIG_KEYS and related constants — moved from adapter index so core owns the source of truth (C-04).
 // Duplicated here to allow adapter to import from core; adapter will re-export them.
@@ -121,7 +182,11 @@ export const KEVIN_CONFIG_KEYS = [
 	"skills_canonical_dir",
 	"skills_mirror_claude",
 	"skills_mirror_cursor",
-	"import_host_memory",
+	"sources_enabled",
+	"source_claude_memory",
+	"source_codex_memories",
+	"source_opencode_native",
+	"okf_write_version",
 ] as const;
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
-export const KEVIN_VERSION = "1.5.0";
+export const KEVIN_VERSION = "2.0.0";

@@ -65,7 +65,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 		copyRealMigrations(migrationsDir);
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
-		expect(stdout).toContain("13 migraciones copiadas");
+		expect(stdout).toContain("14 migraciones copiadas");
 	}, 30000);
 
 	it("floor check fails when fewer than 6 migration files", async () => {
@@ -104,7 +104,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
-		expect(stdout).toContain("13 migraciones copiadas");
+		expect(stdout).toContain("14 migraciones copiadas");
 	}, 30000);
 
 	it("sorts files lexicographically so 010 comes after 009", async () => {
@@ -112,7 +112,7 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 
 		const { stdout, exitCode } = await runVerify(migrationsDir);
 		expect(exitCode).toBe(0);
-		expect(stdout).toContain("13 migraciones copiadas");
+		expect(stdout).toContain("14 migraciones copiadas");
 	}, 30000);
 
 	it("matches the actual migrations/ directory floor on disk (6)", () => {
@@ -120,6 +120,6 @@ describe("K9-021 — verify-install.ts enumerates migrations/ (plan §8.11)", ()
 			f.endsWith(".sql"),
 		).length;
 		expect(actualMigrations).toBeGreaterThanOrEqual(6);
-		expect(actualMigrations).toBe(13); // current state of repo (011_v10_proven since v1.0.0)
+		expect(actualMigrations).toBe(14); // current state of repo (011_v10_proven since v1.0.0)
 	});
 });

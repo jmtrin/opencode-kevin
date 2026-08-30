@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
 import { describeContract, diffContract } from "@jmtrin/kevin-core";
 import type { PublicContract } from "@jmtrin/kevin-core";
+import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
-const FIXTURE = join(REPO_ROOT, "tests", "fixtures", "contract", "v1.json");
+const FIXTURE = join(REPO_ROOT, "tests", "fixtures", "contract", "v2.json");
 
 function mustFind<T>(arr: readonly T[], pred: (x: T) => boolean): T {
 	const found = arr.find(pred);
@@ -23,7 +23,7 @@ function loadGolden(): PublicContract {
 	return JSON.parse(jsonLines.join("\n")) as PublicContract;
 }
 
-describe("Contract frozen — golden file (K10-008)", () => {
+describe("Contract frozen — golden file (K10-008 / K16-001 v2)", () => {
 	it("fixture exists and carries append-only comment header", () => {
 		expect(existsSync(FIXTURE)).toBe(true);
 		const raw = readFileSync(FIXTURE, "utf8");
@@ -41,7 +41,7 @@ describe("Contract frozen — golden file (K10-008)", () => {
 		);
 		expect(
 			confusing,
-			`Contract golden mismatch — live differs from v1.json:\n${confusing.map((d) => `  ${d.kind} ${d.path} — ${d.remedy}`).join("\n")}`,
+			`Contract golden mismatch — live differs from v2.json:\n${confusing.map((d) => `  ${d.kind} ${d.path} — ${d.remedy}`).join("\n")}`,
 		).toEqual([]);
 	});
 
@@ -69,16 +69,16 @@ describe("Contract frozen — golden file (K10-008)", () => {
 			clauses: [
 				...live.clauses,
 				{
-					id: "C-10",
+					id: "C-15",
 					title: "New additive clause",
 					stability: "frozen",
-					since: "1.1.0",
+					since: "2.1.0",
 					value: { note: "allowed" },
 				},
 			],
 		};
 		const diffs = diffContract(golden, extended);
-		const added = diffs.find((d) => d.clauseId === "C-10");
+		const added = diffs.find((d) => d.clauseId === "C-15");
 		expect(added?.kind).toBe("added_ok");
 	});
 
@@ -90,7 +90,7 @@ describe("Contract frozen — golden file (K10-008)", () => {
 			clauses: [
 				...live.clauses,
 				{
-					id: "C-10",
+					id: "C-15",
 					title: "Bare clause",
 					stability: "frozen",
 					since: "" as unknown as string,
@@ -99,7 +99,7 @@ describe("Contract frozen — golden file (K10-008)", () => {
 			],
 		};
 		const diffs = diffContract(golden, extended);
-		const added = diffs.find((d) => d.clauseId === "C-10");
+		const added = diffs.find((d) => d.clauseId === "C-15");
 		expect(added?.kind).toBe("added_bare");
 	});
 

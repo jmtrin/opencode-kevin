@@ -3,21 +3,23 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	rmSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Memory } from "@jmtrin/kevin-core";
 import { Migrate } from "@jmtrin/kevin-core";
 import { RepoTruth } from "@jmtrin/kevin-core";
 import { Store } from "@jmtrin/kevin-core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let tmpRoot: string;
 let migrationsDir: string;
 let store: Store;
 
 const PROJECT = "project-truth";
+let bumpSeq = 0;
 
 beforeEach(() => {
 	tmpRoot = mkdtempSync(join(tmpdir(), "kevin-repo-contr-"));
@@ -70,10 +72,20 @@ function memory(content: string): Memory {
 
 function writePkg(root: string, v: Record<string, unknown>): void {
 	writeFileSync(join(root, "package.json"), JSON.stringify(v, null, 2));
+	// Windows mtime granularity is ~15ms; a rapid second write can land in the
+	// same tick and appear unchanged to RepoTruth.scan()'s mtime check. Bump
+	// the file's mtime deterministically so the next scan always re-parses.
+	// Mirrors repo_truth_scoping's utimesSync pattern for the same reason.
+	const p = join(root, "package.json");
+	const t = new Date(Date.now() + 3000 + bumpSeq++ * 1000);
+	utimesSync(p, t, t);
 }
 
 function writeTs(root: string, v: Record<string, unknown>): void {
 	writeFileSync(join(root, "tsconfig.json"), JSON.stringify(v, null, 2));
+	const p = join(root, "tsconfig.json");
+	const t = new Date(Date.now() + 3000 + bumpSeq++ * 1000);
+	utimesSync(p, t, t);
 }
 
 describe("K7-007 — contradictions() exact-match, three checks", () => {

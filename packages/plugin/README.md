@@ -26,9 +26,9 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-1.4.0-blue)
+![version](https://img.shields.io/badge/version-2.0.0-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
-![tests](https://img.shields.io/badge/tests-1380%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
 ![network](https://img.shields.io/badge/network-zero-black)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -48,13 +48,15 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 2.0.0 — Commonwealth](#-whats-new-in-200--commonwealth)
+- [What's new in 1.5.0 — Diaspora](#-whats-new-in-150--diaspora)
 - [What's new in 1.4.0 — Bridge](#-whats-new-in-140--bridge)
 - [What's new in 1.3.0 — Bedrock](#-whats-new-in-130--bedrock)
 - [What's new in 1.2.0 — Surface](#-whats-new-in-120--surface)
 - [What's new in 1.1.0 — Drift](#-whats-new-in-110--drift)
 - [What's new in 1.0.0](#-whats-new-in-100)
 - [How it works](#-how-it-works)
-- [The 26 tools (plugin) + 11 MCP tools](#-the-26-tools-plugin--11-mcp-tools)
+- [The 27 tools (plugin) + 11 MCP tools](#-the-27-tools-plugin--11-mcp-tools)
 - [MCP Bridge — cross-harness memory](#-mcp-bridge--cross-harness-memory)
 - [The benchmark: proven, not promised](#-the-benchmark-proven-not-promised)
 - [Curation: from session noise to AGENTS.md](#-curation-from-session-noise-to-agentsmd)
@@ -145,7 +147,7 @@ npm install @jmtrin/opencode-kevin
 
 ### 2. Restart OpenCode
 
-On first boot Kevin migrates its database to schema version `013` and starts
+On first boot Kevin migrates its database to schema version `014` and starts
 observing. Nothing else is required.
 
 ### 3. Talk to it
@@ -175,8 +177,37 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 
 <repo>/.kevin/
 ├── AGENTS.md           ← curated knowledge (marker block, human-approved)
-└── knowledge.okf       ← optional team-sharing file (opt-in)
+├── knowledge.okf       ← single-file when okf_write_version='2' (opt-in, legacy)
+└── knowledge/          ← sharded dir when okf_write_version='3' (default): knowledge.okf (primary ≤2000) + knowledge-002.okf …
 ```
+
+---
+
+## 🆕 What's new in 2.0.0 — "Commonwealth"
+
+> 2.0.0 unites — OKF v3 sharding + MemorySources.
+
+- ❄️ **Contract v2 C-10..C-14** — `C-10` core exports (`1.3.0`), `C-11` MCP tool names + refusal vocabulary (`1.4.0`), `C-12` skills layout (`1.5.0`), `C-13` MIF envelope + redaction (`1.5.0`), `C-14` MemorySources names/precedence/dedup (`2.0.0`); `contract_version` `1` → `2`, succession carried verbatim, `kevin_contract` v2, `tests/fixtures/contract/v2.json` golden, `diffContract` still fails loudly on any carried-clause drift.
+- 📂 **OKF v3 sharded `.kevin/knowledge/`** — primary `knowledge.okf` (≤2000) + overflow `knowledge-002.okf` (zero-padded, deterministic), cap `2000`, `okf_write_version` `'3'` default `'2'` rollback (byte-exact legacy), reader walks all shards lexicographically and enforces global `entry_id` uniqueness (duplicate → structured error naming both files), writer packs primary / spills overflow / collapses gaps, `healHeader` rewrites every shard.
+- 🧠 **MemorySources on idle** — `opencode-plugin (10)`, `claude-memory (20)`, `codex-memories (30)`, `opencode-native (40)` in precedence order; settings `sources_enabled` (`'1'` master) + `source_claude_memory`/`source_codex_memories`/`source_opencode_native` (`'0'` per-source) + `okf_write_version`; idle only (after skills refresh, before snapshots), per-source errors never block next source, cycle bounded `10 s`; incremental `memory_sources.meta_json` `{mtime,size}` caches; dedup by fingerprint (lower precedence wins, `source_dedup_skips_total++`, `also_seen_by[]`), topic clash → `memory_conflicts kind='source_pair'` (open, never auto-resolved); tool #27 `kevin_sources` (show-only), `kevin_trace` `source` + `kevin_audit` `sources` block with health/last_sync/counts/skips, provenance `<!-- kevin:source=claude-memory -->` when non-default.
+- 🗄️ **Migration `014`** — `memory_sources` table + `memories.source` + `idx_memories_source` + 3 metric seeds (`source_syncs_total`, `source_dedup_skips_total`, `okf_v3_files_written`), retire `import_host_memory` → `{error:"removed_in_2.0.0", replacement:"sources_*"}` with one-shot translation to `sources`; `Defaults Outcome` both `FALSE` (no default flip, no enum collapse), CC adapter gate `K16-021` not taken → `v2.1` (zero `cc-adapter` code in `2.0.0`).
+- ⏱️ **Latency** — `sources.sync` `p95 50/max 250` (idle, same `bench:check` red rule).
+
+**Upgrade:** `npm i @jmtrin/kevin-core@2.0.0 @jmtrin/opencode-kevin@2.0.0 @jmtrin/opencode-kevin-tui@2.0.0 @jmtrin/kevin-mcp@2.0.0` — DB auto-migrates to `014`.
+
+---
+
+## 🆕 What's new in 1.5.0 — "Diaspora"
+
+> 1.5.0 shares curated knowledge as versioned skills mirrored to every harness and as portable `.mif` memory — same DB, same recall, gated emission.
+
+- 📚 **Canonical skills** — `skills_canonical_dir` (`'.agents/skills'` canonical `.md` + `manifest.json`), atomic writes, ≤80/150 caps, deterministic sort, idle refresh after snapshots flush; missing `manifest.json` ⇒ external-edit signal, `SKILL.md` frontmatter `name/metadata(hash,generated_at)`, manifest written last (`C-02`).
+- 🪞 **Mirrors** — `skills_mirror_claude` / `skills_mirror_cursor` exact byte copy of canonical, deleted skills pruned following canonical, single-prefix enforcement, external mirror edits discarded silently, `EXTERNAL` (disk!=manifest) → skip.
+- 📦 **MIF portable memory** — `MifDocument` `{version,exported_at,entries{vendor}}`, `kevin_export {mif, redact_pii}` + `kevin_import {mif,claude,codex}` with `SECRET_PATTERNS` redaction, vendor preservation, metrics `mif_exports/imports_total`, fingerprint before redact, `MAX_BODY 500` warn.
+- 📥 **Host import** — gate `import_host_memory='1'`, Claude `~/.claude.json` lineage + Codex `~/.codex/sessions/*.jsonl` lineage, dedup by fingerprint, `pending` memories with `origin:host`, capped walk `1 MiB/5000`, `lstatSync` symlink-safe, `frontmatter` unclosed → skipped.
+- 📊 **Contracts** — `C-04/C-05` since `1.5.0` (+4 settings / +3 metrics → 39/64), `C-07` `013`, golden `v1.json` `39/64`, `kevin_audit` channels `v2` + perf `skills.emit/mif.codec` (`p95 25/max 100`), scans green (`core_purity_scan`, `single_write_path`).
+
+**Upgrade:** `npm i @jmtrin/kevin-core@1.5.0 @jmtrin/opencode-kevin@1.5.0 @jmtrin/opencode-kevin-tui@1.5.0 @jmtrin/kevin-mcp@1.5.0` — DB auto-migrates to `013`; emission/mirrors gated off until canonical/mirror paths set, host import gated off until `import_host_memory='1'`.
 
 ---
 
@@ -309,7 +340,7 @@ Kevin is an intentionally deterministic pipeline — no LLM in the core loop:
 
 ---
 
-## 🧰 The 26 tools (plugin) + 11 MCP tools
+## 🧰 The 27 tools (plugin) + 11 MCP tools
 
 <details open>
 <summary><b>🧠 Core memory</b></summary>
@@ -321,7 +352,7 @@ Kevin is an intentionally deterministic pipeline — no LLM in the core loop:
 | `kevin_get` | Fetch one memory in full |
 | `kevin_recall` | Ranked recall with origin-aware scoring |
 | `kevin_status` | Session scoreboard: counts, precision, metrics |
-| `kevin_config` | List/set any of the 31 settings — no SQL required |
+| `kevin_config` | List/set any of the 43 settings — no SQL required |
 | `kevin_project` | Show, initialize or rekey the repository identity |
 
 </details>
@@ -362,8 +393,9 @@ Kevin is an intentionally deterministic pipeline — no LLM in the core loop:
 | `kevin_audit` | Whole-system report: memories, injections, channels, team, perf, contract |
 | `kevin_doctor` | Health verdict: `healthy` / `degraded` / `unknown`, with reasons |
 | `kevin_native` | Show/enable/disable native host registration (default off) |
-| `kevin_contract` | **v1.0.0** — inspect the frozen public surface at runtime |
+| `kevin_contract` | **v2.0.0** — inspect the frozen public surface at runtime (`contract_version: 2`, `C-01..C-14`) |
 | `kevin_bench` | **v1.0.0** — report benchmark results; never runs them in-session |
+| `kevin_sources` | **v2.0.0** — show MemorySources provenance, sync status and per-source health (tool #27, show-only) |
 
 </details>
 
@@ -482,32 +514,33 @@ tombstones archive rather than delete.
 
 ## 📜 The contract
 
-Kevin 1.x makes promises about its published surface **in writing**.
-[`docs/CONTRACT.md`](docs/CONTRACT.md) freezes nine clauses — `C-01` … `C-09` —
-from the `AGENTS.md` marker bytes to the database schema, each tagged `frozen`
+Kevin 2.x makes promises about its published surface **in writing**.
+[`docs/CONTRACT.md`](docs/CONTRACT.md) freezes fourteen clauses — `C-01` … `C-14` —
+from the `AGENTS.md` marker bytes to MemorySources, each tagged `frozen`
 or `forward-only` and stamped with the release that incurred the obligation. A
 test diffs the live contract against an append-only golden file on every run:
-removals and silent changes fail loudly; additions must carry `since`.
+removals and silent changes fail loudly; additions must carry `since`; `C-10` core exports (`1.3.0`), `C-11` MCP (`1.4.0`), `C-12` skills (`1.5.0`), `C-13` MIF (`1.5.0`), `C-14` MemorySources (`2.0.0`) — succession carried verbatim. `kevin_contract` v2 reports `contract_version: 2`.
 
 ```jsonc
 // kevin_contract (excerpt)
 {
-  "contract_version": 1,
-  "digest": "1de9740bba2e9f95",
+  "contract_version": 2,
+  "digest": "a1b2c3d4e5f6a7b8",
   "clauses": [
     { "id": "C-03", "title": "Tool names and argument shapes", "stability": "frozen", "since": "0.2.0" },
-    { "id": "C-07", "title": "Database schema", "stability": "forward-only", "since": "0.1.0" }
+    { "id": "C-07", "title": "Database schema", "stability": "forward-only", "since": "0.1.0" },
+    { "id": "C-14", "title": "MemorySources", "stability": "frozen", "since": "2.0.0" }
   ]
 }
 ```
 
-> 1.0.0 is not just a version number — it is where Kevin starts making explicit, testable promises about its surface.
+> 1.0.0 is not just a version number — it is where Kevin starts making explicit, testable promises about its surface. 2.0.0 proves succession: every carried clause byte-equal.
 
 ---
 
 ## ⏱️ Hooks & latency budgets
 
-Six host hooks plus Kevin's own `dispose` checkpoint plus two MCP bridges — ten measured scopes,
+Six host hooks plus Kevin's own `dispose` checkpoint plus two MCP bridges plus `sources.sync` — eleven measured scopes,
 each with a declared p95/max budget enforced by `npm run bench:check`:
 
 | Scope | p95 budget | max |
@@ -522,6 +555,7 @@ each with a declared p95/max budget enforced by `npm run bench:check`:
 | `dispose` | 50 ms | 250 ms |
 | `mcp.read` | 25 ms | 100 ms |
 | `mcp.write` | 50 ms | 250 ms |
+| `sources.sync` | 50 ms | 250 ms |
 
 Measured on the reference laptop: retrieval p50 ≈ 0.2 ms, p95 < 1 ms — orders
 of magnitude under budget. Samples persist to `perf_samples` at idle; a breach
@@ -572,6 +606,16 @@ client). All values are TEXT — flags compare with `=== "1"`, never truthiness.
 | `mcp_write_enabled` | `'0'` | Gate for MCP `save` (refused counter `mcp_writes_refused`) |
 | `mcp_approve_enabled` | `'0'` | Double-gate for MCP `approve`/`share` (needs + `mcp_write_enabled`) |
 | `mcp_repo_override` | `''` | Override `RepoIdentity` for MCP (hex-16 or empty) |
+| `skills_canonical_dir` | `'.agents/skills'` | Canonical skills root (validated: no absolute, no "..") |
+| `skills_mirror_claude` | `'0'` | Gate for `.claude/skills` exact byte copy |
+| `skills_mirror_cursor` | `'0'` | Gate for `.cursor/skills` exact byte copy |
+| `sources_enabled` | `'1'` | Master toggle for MemorySources (idle, bounded 10s) |
+| `source_claude_memory` | `'0'` | Per-source gate: claude-memory (20) |
+| `source_codex_memories` | `'0'` | Per-source gate: codex-memories (30) |
+| `source_opencode_native` | `'0'` | Per-source gate: opencode-native (40) |
+| `okf_write_version` | `'3'` | OKF writer version `2` legacy / `3` sharded (rollback byte-exact) |
+
+> `import_host_memory` retired in `2.0.0` → `{error:"removed_in_2.0.0", replacement:"sources_*"}` — one-shot translation to `sources_enabled` + per-source flags on first `014` migration. `mcp_repo_override` still gates MCP identity; `okf_write_version='3'` shards, `'2'` rolls back byte-exact.
 
 ---
 
@@ -628,7 +672,7 @@ npm install                            # hoists workspaces (root private, 4 pack
 npm run build                          # core → tui → plugin → mcp (tsc + copy-migrations)
 npm run typecheck                      # -w core -w tui -w plugin -w mcp + root (strict)
 npm run lint                           # biome
-npm test                               # vitest — root suite (190 files)
+npm test                               # vitest — root suite (233 files)
 npm test -w @jmtrin/kevin-core         # core only — also passes with @opencode-ai/plugin absent (K13-013)
 npm run verify                         # install checks + Bun smoke + verify:pack (×2 + consumer)
 npm run verify:pack                    # dual-tarball + offline consumer smoke (K13-014)
@@ -639,8 +683,8 @@ npm run replay                         # replay recorded sessions deterministica
 Project layout (Bedrock monorepo):
 
 ```
-packages/core/         @jmtrin/kevin-core — ~60 modules (zero deps), src/*.ts, migrations/ 001→013, dist/migrations
-packages/plugin/       @jmtrin/opencode-kevin — 4 modules (index, host, native, capabilities), adapter thin, depends on core+tui 1.4.0 exact
+packages/core/         @jmtrin/kevin-core — ~60 modules (zero deps), src/*.ts, migrations/ 001→014, dist/migrations
+packages/plugin/       @jmtrin/opencode-kevin — 4 modules (index, host, native, capabilities), adapter thin, depends on core+tui 2.0.0 exact
 packages/tui/          @jmtrin/opencode-kevin-tui — isolated TUI panel (target-exclusive, own package.json/exports)
 packages/mcp/          @jmtrin/kevin-mcp — MCP bridge (stdio, 11 tools, pure helper, identity+provenance)
 scripts/               bench · gen-corpus · verify-pack (dual) · verify-install · …

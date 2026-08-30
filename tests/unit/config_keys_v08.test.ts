@@ -2,11 +2,14 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { METRIC_KEY_LABELS } from "@jmtrin/kevin-core";
+import { METRIC_KEYS } from "@jmtrin/kevin-core";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { METRIC_KEY_LABELS } from "@jmtrin/kevin-core";
-import { KEVIN_CONFIG_KEYS, KevinPlugin } from "../../packages/plugin/src/index.js";
-import { METRIC_KEYS } from "@jmtrin/kevin-core";
+import {
+	KEVIN_CONFIG_KEYS,
+	KevinPlugin,
+} from "../../packages/plugin/src/index.js";
 
 const MIGRATION_FILES = [
 	"001_initial.sql",
@@ -179,9 +182,14 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 				"skills_canonical_dir",
 				"skills_mirror_claude",
 				"skills_mirror_cursor",
-				"import_host_memory",
+				"sources_enabled",
+				"source_claude_memory",
+				"source_codex_memories",
+				"source_opencode_native",
+				"okf_write_version",
 			]),
 		);
+		expect(constantV09).not.toContain("import_host_memory");
 	});
 
 	it("kevin_config set succeeds for all new keys and list shows all 31 keys", async () => {
@@ -189,6 +197,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 		// v1.0.0 (K10-005 / plan §5.2): 27 → 31 with the perf/contract settings.
 		// v1.2.0 (K12-001): 31 → 32 with tui_snapshots_enabled.
 		// v1.4.0: mcp_* 3 → 35, v1.5.0: skills_* 3 + import_host_memory 1 → 39 (C-04).
+		// v2.0.0 (K16-013): +5 -1 → 43 (C-04, import_host_memory retired).
 		for (const key of [
 			...V08_SETTING_KEYS,
 			...V09_SETTING_KEYS,
@@ -198,7 +207,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 			expect(out.ok).toBe(true);
 			expect(out.key).toBe(key);
 		}
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(39);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(43);
 		const listed = await runConfig({ action: "list" });
 		for (const key of [
 			...V08_SETTING_KEYS,

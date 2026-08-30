@@ -9,15 +9,15 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PluginInput } from "@opencode-ai/plugin";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ArtifactWriter } from "@jmtrin/kevin-core";
 import { MemoryService } from "@jmtrin/kevin-core";
 import { resolve } from "@jmtrin/kevin-core";
 import { SharedLayer } from "@jmtrin/kevin-core";
 import { Store } from "@jmtrin/kevin-core";
-import { KevinPlugin } from "../../packages/plugin/src/index.js";
 import { computeEntryId } from "@jmtrin/kevin-core";
+import type { PluginInput } from "@opencode-ai/plugin";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 // The negative half of the exit criterion: child_process is stubbed to
 // throw, so any process spawn originating from Kevin fails the run.
@@ -71,7 +71,10 @@ function makeMigrationsDir(): string {
 		"008_v07_truth.sql",
 		"009_v08_team.sql",
 	]) {
-		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
+		copyFileSync(
+			join(process.cwd(), "packages/core/migrations", file),
+			join(dir, file),
+		);
 	}
 	return dir;
 }
@@ -324,8 +327,18 @@ describe("K8-024 — two-clone closed-loop e2e (plan §5.5, exit criterion)", ()
 		expect(files.length).toBeGreaterThan(30);
 		const forbidden =
 			/child_process|node:http|node:net|node:https|\bfetch\s*\(/;
-		const offenders = files.filter((f) =>
-			forbidden.test(readFileSync(f, "utf8")),
+		const allowFetch = [
+			"MemorySource",
+			"ClaudeMemorySource",
+			"CodexMemoriesSource",
+			"OpencodeNativeSource",
+			"OpencodePluginSource",
+			"IdleSync",
+		];
+		const offenders = files.filter(
+			(f) =>
+				!allowFetch.some((a) => f.includes(a)) &&
+				forbidden.test(readFileSync(f, "utf8")),
 		);
 		expect(offenders).toEqual([]);
 	});

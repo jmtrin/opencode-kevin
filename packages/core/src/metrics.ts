@@ -59,6 +59,20 @@ export const METRIC_KEYS = [
 	"okf_merge_folds",
 	"rekey_events",
 	"injections_from_shared",
+	// v0.9.0 (K9-003 / plan §8.10) — native metrics; order matches 010 seed (K16-001 fix: was missing)
+	"hook_fires_total",
+	"hook_errors_total",
+	"hooks_dead_total",
+	"injections_suppressed_dead_hook",
+	"native_registrations_total",
+	"native_registration_failures",
+	// v1.0.0 (K10-005 / plan §6) — proven metrics; order matches 011 seed (K16-001 fix: was missing)
+	"perf_samples_recorded",
+	"perf_budget_breaches",
+	"dispose_fires_total",
+	"dispose_misses_total",
+	"contract_digest_changes",
+	"bench_runs_total",
 	// v1.1.0 (K11-001 / plan §4, D11-01) — drift metrics; order matches 012 seed.
 	"bench_regression_failures",
 	"forget_requests_total",
@@ -77,6 +91,10 @@ export const METRIC_KEYS = [
 	"skills_emitted_total",
 	"mif_exports_total",
 	"mif_imports_total",
+	// v2.0.0 (K16-012 / plan §4.4) — Commonwealth metrics
+	"source_syncs_total",
+	"source_dedup_skips_total",
+	"okf_v3_files_written",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

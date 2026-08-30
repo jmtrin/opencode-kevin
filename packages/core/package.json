@@ -1,28 +1,26 @@
 {
-  "name": "@jmtrin/kevin-core",
-  "version": "1.5.0",
-  "description": "Kevin core — host-agnostic deterministic brain (Bedrock)",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json && node ./scripts/copy-migrations.mjs",
-    "typecheck": "tsc --noEmit"
-  },
-  "engines": {
-    "node": ">=22.5.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "license": "MIT"
+	"name": "@jmtrin/kevin-core",
+	"version": "2.0.0",
+	"description": "Kevin core — host-agnostic deterministic brain (Bedrock)",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "tsc -p tsconfig.json && node ./scripts/copy-migrations.mjs",
+		"typecheck": "tsc --noEmit"
+	},
+	"engines": {
+		"node": ">=22.5.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"license": "MIT"
 }
