@@ -4,6 +4,15 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-08-30
+
+### Relay — deletion sync + native probe + gate re-evaluated (Commonwealth successor, contract v2 minor)
+
+- **Source deletion sync (K21-005, D21-03)** — `collectDeletions` + `IdleSync` fingerprint diff per source, gated `source_deletion_sync='0'` opt-in; when enabled, idle archives missing memories (`archived`) + OKF tombstone if exported + `source_deletions_total` (since 2.1.0), idempotent, cross-source safe (only same source). Migration `015_v21_relay.sql` adds `memories.source TEXT` + `idx_memories_source`, seeds `source_deletions_total` (0) + `source_deletion_sync` ('0'), schema `014→015`.
+- **Opencode-native probe activation (K21-006)** — `NATIVE_CANDIDATE_PATHS = [".opencode/memory/*.md",".opencode/MEMORY.md"]` single const, `statSync`/`readdirSync`/`readFileSync` try/catch, `health:{ok|absent}` absent-safe, grep guard single-source.
+- **Gate re-evaluated (K21-001, D21-05, plan §6)** — `api.npmjs.org` 2026-08-30 base 763 / mcp 219 → ratio 0.287 (<0.50) FAIL, `docs/Kevin_v2.1.0_Defaults_Outcome.md` + `K16-021` appendix; K21-002..004 gate not taken — zero cc-adapter code, C-14 stays 4 sources precedence [10,20,30,40], no new tool.
+- **Contract / packaging (K21-007..009)** — C-04 `source_deletion_sync` since 2.1.0, C-05 `source_deletions_total` since 2.1.0, C-07 `015`, `KEVIN_VERSION 2.1.0`, `KEVIN_CONFIG_KEYS` 43→44, `METRIC_KEYS` 67→68 (verify_pack now expects 2.1.0 + 015), `tui` adds `opencode` engine (D16-11), pins `core/tui 2.1.0`.
+
 ## [2.0.0] - 2026-08-30
 
 ### Commonwealth — OKF v3 sharding + MemorySources + contract v2 (C-10..C-14)

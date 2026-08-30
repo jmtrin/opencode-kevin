@@ -162,6 +162,10 @@
             "since": "2.0.0"
           },
           {
+            "name": "source_deletion_sync",
+            "since": "2.1.0"
+          },
+          {
             "name": "source_opencode_native",
             "since": "2.0.0"
           },
@@ -290,6 +294,10 @@
             "since": "2.0.0"
           },
           {
+            "name": "source_deletions_total",
+            "since": "2.1.0"
+          },
+          {
             "name": "source_syncs_total",
             "since": "2.0.0"
           },
@@ -326,7 +334,7 @@
       "stability": "forward-only",
       "since": "0.1.0",
       "value": {
-        "schema_version": "014",
+        "schema_version": "015",
         "migrations_forward_only": true
       }
     },

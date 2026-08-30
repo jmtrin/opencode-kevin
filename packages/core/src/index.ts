@@ -139,6 +139,7 @@ export * from "./import-host.js";
 export * from "./okf-shards.js";
 export * from "./sources/MemorySource.js";
 export * from "./sources/IdleSync.js";
+export * from "./sources/deletion.js";
 
 // KEVIN_CONFIG_KEYS and related constants — moved from adapter index so core owns the source of truth (C-04).
 // Duplicated here to allow adapter to import from core; adapter will re-export them.
@@ -187,6 +188,7 @@ export const KEVIN_CONFIG_KEYS = [
 	"source_codex_memories",
 	"source_opencode_native",
 	"okf_write_version",
+	"source_deletion_sync",
 ] as const;
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
-export const KEVIN_VERSION = "2.0.0";
+export const KEVIN_VERSION = "2.1.0";

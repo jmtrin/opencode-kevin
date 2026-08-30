@@ -95,6 +95,8 @@ export const METRIC_KEYS = [
 	"source_syncs_total",
 	"source_dedup_skips_total",
 	"okf_v3_files_written",
+	// v2.1.0 (K21-005 / plan §4.3) — Relay deletion metric (opt-in, default 0)
+	"source_deletions_total",
 ] as const;
 
 export type MetricKey = (typeof METRIC_KEYS)[number];

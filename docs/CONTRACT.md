@@ -41,14 +41,14 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 35 `kevin_settings` keys and their string-typed defaults (31 at 1.1.0 + `tui_snapshots_enabled` since 1.2.0 + `mcp_write_enabled`, `mcp_approve_enabled`, `mcp_repo_override` since 1.4.0).
+- **Covers:** the 44 `kevin_settings` keys and their string-typed defaults (31 at 1.1.0 + `tui_snapshots_enabled` since 1.2.0 + `mcp_write_enabled`, `mcp_approve_enabled`, `mcp_repo_override` since 1.4.0 + `skills_canonical_dir`, `skills_mirror_claude`, `skills_mirror_cursor`, `import_host_memory` since 1.5.0 + `sources_enabled`, `source_claude_memory`, `source_codex_memories`, `source_opencode_native`, `okf_write_version` since 2.0.0 + `source_deletion_sync` since 2.1.0; `import_host_memory` retired in 2.0.0).
 - **Consumer may rely on:** every listed key is accepted by `kevin_config`; unknown keys error.
 
 ## C-05 — Metric key names
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 61 `kevin_metrics` keys (51 at 1.0.0 + `bench_regression_failures`, `forget_requests_total`, `forget_tombstones_published` since 1.1.0 + `tui_snapshots_flushed`, `tui_actions_invoked` since 1.2.0 + `mcp_requests_total`, `mcp_reads_served`, `mcp_writes_accepted`, `mcp_writes_refused`, `mcp_errors_total` since 1.4.0).
+- **Covers:** the 68 `kevin_metrics` keys (51 at 1.0.0 + `bench_regression_failures`, `forget_requests_total`, `forget_tombstones_published` since 1.1.0 + `tui_snapshots_flushed`, `tui_actions_invoked` since 1.2.0 + `mcp_requests_total`, `mcp_reads_served`, `mcp_writes_accepted`, `mcp_writes_refused`, `mcp_errors_total` since 1.4.0 + `skills_emitted_total`, `mif_exports_total`, `mif_imports_total` since 1.5.0 + `source_syncs_total`, `source_dedup_skips_total`, `okf_v3_files_written` since 2.0.0 + `source_deletions_total` since 2.1.0).
 - **Consumer may rely on:** counters are monotonic integers; absent keys are zero.
 
 ## C-06 — Package entry points
@@ -62,8 +62,8 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** forward-only
 - **Since:** 0.1.0
-- **Covers:** schema version `013`, migrations are forward-only (`packages/core/migrations/*.sql` apply in order, never rewritten; moved from `migrations/` in v1.3.0 Bedrock, `013_v14_bridge` adds `channel` + 5 MCP metrics in 1.4.0).
-- **Consumer may rely on:** forward-only migrations; `Migrate.run()` idempotent.
+- **Covers:** schema version `015`, migrations are forward-only (`packages/core/migrations/*.sql` apply in order, never rewritten; moved from `migrations/` in v1.3.0 Bedrock, `013_v14_bridge` adds `channel` + 5 MCP metrics in 1.4.0, `014_v2_commonwealth` adds MemorySources + OKF v3 in 2.0.0, `015_v21_relay` adds `memories.source` + `source_deletions_total` + `source_deletion_sync` in 2.1.0).
+- **Consumer may rely on:** forward-only migrations; `Migrate.run()` idempotent (version-gated; `ALTER TABLE ADD COLUMN` in 015 is applied once via `schema_version`).
 
 ## C-08 — Filesystem locations
 

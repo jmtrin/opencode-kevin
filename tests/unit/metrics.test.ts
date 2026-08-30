@@ -286,8 +286,9 @@ describe("K5-004 — v0.5.0 metrics (Glass Box)", () => {
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
 	// v1.1.0 adds 3 (bench+forget), v1.2.0 adds 2 (tui) for a total of 44.
 	// v1.4.0 adds 5 (mcp), v1.5.0 adds 3 (skills+mif) for a total of 52.
+	// v2.0.0 adds 3 (source_syncs_total etc), v2.1.0 adds 1 (source_deletions_total) for a total of 68.
 	it("METRIC_KEYS has exactly 43 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(67);
+		expect(METRIC_KEYS).toHaveLength(68);
 	});
 
 	it("snapshot() includes all keys", () => {
@@ -458,8 +459,9 @@ describe("K6-004 — v0.6.0 metrics (Pull)", () => {
 describe("K7-004 — v0.7.0 metrics (Project Truth)", () => {
 	// v0.8.0 (K8-003) appends six Team keys for a total of 39.
 	// v1.1.0 + v1.2.0 bring the total to 44, v1.4.0+1.5.0 to 52.
+	// v2.0.0 adds 3, v2.1.0 adds 1 for a total of 68.
 	it("METRIC_KEYS has exactly 43 keys", () => {
-		expect(METRIC_KEYS).toHaveLength(67);
+		expect(METRIC_KEYS).toHaveLength(68);
 	});
 
 	it("every key in METRIC_KEYS has a label in METRIC_KEY_LABELS", async () => {

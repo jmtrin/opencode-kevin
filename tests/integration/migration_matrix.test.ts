@@ -58,7 +58,7 @@ function upgradedCopy(version: string): Store {
 	return store;
 }
 
-describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)", () => {
+describe("K10-028 — every historical schema_version upgrades to 015 (K21-008)", () => {
 	it("eleven fixtures exist, one per version 001..011", () => {
 		for (const v of VERSIONS) expect(fixturePath(v)).toBeTruthy();
 		const names = readdirSync(
@@ -68,7 +68,7 @@ describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)"
 	});
 
 	for (const v of VERSIONS) {
-		it(`v${v}: one Migrate.run() reaches '013' with rows intact; dual _ms backfill + metric seeds; second run is no-op (K13-009)`, async () => {
+		it(`v${v}: one Migrate.run() reaches '015' with rows intact; dual _ms backfill + metric seeds; second run is no-op (K21-008)`, async () => {
 			const store = upgradedCopy(v);
 			const result = await new Migrate(
 				store,
@@ -81,7 +81,7 @@ describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)"
 					"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 				)
 				.get() as { version: string };
-			expect(versionRow.version).toBe("014");
+			expect(versionRow.version).toBe("015");
 
 			const mem = store
 				.prepare("SELECT type, content FROM memories WHERE id = ?")
@@ -108,8 +108,8 @@ describe("K10-028 — every historical schema_version upgrades to 013 (K13-009)"
 				join(process.cwd(), "packages/core/migrations"),
 			).run();
 			expect(second.applied).toEqual([]);
-			expect(second.from).toBe("014");
-			expect(second.to).toBe("014");
+			expect(second.from).toBe("015");
+			expect(second.to).toBe("015");
 
 			const memAgain = store
 				.prepare("SELECT content FROM memories WHERE id = ?")

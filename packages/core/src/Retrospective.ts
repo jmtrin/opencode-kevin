@@ -131,6 +131,8 @@ export const METRIC_KEY_LABELS: Record<string, string> = {
 	source_syncs_total: "Sincronizaciones de fuentes (total)",
 	source_dedup_skips_total: "Skips por dedup de fuentes (total)",
 	okf_v3_files_written: "Archivos OKF v3 escritos",
+	// v2.1.0 (K21-005) — Relay deletion metric
+	source_deletions_total: "Borrados de fuente sincronizados (total)",
 };
 
 function originLabel(

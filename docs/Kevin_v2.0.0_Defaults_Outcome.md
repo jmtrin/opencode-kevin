@@ -29,3 +29,7 @@ Flag audit 31/31 keys from 1.1.0 (Appendix — Flag Audit) reviewed: 0 deprecate
 **Outcome 2026-08-30:** **gate not taken** — 2.0.0-dev not yet published to npm, so no weekly_downloads to capture. Soak for 1.5.0 not elapsed before 2.0.0 code-freeze. Per D16-10, non-PASS ships nothing. K16-022..024 closed as `[X] gate not taken`, no `packages/cc-adapter` code, no contract C-14 addition for `claude-code-hooks` source (remains v2.1 candidate). Re-evaluation scheduled for v2.1 with real npm captures.
 
 *Evidence:* no npm captures taken; plan §6 intact; Task breakdown updated `K16-021..024 → [X] gate not taken`.
+
+## Re-evaluated 2026-08-30 (K21-001 / D21-05 / plan §6 — v2.1)
+
+**Outcome 2026-08-30:** **FAIL — gate not taken** — real captures after 2.0.0 publish: base 763 / mcp 219 → ratio 0.287 (<0.50). Details in `docs/Kevin_v2.1.0_Defaults_Outcome.md` (raw JSONs pasted, URLs and dates recorded). Binding: K21-002…004 remain gate not taken; no `claude-code-hooks` source or CC adapter ships in 2.1.0. Second 7-day capture pending 2026-09-06; disagreement rule 0% on same-day re-capture, no extension triggered.

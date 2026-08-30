@@ -1,6 +1,6 @@
 {
 	"name": "@jmtrin/kevin-mcp",
-	"version": "2.0.0",
+	"version": "2.1.0",
 	"description": "Kevin MCP — stdio bridge for any MCP harness (Bridge)",
 	"type": "module",
 	"bin": {
@@ -21,7 +21,7 @@
 		"prepublishOnly": "npm run build"
 	},
 	"dependencies": {
-		"@jmtrin/kevin-core": "2.0.0",
+		"@jmtrin/kevin-core": "2.1.0",
 		"@modelcontextprotocol/sdk": "1.30.0",
 		"zod": "^3.25.0"
 	},

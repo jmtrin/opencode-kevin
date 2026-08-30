@@ -50,13 +50,13 @@ describe("K11-002 ToolCallObserver ts_ms", () => {
 	});
 
 	it("pre-migration store (011) still works without ts_ms", async () => {
-		// Build a DB only up to 011 using a temp migrations dir without 012
+		// Build a DB only up to 011 using a temp migrations dir without 012..015
 		const tmp = mkdtempSync(join(tmpdir(), "kevin-tsms-pre-"));
 		try {
 			const tmpMig = join(tmp, "migs");
 			mkdirSync(tmpMig, { recursive: true });
 			const files = readdirSync(migrationsDir).filter(
-				(f) => f !== "012_v11_drift.sql" && f !== "013_v14_bridge.sql",
+				(f) => f !== "012_v11_drift.sql" && f !== "013_v14_bridge.sql" && f !== "014_v2_commonwealth.sql" && f !== "015_v21_relay.sql",
 			);
 			for (const f of files)
 				copyFileSync(join(migrationsDir, f), join(tmpMig, f));
@@ -70,7 +70,7 @@ describe("K11-002 ToolCallObserver ts_ms", () => {
 					"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 				)
 				.get() as { version: string };
-			expect(version.version).toBe("014");
+			expect(version.version).toBe("011");
 
 			// should not throw and should not have ts_ms column
 			const obs = new ToolCallObserver(s011, null);

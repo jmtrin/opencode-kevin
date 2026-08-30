@@ -198,6 +198,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 		// v1.2.0 (K12-001): 31 → 32 with tui_snapshots_enabled.
 		// v1.4.0: mcp_* 3 → 35, v1.5.0: skills_* 3 + import_host_memory 1 → 39 (C-04).
 		// v2.0.0 (K16-013): +5 -1 → 43 (C-04, import_host_memory retired).
+		// v2.1.0 (K21-005): source_deletion_sync 1 → 44 (C-04).
 		for (const key of [
 			...V08_SETTING_KEYS,
 			...V09_SETTING_KEYS,
@@ -207,7 +208,7 @@ describe("K8-003 — v0.8.0 config and metric keys (Team)", () => {
 			expect(out.ok).toBe(true);
 			expect(out.key).toBe(key);
 		}
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(43);
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(44);
 		const listed = await runConfig({ action: "list" });
 		for (const key of [
 			...V08_SETTING_KEYS,

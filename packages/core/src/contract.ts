@@ -265,6 +265,7 @@ export const CONTRACT_METRIC_ADDITIONS: readonly {
 	{ name: "source_syncs_total", since: "2.0.0" },
 	{ name: "source_dedup_skips_total", since: "2.0.0" },
 	{ name: "okf_v3_files_written", since: "2.0.0" },
+	{ name: "source_deletions_total", since: "2.1.0" },
 ];
 
 /**
@@ -289,6 +290,7 @@ export const CONTRACT_CONFIG_ADDITIONS: readonly {
 	{ name: "source_codex_memories", since: "2.0.0" },
 	{ name: "source_opencode_native", since: "2.0.0" },
 	{ name: "sources_enabled", since: "2.0.0" },
+	{ name: "source_deletion_sync", since: "2.1.0" },
 ];
 
 /**
@@ -442,7 +444,7 @@ export function describeContract(_input?: ContractInput): PublicContract {
 			stability: "forward-only",
 			since: "0.1.0",
 			value: {
-				schema_version: "014",
+				schema_version: "015",
 				migrations_forward_only: true,
 			},
 		},

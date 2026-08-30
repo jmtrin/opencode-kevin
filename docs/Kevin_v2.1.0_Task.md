@@ -29,17 +29,17 @@ Update §1 after each session.
 
 | ID | Phase | Title | Pri | Est | Status |
 |---|---|---|---|---|---|
-| K21-001 | F0 | Re-evaluate adoption gate + record (real npm captures) | P0 | S | `[ ]` |
-| K21-002 | F1 | [COND] CC adapter package + hook scripts + source bridge | P0 | L | `[C]` |
-| K21-003 | F1 | [COND] CC adapter e2e fixture tests + manual smoke | P0 | M | `[C]` |
-| K21-004 | F1 | [COND] CC recipe doc + distribution slot + contract C-14 | P1 | S | `[C]` |
-| K21-005 | F2 | Source deletion sync (tombstone on purged file) | P0 | M | `[ ]` |
-| K21-006 | F2 | Opencode-native probe activation (real paths + absent-safe) | P1 | S | `[ ]` |
-| K21-007 | F2 | Contract / golden update for C-14 (if gate PASS) or no-op | P0 | S | `[ ]` |
-| K21-008 | F3 | Migration 015 (metrics; conditional) + matrix revalidation | P0 | M | `[ ]` |
-| K21-009 | F3 | Engines sweep + packaging matrix (×5 if adapter) | P1 | M | `[ ]` |
-| K21-010 | F3 | Docs: MIMO/MIGRATION_2.1.0, README, CHANGELOG, roadmap | P0 | M | `[ ]` |
-| K21-011 | F4 | Final battery + exit-criterion walkthrough | P0 | L | `[ ]` |
+| K21-001 | F0 | Re-evaluate adoption gate + record (real npm captures) | P0 | S | `[X]` |
+| K21-002 | F1 | [COND] CC adapter package + hook scripts + source bridge | P0 | L | `[X]` |
+| K21-003 | F1 | [COND] CC adapter e2e fixture tests + manual smoke | P0 | M | `[X]` |
+| K21-004 | F1 | [COND] CC recipe doc + distribution slot + contract C-14 | P1 | S | `[X]` |
+| K21-005 | F2 | Source deletion sync (tombstone on purged file) | P0 | M | `[X]` |
+| K21-006 | F2 | Opencode-native probe activation (real paths + absent-safe) | P1 | S | `[X]` |
+| K21-007 | F2 | Contract / golden update for C-14 (if gate PASS) or no-op | P0 | S | `[X]` |
+| K21-008 | F3 | Migration 015 (metrics; conditional) + matrix revalidation | P0 | M | `[X]` |
+| K21-009 | F3 | Engines sweep + packaging matrix (×5 if adapter) | P1 | M | `[X]` |
+| K21-010 | F3 | Docs: MIMO/MIGRATION_2.1.0, README, CHANGELOG, roadmap | P0 | M | `[X]` |
+| K21-011 | F4 | Final battery + exit-criterion walkthrough | P0 | L | `[X]` |
 
 **Phase totals:** F0 1 · F1 3 · F2 3 · F3 3 · F4 1 — **11 total**
 
@@ -68,7 +68,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-001 — Re-evaluate adoption gate + record
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — 2026-08-30 captures base 763 / mcp 219 → ratio 0.287 (<0.50) FAIL; file `docs/Kevin_v2.1.0_Defaults_Outcome.md` written with 2 rows + verdict + binding; `docs/Kevin_v2.0.0_Defaults_Outcome.md` appended. K21-002..004 bound to gate not taken.
 
 - **Priority:** P0 · **Estimation:** S (2h) · **Dependencies:** v2.0.0 tag published · **Risk:** 🟢
 - **Files:** `docs/Kevin_v2.1.0_Defaults_Outcome.md` (new), `docs/Kevin_v2.0.0_Defaults_Outcome.md` gate section (append verdict)
@@ -98,7 +98,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-002 — CC adapter package + hook scripts + source bridge
 
-**Status:** `[C]` Pending — executes only if K21-001 PASS; else close as `[X] gate not taken: ratio <0.50` (or pending publish) and create NO files.
+**Status:** `[X]` gate not taken: ratio 0.287 <0.50 — K21-001 FAIL (2026-08-30 base 763 / mcp 219, real npm captures). No files created; contract C-14 unchanged; verified no `packages/cc-adapter` exists.
 
 - **Priority:** P0 · **Estimation:** L (16h) · **Dependencies:** K21-001 PASS · **Risk:** 🔴
 - **Files (create exactly these, no more):**
@@ -170,7 +170,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-003 — CC adapter e2e fixture tests + manual smoke
 
-**Status:** `[C]` Pending
+**Status:** `[X]` gate not taken: ratio 0.287 <0.50 — upstream K21-002 not shipped; no bridge/e2e to test. Closed per plan §4.2 conditional.
 
 - **Priority:** P0 · **Estimation:** M (5h) · **Dependencies:** K21-002 · **Risk:** 🟡
 - **Files:** `packages/cc-adapter/tests/e2e.test.ts`, `packages/cc-adapter/tests/bridge.test.ts` (if not already)
@@ -188,7 +188,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-004 — CC recipe doc + distribution slot + contract C-14
 
-**Status:** `[C]` Pending
+**Status:** `[X]` gate not taken: ratio 0.287 <0.50 — no cc-adapter, no doc slot, contract C-14 unchanged at 4 sources precedence [10,20,30,40].
 
 - **Priority:** P1 · **Estimation:** S (2h) · **Dependencies:** K21-003 · **Risk:** 🟢
 - **Files:** `docs/harnesses/claude-code-hooks.md`, `DISTRIBUTION.md` or `docs/DISTRIBUTION.md` slot
@@ -206,7 +206,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-005 — Source deletion sync (tombstone on purged file)
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — `deletion.ts` created, `IdleSync.ts` now does fingerprint diff + archive + metric `source_deletions_total` (opt-in via `source_deletion_sync=1`), idempotent, cross-source safe; tests `source_deletion.test.ts` + `sources_deletion.test.ts` green (7 tests); `source` column added via 015 + fallback to source_tool; relevance_score fix.
 
 - **Priority:** P0 · **Estimation:** M (6h) · **Dependencies:** none · **Risk:** 🔴
 - **Files:** `packages/core/src/sources/deletion.ts` (new), `packages/core/src/sources/sync.ts` (modify), `packages/core/tests/source_deletion.test.ts` (new), `tests/integration/sources_deletion.test.ts` (new)
@@ -252,7 +252,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-006 — Opencode-native probe activation
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — NATIVE_CANDIDATE_PATHS = [".opencode/memory/*.md",".opencode/MEMORY.md"], scan absent-safe (try/catch), health ok/absent, tests 3/3 green, grep guard single-source.
 
 - **Priority:** P1 · **Estimation:** S (3h) · **Dependencies:** none · **Risk:** 🟢
 - **Files:** `packages/core/src/sources/native.ts` (modify), `packages/core/tests/source_native.test.ts` (extend)
@@ -289,7 +289,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-007 — Contract / golden update (C-14 addition if PASS else no-op)
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — gate FAIL, C-14 stays 4 sources; C-04/C-05 additions (source_deletion_sync/source_deletions_total) since 2.1.0 + C-07 015 bump; v2.json regenerated, succession+frozen 11 tests green.
 
 - **Priority:** P0 · **Estimation:** S (2h) · **Dependencies:** K21-001, K21-002 · **Risk:** 🟡
 - **Files:** `packages/core/src/contract.ts`, `tests/fixtures/contract/v2.json` (amend in place, NOT v3), `tests/unit/contract_succession.test.ts` (no change needed)
@@ -308,7 +308,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-008 — Migration 015 + matrix revalidation
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — 015_v21_relay.sql adds source column + source_deletions_total + source_deletion_sync, version 015; tests migrate_015 + matrix green; v2.0.0 gate matrix extended.
 
 - **Priority:** P0 · **Estimation:** M (4h) · **Dependencies:** K21-005, K21-007 · **Risk:** 🟡
 - **Files:** `packages/core/migrations/015_v21_relay.sql` (new, conditional), `tests/unit/migrate_015.test.ts` (new), `tests/integration/migration_matrix.test.ts` (extend)
@@ -331,7 +331,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-009 — Engines sweep + packaging matrix (×5 if adapter)
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — engines: core node 22.5, plugin node+opencode, tui node+opencode (added), mcp node; verify-pack patched to expect 2.1.0 + schema 015, ×4 tarballs green, consumer smoke green, build green.
 
 - **Priority:** P1 · **Estimation:** M (3h) · **Dependencies:** K21-002, K21-008 · **Risk:** 🟡
 - **Files:** `packages/*/package.json` (verify), `scripts/verify-pack.ts` (if exists)
@@ -345,7 +345,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-010 — Docs: MIGRATION_2.1.0, README, CHANGELOG, roadmap
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — MIGRATION_2.1.0.md written (015, gate FAIL, deletion opt-in, probe), README 2.1.0 section + badge + config row + layout, CHANGELOG 2.1.0 entry, roadmap appended.
 
 - **Priority:** P0 · **Estimation:** M (4h) · **Dependencies:** K21-007, K21-008 · **Risk:** 🟡
 - **Files:** `docs/MIGRATION_2.1.0.md` (new if schema changed else no-op note), `README.md` (Upgrade to 2.1 section), `CHANGELOG.md` 2.1.0 entry, `docs/Kevin_Roadmap_v2.md` close-out
@@ -364,7 +364,7 @@ Base rules from `Kevin_v2.1.0_Task.md` §2 / `Kevin_v2.0.0_Task.md` §2 apply.
 
 ### K21-011 — Final battery + walkthrough
 
-**Status:** `[ ]` Pending
+**Status:** `[X]` Done — typecheck 4 packages green, key suites 35 tests green (succession+frozen+migrate_015+matrix+source_native+deletion), verify-pack ×4 green, build green. Exit criteria: gate FAIL proven with real npm 763/219, deletion sync proven via tests, succession append-only, old DBs thrive via matrix, no cc-adapter. Tags pending per DISTRIBUTION order.
 
 - **Priority:** P0 · **Estimation:** L (6h) · **Dependencies:** everything · **Risk:** 🔴
 - **Files:** none (transcript archived locally, not committed)

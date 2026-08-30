@@ -169,6 +169,7 @@ export const KEVIN_CONFIG_KEYS = [
 	"source_codex_memories",
 	"source_opencode_native",
 	"okf_write_version",
+	"source_deletion_sync",
 ] as const;
 // v2.0.0 (K16-004 / plan §5.1) — removed settings contract
 export const REMOVED_SETTINGS = {

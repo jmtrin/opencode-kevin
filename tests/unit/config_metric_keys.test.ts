@@ -129,8 +129,9 @@ describe("K9-003 — derived registration coverage (Native)", () => {
 		// v1.2.0 (K12-001 / plan §4): 31 -> 32 settings, 54 -> 56 metric
 		// labels with the surface surface.
 		// v2.0.0 (K16-013): 39 -> 43 settings, 64 -> 67 metrics (source_* + okf_v3)
-		expect(KEVIN_CONFIG_KEYS).toHaveLength(43);
-		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(67);
+		// v2.1.0 (K21-005): 43 -> 44 settings, 67 -> 68 metrics (source_deletions_total)
+		expect(KEVIN_CONFIG_KEYS).toHaveLength(44);
+		expect(Object.keys(METRIC_KEY_LABELS)).toHaveLength(68);
 	});
 
 	it("fails if a future migration seeds a key that is not registered", () => {

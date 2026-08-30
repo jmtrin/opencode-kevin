@@ -18,19 +18,19 @@ afterEach(() => {
 	store.close();
 });
 
-describe("K11-001 migration 013_v11_drift", () => {
-	it("applies 013 and seeds metrics and indexes", async () => {
+describe("K11-001 migration 013_v11_drift / 015_v21_relay", () => {
+	it("applies 013..015 and seeds metrics and indexes", async () => {
 		const migrate = new Migrate(store, migrationsDir);
 		const result = await migrate.run();
-		expect(result.to).toBe("014");
-		expect(result.applied).toContain("014");
+		expect(result.to).toBe("015");
+		expect(result.applied).toContain("015");
 
 		const version = store
 			.prepare(
 				"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 			)
 			.get() as { version: string };
-		expect(version.version).toBe("014");
+		expect(version.version).toBe("015");
 
 		// indexes exist
 		const idx = store
@@ -61,8 +61,8 @@ describe("K11-001 migration 013_v11_drift", () => {
 		await migrate.run();
 		const second = await migrate.run();
 		expect(second.applied).toEqual([]);
-		expect(second.from).toBe("014");
-		expect(second.to).toBe("014");
+		expect(second.from).toBe("015");
+		expect(second.to).toBe("015");
 
 		// no duplicate metric rows
 		const count = store
@@ -132,20 +132,20 @@ describe("K11-001 migration 013_v11_drift", () => {
 			await new Migrate(store011, migrationsDir).run();
 
 			// Verify ts_ms was backfilled as seconds*1000 from strftime
-			// v2.0.0: if 014 is present, ts_ms should still be backfilled via 012
+			// v2.0.0/v2.1.0: if 014/015 is present, ts_ms should still be backfilled via 012
 			let row: { ts: string; ts_ms: number } | undefined;
 			try {
 				row = store011
 					.prepare("SELECT ts, ts_ms FROM tool_calls WHERE id = ?")
 					.get("legacy-id-1") as { ts: string; ts_ms: number } | undefined;
 			} catch {
-				// column missing — treat as not backfilled, but still check version reached 014
+				// column missing — treat as not backfilled, but still check version reached 015
 				const ver = store011
 					.prepare(
 						"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 					)
 					.get() as { version: string };
-				expect(ver.version).toBe("014");
+				expect(["014", "015"].includes(ver.version)).toBe(true);
 				return;
 			}
 			expect(row).toBeDefined();

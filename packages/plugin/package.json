@@ -1,6 +1,6 @@
 {
 	"name": "@jmtrin/opencode-kevin",
-	"version": "2.0.0",
+	"version": "2.1.0",
 	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
 	"type": "module",
 	"main": "dist/plugin/index.js",
@@ -23,8 +23,8 @@
 	},
 	"dependencies": {
 		"@opencode-ai/plugin": "^1.18.16",
-		"@jmtrin/kevin-core": "2.0.0",
-		"@jmtrin/opencode-kevin-tui": "2.0.0"
+		"@jmtrin/kevin-core": "2.1.0",
+		"@jmtrin/opencode-kevin-tui": "2.1.0"
 	},
 	"optionalDependencies": {
 		"better-sqlite3": "^12.11.0"

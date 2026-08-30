@@ -26,7 +26,7 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-2.0.0-blue)
+![version](https://img.shields.io/badge/version-2.1.0-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
 ![tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
@@ -48,6 +48,7 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 2.1.0 — Relay](#-whats-new-in-210--relay)
 - [What's new in 2.0.0 — Commonwealth](#-whats-new-in-200--commonwealth)
 - [What's new in 1.5.0 — Diaspora](#-whats-new-in-150--diaspora)
 - [What's new in 1.4.0 — Bridge](#-whats-new-in-140--bridge)
@@ -147,7 +148,7 @@ npm install @jmtrin/opencode-kevin
 
 ### 2. Restart OpenCode
 
-On first boot Kevin migrates its database to schema version `014` and starts
+On first boot Kevin migrates its database to schema version `015` and starts
 observing. Nothing else is required.
 
 ### 3. Talk to it
@@ -180,6 +181,19 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── knowledge.okf       ← single-file when okf_write_version='2' (opt-in, legacy)
 └── knowledge/          ← sharded dir when okf_write_version='3' (default): knowledge.okf (primary ≤2000) + knowledge-002.okf …
 ```
+
+---
+
+## 🆕 What's new in 2.1.0 — "Relay"
+
+> 2.1.0 relays — deletion sync + native probe + gate re-evaluated.
+
+- 🗑️ **Deletion sync (K21-005)** — `source_deletion_sync` (`'0'` opt-in, D21-03) idle diffs fingerprints per source; missing → `archived` + OKF tombstone if exported + `source_deletions_total` (since 2.1.0), cross-source safe, idempotent; migration `015` adds `memories.source` + index, seeds metric + setting.
+- 🔍 **Opencode-native probe activation (K21-006)** — single const `NATIVE_CANDIDATE_PATHS = [".opencode/memory/*.md",".opencode/MEMORY.md"]`, `statSync` try/catch, `health:absent` when no file, no throw, grep guard single-source.
+- 🚦 **Gate re-evaluated (K21-001)** — `api.npmjs.org` 2026-08-30 base 763 / mcp 219 → ratio 0.287 (<0.50) FAIL, `docs/Kevin_v2.1.0_Defaults_Outcome.md` + `K16-021` appendix; K21-002..004 gate not taken — zero `cc-adapter` code, C-14 stays 4 sources.
+- 📦 **Migration 015 + engines** — schema `014→015`, `tui` gains `opencode` engine, pins `core/tui 2.1.0`, `verify-pack` now expects `2.1.0` + `015`.
+
+**Upgrade:** `npm i @jmtrin/kevin-core@2.1.0 @jmtrin/opencode-kevin@2.1.0 @jmtrin/opencode-kevin-tui@2.1.0 @jmtrin/kevin-mcp@2.1.0` — DB auto-migrates to `015`; to enable deletion sync `kevin_config set source_deletion_sync 1`.
 
 ---
 
@@ -351,7 +365,7 @@ Kevin is an intentionally deterministic pipeline — no LLM in the core loop:
 | `kevin_get` | Fetch one memory in full |
 | `kevin_recall` | Ranked recall with origin-aware scoring |
 | `kevin_status` | Session scoreboard: counts, precision, metrics |
-| `kevin_config` | List/set any of the 43 settings — no SQL required |
+| `kevin_config` | List/set any of the 44 settings — no SQL required |
 | `kevin_project` | Show, initialize or rekey the repository identity |
 
 </details>
@@ -612,6 +626,7 @@ client). All values are TEXT — flags compare with `=== "1"`, never truthiness.
 | `source_claude_memory` | `'0'` | Per-source gate: claude-memory (20) |
 | `source_codex_memories` | `'0'` | Per-source gate: codex-memories (30) |
 | `source_opencode_native` | `'0'` | Per-source gate: opencode-native (40) |
+| `source_deletion_sync` | `'0'` | Deletion sync: archive + tombstone when source file disappears (idle, opt-in) |
 | `okf_write_version` | `'3'` | OKF writer version `2` legacy / `3` sharded (rollback byte-exact) |
 
 > `import_host_memory` retired in `2.0.0` → `{error:"removed_in_2.0.0", replacement:"sources_*"}` — one-shot translation to `sources_enabled` + per-source flags on first `014` migration. `mcp_repo_override` still gates MCP identity; `okf_write_version='3'` shards, `'2'` rolls back byte-exact.
@@ -682,7 +697,7 @@ npm run replay                         # replay recorded sessions deterministica
 Project layout (Bedrock monorepo):
 
 ```
-packages/core/         @jmtrin/kevin-core — ~60 modules (zero deps), src/*.ts, migrations/ 001→014, dist/migrations
+packages/core/         @jmtrin/kevin-core — ~60 modules (zero deps), src/*.ts, migrations/ 001→015, dist/migrations
 packages/plugin/       @jmtrin/opencode-kevin — 4 modules (index, host, native, capabilities), adapter thin, depends on core+tui 2.0.0 exact
 packages/tui/          @jmtrin/opencode-kevin-tui — isolated TUI panel (target-exclusive, own package.json/exports)
 packages/mcp/          @jmtrin/kevin-mcp — MCP bridge (stdio, 11 tools, pure helper, identity+provenance)
