@@ -26,9 +26,9 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-2.0.0-blue)
+![version](https://img.shields.io/badge/version-2.2.1-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
-![tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-1538%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
 ![network](https://img.shields.io/badge/network-zero-black)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -48,6 +48,9 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 2.2.1 — Docs sync](#-whats-new-in-221--docs-sync)
+- [What's new in 2.2.0 — Harbor](#-whats-new-in-220--harbor)
+- [What's new in 2.1.0 — Relay](#-whats-new-in-210--relay)
 - [What's new in 2.0.0 — Commonwealth](#-whats-new-in-200--commonwealth)
 - [What's new in 1.5.0 — Diaspora](#-whats-new-in-150--diaspora)
 - [What's new in 1.4.0 — Bridge](#-whats-new-in-140--bridge)
@@ -183,6 +186,14 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 
 ---
 
+## 🆕 What's new in 2.2.1 — "Docs sync"
+
+> 2.2.1 syncs the paper trail — no behavior change (plugin code identical to 2.2.0 except `KEVIN_VERSION`).
+
+- 📄 Plugin README badges/sections refreshed; `packages/plugin/CHANGELOG.md` revived with 2.0.0/2.1.0/2.2.0 backfill + 2.2.1.
+
+---
+
 ## 🆕 What's new in 2.2.0 — "Harbor"
 
 > 2.2.0 docks — the plugin loads and every Desktop instance belongs to its project.
@@ -190,6 +201,17 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 - 🔌 **Public metadata moves to `@jmtrin/opencode-kevin/config`** — `KEVIN_CONFIG_KEYS`, `REMOVED_SETTINGS`, `ERROR_LESSON_MODE_VALUES`, `KEVIN_VERSION` and `performRekey` (+ `RekeyCounts`/`RekeyResult`) are imported from the new `./config` subpath; the entrypoint exports only the `KevinPlugin` factory (the host loader rejects any other export — v2.1.0 never registered its tools). `KevinPlugin` imports are unchanged; there is no compatibility re-export by design. Full notes in `docs/MIGRATION_2.2.0.md`.
 - 🏠 **Per-instance identity** — under OpenCode Desktop each project resolves its own `project_id`/`repo_id` (was: all instances shared the server home); `kevin_export` is isolated per project; CLI mode unchanged; `opts.projectRoot` still overrides.
 - 🧾 **Truthful seeds and counts** — migration `016` seeds `mcp_write_enabled`/`mcp_approve_enabled`/`mcp_repo_override` (fresh `kevin_config list` = 44 keys); `kevin_status.tool_count` derives from the live tool map (27 with `kevin_sources`).
+
+---
+
+## 🆕 What's new in 2.1.0 — "Relay"
+
+> 2.1.0 relays — deletion sync + native probe + gate re-evaluated (plugin changes below).
+
+- 🗑️ **Deletion sync surfaces** — opt-in `source_deletion_sync='0'` (`kevin_config set source_deletion_sync 1` to enable); idle archives + tombstones + `source_deletions_total`. No new tool (the hook channel stays the channel).
+- 📦 **Migration `015`** — DB auto-migrates to `015` at boot (`memories.source`, metric + setting seeds).
+
+**Upgrade:** `npm i @jmtrin/opencode-kevin@2.1.0` — DB auto-migrates to `015`.
 
 ---
 

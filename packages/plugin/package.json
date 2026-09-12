@@ -1,6 +1,6 @@
 {
 	"name": "@jmtrin/opencode-kevin",
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"description": "Kevin — Observa y aprende: capa de aprendizaje para OpenCode",
 	"type": "module",
 	"main": "dist/plugin/index.js",
@@ -27,8 +27,8 @@
 	},
 	"dependencies": {
 		"@opencode-ai/plugin": "^1.18.16",
-		"@jmtrin/kevin-core": "2.2.0",
-		"@jmtrin/opencode-kevin-tui": "2.2.0"
+		"@jmtrin/kevin-core": "2.2.1",
+		"@jmtrin/opencode-kevin-tui": "2.2.1"
 	},
 	"optionalDependencies": {
 		"better-sqlite3": "^12.11.0"
@@ -45,7 +45,7 @@
 	"bugs": {
 		"url": "https://github.com/jmtrin/opencode-kevin/issues"
 	},
-	"keywords": ["opencode", "plugin", "memory", "learning", "ai"],
+	"keywords": ["opencode-plugin", "opencode", "plugin", "memory", "learning", "ai"],
 	"author": "jmtrin",
 	"publishConfig": {
 		"access": "public"

@@ -26,9 +26,9 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-2.0.0-blue)
+![version](https://img.shields.io/badge/version-2.2.1-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
-![tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-1538%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
 ![network](https://img.shields.io/badge/network-zero-black)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -48,6 +48,9 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 2.2.1 — Docs sync](#-whats-new-in-221--docs-sync)
+- [What's new in 2.2.0 — Harbor](#-whats-new-in-220--harbor)
+- [What's new in 2.1.0 — Relay](#-whats-new-in-210--relay)
 - [What's new in 2.0.0 — Commonwealth](#-whats-new-in-200--commonwealth)
 - [What's new in 1.5.0 — Diaspora](#-whats-new-in-150--diaspora)
 - [What's new in 1.4.0 — Bridge](#-whats-new-in-140--bridge)
@@ -180,6 +183,38 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── knowledge.okf       ← single-file when okf_write_version='2' (opt-in, legacy)
 └── knowledge/          ← sharded dir when okf_write_version='3' (default): knowledge.okf (primary ≤2000) + knowledge-002.okf …
 ```
+
+---
+
+## 🆕 What's new in 2.2.1 — "Docs sync"
+
+> 2.2.1 syncs the paper trail — no behavior change (core code identical to 2.2.0 except `KEVIN_VERSION`).
+
+- 📄 Core README badges/sections refreshed; `packages/core/CHANGELOG.md` revived with 2.0.0/2.1.0/2.2.0 backfill + 2.2.1.
+
+---
+
+## 🆕 What's new in 2.2.0 — "Harbor"
+
+> 2.2.0 docks — the plugin loads and every Desktop instance belongs to its project (core changes below).
+
+- 🧾 **Migration `016_v22_harbor.sql`** — seeds `mcp_write_enabled` (`'0'`), `mcp_approve_enabled` (`'0'`), `mcp_repo_override` (`''`) via `INSERT OR IGNORE`; fresh `kevin_config list` = 44 keys. No columns, no metrics.
+- 🔑 **`KEVIN_CONFIG_KEYS` single-sourced** — core owns the array; the plugin `./config` subpath re-exports it (drift test pins the equality).
+- ❄️ **Contract** — C-07 `015→016` (golden single-hunk regen); C-03 prose fixed (golden already listed 27 tools).
+
+**Upgrade:** `npm i @jmtrin/kevin-core@2.2.0` — DB auto-migrates to `016`.
+
+---
+
+## 🆕 What's new in 2.1.0 — "Relay"
+
+> 2.1.0 relays — deletion sync + native probe + gate re-evaluated (core changes below).
+
+- 🗑️ **Deletion sync machinery** — `collectDeletions` + `IdleSync` fingerprint diff per source, gated `source_deletion_sync='0'` opt-in; archive + OKF tombstone + `source_deletions_total` (since 2.1.0), cross-source safe, idempotent.
+- 🔍 **Opencode-native probe** — single const `NATIVE_CANDIDATE_PATHS`, absent-safe (`health:absent`, never throws).
+- 🗄️ **Migration `015_v21_relay.sql`** — `memories.source TEXT` + `idx_memories_source`, seeds `source_deletions_total` + `source_deletion_sync`, schema `014→015`.
+
+**Upgrade:** `npm i @jmtrin/kevin-core@2.1.0` — DB auto-migrates to `015`.
 
 ---
 

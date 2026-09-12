@@ -26,9 +26,9 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-2.1.0-blue)
+![version](https://img.shields.io/badge/version-2.2.1-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
-![tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-1538%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
 ![network](https://img.shields.io/badge/network-zero-black)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -48,6 +48,7 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 2.2.1 — Docs sync](#-whats-new-in-221--docs-sync)
 - [What's new in 2.2.0 — Harbor](#-whats-new-in-220--harbor)
 - [What's new in 2.1.0 — Relay](#-whats-new-in-210--relay)
 - [What's new in 2.0.0 — Commonwealth](#-whats-new-in-200--commonwealth)
@@ -182,6 +183,18 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── knowledge.okf       ← single-file when okf_write_version='2' (opt-in, legacy)
 └── knowledge/          ← sharded dir when okf_write_version='3' (default): knowledge.okf (primary ≤2000) + knowledge-002.okf …
 ```
+
+---
+
+## 🆕 What's new in 2.2.1 — "Docs sync"
+
+> 2.2.1 syncs the paper trail — no behavior change.
+
+- 📄 **READMEs synced** — version badges → `2.2.1` (+ tests badge → `1538 passing`) in root + all 4 packages; "What's new" TOC + sections backfilled (2.1.0 Relay, 2.2.0 Harbor) in core/tui/plugin READMEs; stale `Upgrade` pins refreshed; mcp README version header + publish-order pin refreshed.
+- 📒 **Package CHANGELOGs revived** — `packages/core/CHANGELOG.md` + `packages/plugin/CHANGELOG.md` gain 2.0.0/2.1.0/2.2.0 backfill entries + 2.2.1 (were stopped at 1.5.0).
+- 🔢 **Version bookkeeping** — `2.2.1` across root + 4 packages (+ exact cross-pins), lockfile re-synced, `KEVIN_VERSION 2.2.1`. No migration, no contract change (C-07 stays `016`), no new tools/settings/metrics.
+
+**Upgrade:** `npm i @jmtrin/kevin-core@2.2.1 @jmtrin/opencode-kevin@2.2.1 @jmtrin/opencode-kevin-tui@2.2.1 @jmtrin/kevin-mcp@2.2.1` — DB already at `016`, nothing migrates.
 
 ---
 

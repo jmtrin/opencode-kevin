@@ -1,7 +1,7 @@
 {
 	"name": "opencode-kevin-monorepo",
 	"private": true,
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"description": "Kevin monorepo — workspaces manager (Bedrock)",
 	"type": "module",
 	"workspaces": ["packages/*"],
@@ -52,7 +52,7 @@
 	"bugs": {
 		"url": "https://github.com/jmtrin/opencode-kevin/issues"
 	},
-	"keywords": ["opencode", "plugin", "memory", "learning", "ai"],
+	"keywords": ["opencode-plugin", "opencode", "plugin", "memory", "learning", "ai"],
 	"author": "jmtrin",
 	"publishConfig": {
 		"access": "public"

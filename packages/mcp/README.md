@@ -4,7 +4,7 @@
 
 ```
 ╔══════════════════════════════════════════════╗
-║        @jmtrin/kevin-mcp  2.0.0              ║
+║        @jmtrin/kevin-mcp  2.2.1              ║
 ║        MCP Bridge for Kevin                  ║
 ║        stdio · zero network · WAL            ║
 ╚══════════════════════════════════════════════╝
@@ -14,7 +14,7 @@
 
 **Kevin MCP exposes the local `kevin.db` to Claude Code, Codex, Cursor, Windsurf, Gemini CLI and Opencode through one stdio server.**
 
-![version](https://img.shields.io/badge/version-2.0.0-blue)
+![version](https://img.shields.io/badge/version-2.2.1-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
 ![mcp](https://img.shields.io/badge/MCP-1.30.0-purple)
 ![transport](https://img.shields.io/badge/transport-stdio-black)
@@ -25,6 +25,10 @@
 > **No new database. No HTTP. One WAL file, two processes.**
 
 > **Commonwealth (2.0.0):** same bridge, same WAL, now with `kevin_sources` provenance and sharded OKF v3 support (`014`) — reader walks `knowledge/` shards, writer gated by `okf_write_version`.
+>
+> **Relay (2.1.0):** `mcp_write_enabled` / `mcp_approve_enabled` / `mcp_repo_override` settings + 5 `mcp_*` metrics (`013`); gated writes unchanged.
+>
+> **Harbor (2.2.0):** the MCP trio is now seeded by migration `016`, so fresh `kevin_config list` shows all 44 keys — gates and defaults unchanged (`'0'`/`'0'`/`''`).
 
 ---
 
@@ -233,7 +237,7 @@ npm pack --dry-run -w @jmtrin/kevin-mcp
 node packages/mcp/dist/server.js --help
 ```
 
-Monorepo publish order: `core → tui → plugin → mcp` (exact `2.0.0` pin), see `docs/DISTRIBUTION.md`.
+Monorepo publish order: `core → tui → plugin → mcp` (exact `2.2.1` pin), see `docs/DISTRIBUTION.md`.
 
 ---
 

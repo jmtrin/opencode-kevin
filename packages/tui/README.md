@@ -26,9 +26,9 @@ injects exactly what matters back into the model's context, curates the best
 of it into files you control, and shares it across a team through one
 git-friendly file — deterministically, locally, with zero network calls.
 
-![version](https://img.shields.io/badge/version-2.0.0-blue)
+![version](https://img.shields.io/badge/version-2.2.1-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A522.5-green)
-![tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-1538%20passing-brightgreen)
 ![deps](https://img.shields.io/badge/runtime%20deps-1-orange)
 ![network](https://img.shields.io/badge/network-zero-black)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -48,6 +48,9 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 2.2.1 — Docs sync](#-whats-new-in-221--docs-sync)
+- [What's new in 2.2.0 — Harbor](#-whats-new-in-220--harbor)
+- [What's new in 2.1.0 — Relay](#-whats-new-in-210--relay)
 - [What's new in 2.0.0 — Commonwealth](#-whats-new-in-200--commonwealth)
 - [What's new in 1.5.0 — Diaspora](#-whats-new-in-150--diaspora)
 - [What's new in 1.4.0 — Bridge](#-whats-new-in-140--bridge)
@@ -180,6 +183,34 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── knowledge.okf       ← single-file when okf_write_version='2' (opt-in, legacy)
 └── knowledge/          ← sharded dir when okf_write_version='3' (default): knowledge.okf (primary ≤2000) + knowledge-002.okf …
 ```
+
+---
+
+## 🆕 What's new in 2.2.1 — "Docs sync"
+
+> 2.2.1 syncs the paper trail — no behavior change (tui code identical to 2.2.0 except version).
+
+- 📄 TUI README badges/sections refreshed.
+
+---
+
+## 🆕 What's new in 2.2.0 — "Harbor"
+
+> 2.2.0 docks — version bump only for tui (the Harbor fixes live in core/plugin).
+
+- 🔌 Plugin entrypoint fix, per-instance identity, migration `016` — see the root `README.md` and `docs/MIGRATION_2.2.0.md`.
+
+**Upgrade:** `npm i @jmtrin/opencode-kevin-tui@2.2.0`.
+
+---
+
+## 🆕 What's new in 2.1.0 — "Relay"
+
+> 2.1.0 relays — tui gains the honest engine declaration.
+
+- ⚙️ **`engines.opencode`** — declared on tui (+ plugin) per D16-11: only host-facing packages carry it. No behavior change.
+
+**Upgrade:** `npm i @jmtrin/opencode-kevin-tui@2.1.0`.
 
 ---
 

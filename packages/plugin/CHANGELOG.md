@@ -4,6 +4,35 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-09-12
+
+> Docs sync — README badges/sections refreshed; no behavior change (plugin code identical to 2.2.0 except `KEVIN_VERSION`).
+
+## [2.2.0] - 2026-09-11
+
+### Harbor — loadable entrypoint + per-instance identity
+
+- **Entrypoint split** — public metadata moved to the additive `./config` subpath; the entrypoint exports only `KevinPlugin` + `default` (same reference), fixing v2.1.0 never registering its tools.
+- **Desktop identity** — `projectDir = input.directory ?? input.worktree ?? process.cwd()` (`opts.projectRoot` still overrides); per-directory probe cache; CLI mode byte-identical.
+- **Truthful runtime** — MCP trio runtime seeds (fresh `kevin_config list` = 44); `kevin_status.tool_count` derived from the live tool map (27); 3 rekey messages + status title in English.
+- **Loader guard** — `plugin-loader-contract.test.ts` + `verify-pack` property P8 + smoke CS3.
+
+## [2.1.0] - 2026-08-30
+
+### Relay — deletion sync surfaces + migration 015
+
+- DB auto-migrates to `015` at boot (`memories.source`, metric + setting seeds).
+- Deletion sync opt-in via `kevin_config set source_deletion_sync 1` (idle archive + tombstone, no new tool).
+- No adapter changes (CC gate not taken).
+
+## [2.0.0] - 2026-08-30
+
+### Commonwealth — MemorySources wiring + contract v2 surface
+
+- `kevin_sources` tool #27 (show-only): per-source health, sync status, precedence.
+- Idle source sync orchestration (precedence order, fingerprint dedup, `source_pair` conflicts surfaced, never auto-resolved); `kevin_trace`/`kevin_audit` provenance.
+- Contract v2 surface (`kevin_contract` reports `contract_version: 2`); `import_host_memory` retired → `{error:"removed_in_2.0.0"}` with one-shot translation.
+
 ## [1.5.0] - 2026-08-29
 
 ### Diaspora — skills + MIF (no user action required)

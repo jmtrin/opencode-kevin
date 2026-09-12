@@ -4,6 +4,14 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-09-12
+
+### Harbor patch — documentation sync (no behavior change)
+
+- **READMEs synced** — version badges `→ 2.2.1` (+ tests badge `→ 1538 passing`) in root + all 4 packages; "What's new" TOC + sections backfilled (2.1.0 Relay, 2.2.0 Harbor) in core/tui/plugin READMEs (plugin already carried 2.2.0); stale `Upgrade` pins (`2.0.0`) refreshed; mcp README version header + publish-order pin refreshed.
+- **Package CHANGELOGs revived** — `packages/core/CHANGELOG.md` + `packages/plugin/CHANGELOG.md` gain 2.0.0/2.1.0/2.2.0 backfill entries + 2.2.1 (were stopped at 1.5.0).
+- **Version bookkeeping** — `2.2.1` across root + 4 packages (+ exact cross-pins), lockfile re-synced, `KEVIN_VERSION 2.2.1`, `bench_persist` package_version pin. No migration, no contract change (C-07 stays `016`), no new tools/settings/metrics.
+
 ## [2.2.0] - 2026-09-11
 
 ### Harbor — loadable entrypoint + per-instance identity (Relay successor, contract v2 minor)

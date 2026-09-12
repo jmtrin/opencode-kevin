@@ -1,6 +1,6 @@
 {
 	"name": "@jmtrin/opencode-kevin-tui",
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"description": "Kevin TUI — target-exclusive panel (Bedrock)",
 	"type": "module",
 	"main": "dist/index.js",
