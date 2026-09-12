@@ -63,25 +63,63 @@ export interface HostSurface {
 // subpath is plugin/native.ts; this module uses the exported symbol.
 import { V2_SPECIFIER } from "./native.js";
 
-let cachedSurface: HostSurface | null = null;
+let cachedSurfaces = new Map<string, HostSurface>();
+
+/**
+ * v2.2.0 (K22-004 / plan §4.4, D22-03) — the instance's project directory.
+ *
+ * Under OpenCode Desktop one server process hosts N instances and
+ * `process.cwd()` is the SERVER's directory, not the project's — every
+ * per-project value must derive from the host's own documented fields
+ * instead. Returns `input.directory ?? input.worktree ?? null`, reusing the
+ * exact `readProject` parsing (nested `project.*` object first, top-level
+ * fields as fallback) so the two can never disagree about what the host
+ * said. `null` means the host offered no directory and the caller falls
+ * back to `process.cwd()` (CLI single-project mode, where they coincide).
+ */
+export function projectDirFromInput(input: unknown): string | null {
+	const notes: string[] = [];
+	const project = readProject(input, notes);
+	// v2.2.0 (K22-004 audit fix): an empty string is "no directory" — it
+	// must fall through to worktree/cwd. `??` does not skip "", and v2.1.0
+	// ignored empty host fields via `length > 0` guards, so passing ""
+	// through would scope a session on fingerprint("") with relative
+	// `.kevin/` joins. Matches RepoIdentity.resolve's own guard style.
+	if (typeof project.directory === "string" && project.directory.length > 0) {
+		return project.directory;
+	}
+	if (typeof project.worktree === "string" && project.worktree.length > 0) {
+		return project.worktree;
+	}
+	return null;
+}
 
 /**
  * v0.9.0 (K9-004 / plan §5.1, D9-12)
  * `importV2` is a test seam; production callers omit it and the real
  * `await import()` runs inside the try.
+ * v2.2.0 (K22-004 / plan §4.4, D22-04): `projectDir` keys the probe cache.
+ * A process-global single cache is a cross-project leak under Desktop's
+ * one-process/N-instances model (BUG-08) — surfaces are now memoized per
+ * project directory (still frozen, still never re-probed per directory).
+ * Callers that omit it get the legacy behaviour keyed on the input's own
+ * directory (or the server cwd when the input carries none).
  */
 export async function probeHost(
 	input: unknown,
-	options?: { importV2?: () => Promise<unknown> },
+	options?: { importV2?: () => Promise<unknown>; projectDir?: string },
 ): Promise<HostSurface> {
-	if (cachedSurface !== null) {
-		return cachedSurface;
+	const cacheKey =
+		options?.projectDir ?? projectDirFromInput(input) ?? process.cwd();
+	const cached = cachedSurfaces.get(cacheKey);
+	if (cached !== undefined) {
+		return cached;
 	}
 	const notes: string[] = [];
 	const project = readProject(input, notes);
 	const hasShell = readShell(input, notes);
-	const v2 = await probeV2(notes, options?.importV2);
-	const pluginVersion = readPluginVersion(notes);
+	const v2 = await probeV2(notes, cacheKey, options?.importV2);
+	const pluginVersion = readPluginVersion(notes, cacheKey);
 	const surface: HostSurface = Object.freeze({
 		pluginVersion,
 		flavour: v2 === null ? "v1-only" : "v1+v2",
@@ -93,16 +131,17 @@ export async function probeHost(
 		}),
 		notes: Object.freeze(notes),
 	});
-	cachedSurface = surface;
+	cachedSurfaces.set(cacheKey, surface);
 	return surface;
 }
 
 /**
  * v0.9.0 (K9-004) — test hook. probeHost caches its result (probe once, freeze,
  * restart to re-probe); tests reset between cases.
+ * v2.2.0 (K22-004): clears the per-directory cache (all keys).
  */
 export function resetHostProbeCache(): void {
-	cachedSurface = null;
+	cachedSurfaces = new Map<string, HostSurface>();
 }
 
 /**
@@ -173,6 +212,7 @@ function readShell(input: unknown, notes: string[]): boolean {
  */
 async function probeV2(
 	notes: string[],
+	baseDir: string,
 	importV2?: () => Promise<unknown>,
 ): Promise<{ skill: boolean; reference: boolean } | null> {
 	let mod: unknown;
@@ -198,7 +238,7 @@ async function probeV2(
 		);
 		return null;
 	}
-	const root = resolvePluginRoot(notes);
+	const root = resolvePluginRoot(notes, baseDir);
 	if (root === null) {
 		notes.push(
 			"v2/promise resolved but the package root is unreachable — v2 domains unverified (D9-12)",
@@ -215,8 +255,8 @@ async function probeV2(
 	};
 }
 
-function readPluginVersion(notes: string[]): string | null {
-	const root = resolvePluginRoot(notes);
+function readPluginVersion(notes: string[], baseDir: string): string | null {
+	const root = resolvePluginRoot(notes, baseDir);
 	if (root === null) {
 		return null;
 	}
@@ -238,8 +278,15 @@ function readPluginVersion(notes: string[]): string | null {
 /**
  * v0.9.0 (K9-004 / plan §5.1) — the installed package's directory, found by
  * the most reliable strategy that works in this runtime. Never throws.
+ * v2.2.0 (K22-004 / plan §4.4): the walk-up starts from the instance's
+ * project directory (`baseDir`) and falls back to the server cwd. The host
+ * package is the SERVER's dependency — under Desktop it lives above the
+ * server cwd, not above the project — so the cwd chain is retained as a
+ * fallback and a project-local copy (when present) wins as the instance's
+ * own copy. CLI single-project mode (`baseDir === cwd`) is byte-identical
+ * to v2.1.0.
  */
-function resolvePluginRoot(notes: string[]): string | null {
+function resolvePluginRoot(notes: string[], baseDir: string): string | null {
 	// 1. import.meta.resolve: the true resolved copy (Node >= 20.6, Bun).
 	const resolveMeta = (
 		import.meta as { resolve?: (specifier: string) => string }
@@ -268,19 +315,24 @@ function resolvePluginRoot(notes: string[]): string | null {
 	} catch {
 		// not resolvable via require — next strategy
 	}
-	// 3. Walk up from cwd looking for a node_modules copy (works in the repo
-	//    and in typical host layouts; best effort, guarded).
-	let dir = process.cwd();
-	for (let depth = 0; depth < 10; depth += 1) {
-		const candidate = join(dir, "node_modules", "@opencode-ai", "plugin");
-		if (existsSync(join(candidate, "package.json"))) {
-			return candidate;
+	// 3. Walk up from the project directory, then from the server cwd,
+	// looking for a node_modules copy (works in the repo and in typical
+	// host layouts; best effort, guarded).
+	for (const base of baseDir === process.cwd()
+		? [baseDir]
+		: [baseDir, process.cwd()]) {
+		let dir = base;
+		for (let depth = 0; depth < 10; depth += 1) {
+			const candidate = join(dir, "node_modules", "@opencode-ai", "plugin");
+			if (existsSync(join(candidate, "package.json"))) {
+				return candidate;
+			}
+			const parent = dirname(dir);
+			if (parent === dir) {
+				break;
+			}
+			dir = parent;
 		}
-		const parent = dirname(dir);
-		if (parent === dir) {
-			break;
-		}
-		dir = parent;
 	}
 	notes.push("resolved plugin package root not reachable (K9-004)");
 	return null;

@@ -26,6 +26,28 @@ const corePkgDir = join(root, "packages/core");
 const pluginPkgDir = join(root, "packages/plugin");
 const tuiPkgDir = join(root, "packages/tui");
 
+// v2.2.0 (K22-003 / BUG-12c) — versions and schema are DERIVED, never
+// hardcoded: the gates stay exact (strict equality) but stop rotting on
+// every release bump.
+function workspaceVersion(dir: string, label: string): string {
+	const v = (
+		JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as {
+			version?: unknown;
+		}
+	).version;
+	if (typeof v !== "string" || v.length === 0)
+		fail("init", `${label} package.json has no version`);
+	return v;
+}
+const coreVersion = workspaceVersion(corePkgDir, "core");
+const pluginVersion = workspaceVersion(pluginPkgDir, "plugin");
+const tuiVersion = workspaceVersion(tuiPkgDir, "tui");
+const latestSchema = readdirSync(join(root, "packages/core/migrations"))
+	.filter((f) => f.endsWith(".sql"))
+	.map((f) => f.slice(0, 3))
+	.sort()
+	.pop() as string;
+
 if (!existsSync(join(corePkgDir, "package.json"))) fail("init", "packages/core/package.json missing");
 if (!existsSync(join(pluginPkgDir, "package.json"))) fail("init", "packages/plugin/package.json missing");
 
@@ -126,8 +148,8 @@ try {
 
 	// C1: name/version
 	if (pkgJson.name !== "@jmtrin/kevin-core") fail("C1", `core name is "${pkgJson.name}" expected "@jmtrin/kevin-core"`);
-	if (pkgJson.version !== "2.1.0") fail("C1", `core version is "${pkgJson.version}" expected "2.1.0"`);
-	pass("C1", "core name @jmtrin/kevin-core version 2.1.0");
+	if (pkgJson.version !== coreVersion) fail("C1", `core version is "${pkgJson.version}" expected "${coreVersion}"`);
+	pass("C1", `core name @jmtrin/kevin-core version ${coreVersion}`);
 
 	// C2: exports/main/types exist
 	{
@@ -258,8 +280,8 @@ try {
 	if (pkgJson.name !== "@jmtrin/opencode-kevin") fail("P1", `plugin name is "${pkgJson.name}" expected "@jmtrin/opencode-kevin"`);
 	if (pkgJson.main !== "dist/plugin/index.js") fail("P1", `plugin main is "${pkgJson.main}" expected "dist/plugin/index.js"`);
 	if (pkgJson.types !== "dist/plugin/index.d.ts") fail("P1", `plugin types is "${pkgJson.types}" expected "dist/plugin/index.d.ts"`);
-	if (pkgJson.version !== "2.1.0") fail("P1", `plugin version is "${pkgJson.version}" expected "2.1.0"`);
-	pass("P1", "plugin name/main/types verbatim (C-06) and version 2.1.0");
+	if (pkgJson.version !== pluginVersion) fail("P1", `plugin version is "${pkgJson.version}" expected "${pluginVersion}"`);
+	pass("P1", `plugin name/main/types verbatim (C-06) and version ${pluginVersion}`);
 
 	// P2: exports exist
 	{
@@ -302,13 +324,13 @@ try {
 		pass("P3", `plugin exports["./tui"] types-first and points to tui package`);
 	}
 
-	// P4: deps pin exact 2.1.0
+	// P4: deps pin exact workspace versions
 	{
 		const corePin = pkgJson.dependencies?.["@jmtrin/kevin-core"];
-		if (corePin !== "2.1.0") fail("P4", `plugin @jmtrin/kevin-core dep is "${corePin}" expected exact "2.1.0"`);
+		if (corePin !== coreVersion) fail("P4", `plugin @jmtrin/kevin-core dep is "${corePin}" expected exact "${coreVersion}"`);
 		const tuiPin = pkgJson.dependencies?.["@jmtrin/opencode-kevin-tui"];
-		if (tuiPin !== "2.1.0") fail("P4", `plugin @jmtrin/opencode-kevin-tui dep is "${tuiPin}" expected "2.1.0"`);
-		pass("P4", "plugin deps pin @jmtrin/kevin-core and tui at 2.1.0 exact");
+		if (tuiPin !== tuiVersion) fail("P4", `plugin @jmtrin/opencode-kevin-tui dep is "${tuiPin}" expected exact "${tuiVersion}"`);
+		pass("P4", `plugin deps pin @jmtrin/kevin-core ${coreVersion} and tui ${tuiVersion} exact`);
 	}
 
 	// P5: no sql inside plugin tarball
@@ -330,6 +352,36 @@ try {
 
 	assertNoMaps(pluginPkgDirExtracted, "plugin", "P6");
 	assertNoTestsOrScripts(pluginPkgDirExtracted, "plugin", "P7");
+
+	// P8 (K22-003 / BUG-04): loader contract — every entrypoint export must
+	// satisfy the host's getServerPlugin predicate. The tarball-extracted copy
+	// cannot be imported directly (its @jmtrin/@opencode-ai deps are not
+	// installed in the extract dir, by design), so P8a pins the tarball bytes
+	// identical to the tested repo build and P8b runs the predicate over that
+	// build; the consumer smoke (CS3) additionally runs the predicate over the
+	// actually-installed packed plugin.
+	{
+		const { pathToFileURL } = await import("node:url");
+		const repoEntry = join(root, "packages/plugin/dist/plugin/index.js");
+		const packedEntry = join(pluginPkgDirExtracted, "dist/plugin/index.js");
+		if (!existsSync(repoEntry)) fail("P8", `repo build ${repoEntry} missing — run "npm run build" first`);
+		if (!existsSync(packedEntry)) fail("P8", "packed dist/plugin/index.js missing");
+		if (!readFileSync(repoEntry).equals(readFileSync(packedEntry)))
+			fail("P8", "packed dist/plugin/index.js differs from the tested repo build");
+		pass("P8a", "packed entrypoint byte-identical to tested repo build");
+		const mod = (await import(pathToFileURL(repoEntry).href)) as Record<string, unknown>;
+		const isValid = (v: unknown): boolean =>
+			typeof v === "function" ||
+			(v !== null && typeof v === "object" && typeof (v as Record<string, unknown>).server === "function");
+		const bad = Object.entries(mod)
+			.filter(([, v]) => !isValid(v))
+			.map(([k, v]) => `${k} (typeof ${typeof v})`);
+		if (bad.length > 0) fail("P8", `entrypoint exports rejected by the host loader: ${bad.join(", ")}`);
+		const keys = Object.keys(mod).sort();
+		if (keys.length !== 2 || keys[0] !== "KevinPlugin" || keys[1] !== "default" || mod.default !== mod.KevinPlugin)
+			fail("P8", `entrypoint must export exactly KevinPlugin + default (same ref), got [${keys.join(",")}]`);
+		pass("P8", "entrypoint exports exactly KevinPlugin + default (same ref), all loader-valid");
+	}
 
 	console.log("Plugin tarball: all checks passed.\n");
 } catch (e) {
@@ -375,10 +427,24 @@ try {
   const r = await m.run();
   if (r.applied.length === 0) throw new Error("Migrate.run applied 0");
   const row = store.prepare("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1").get();
-  if (!row || row.version !== "015") throw new Error("schema_version not 015: " + JSON.stringify(row));
+  if (!row || row.version !== "${latestSchema}") throw new Error("schema_version not ${latestSchema}: " + JSON.stringify(row));
   // smoke 2: plugin factory importable
   const plugin = await import("@jmtrin/opencode-kevin");
   if (!plugin.KevinPlugin && !plugin.default) throw new Error("KevinPlugin not exported");
+  // smoke 2b (K22-003 / BUG-04): loader contract over the installed PACKED plugin
+  {
+    const isValid = (v) =>
+      typeof v === "function" ||
+      (v !== null && typeof v === "object" && typeof v.server === "function");
+    const bad = Object.entries(plugin)
+      .filter(([, v]) => !isValid(v))
+      .map(([k, v]) => k + " (typeof " + typeof v + ")");
+    if (bad.length > 0) throw new Error("loader-contract violators: " + bad.join(", "));
+    const keys = Object.keys(plugin).sort();
+    if (keys.length !== 2 || keys[0] !== "KevinPlugin" || keys[1] !== "default" || plugin.default !== plugin.KevinPlugin)
+      throw new Error("entrypoint shape: [" + keys.join(",") + "]");
+    console.log("LOADER_OK");
+  }
   // smoke 3: kevin_status-like query with in-memory store
   const memStore = new Store({ path: ":memory:" });
   try {
@@ -400,6 +466,8 @@ try {
 	const out = execSync(`node "${smokePath}"`, { cwd: consumerTmp, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 	if (!out.includes("SMOKE_OK")) fail("CS2", "consumer smoke did not emit SMOKE_OK");
 	pass("CS2", "consumer smoke: Migrate + plugin import + in-memory store passed");
+	if (!out.includes("LOADER_OK")) fail("CS3", "packed plugin failed the loader contract (no LOADER_OK)");
+	pass("CS3", "installed packed plugin: entrypoint loader-valid (KevinPlugin + default, same ref)");
 	console.log("Consumer smoke: all checks passed.\n");
 } catch (e) {
 	console.error(e);

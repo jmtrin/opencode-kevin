@@ -606,3 +606,5 @@ Repository (primary) - `tool.definition`, `chat.params`, `permission.ask`
 [Kevin_v2.0.0_Task](./Kevin_v2.0.0_Task.md)
 [Kevin_v2.1.0_Plan](./Kevin_v2.1.0_Plan.md)
 [Kevin_v2.1.0_Task](./Kevin_v2.1.0_Task.md)
+[Kevin_v2.2.0_Plan](./Kevin_v2.2.0_Plan.md)
+[Kevin_v2.2.0_Task](./Kevin_v2.2.0_Task.md)

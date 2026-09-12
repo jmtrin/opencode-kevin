@@ -46,7 +46,7 @@ import { probe } from "./capabilities.js";
 import { computeConfidence, type KevinEnv, exportMigrationsDir, composeIdlePipeline, KEVIN_VERSION } from "@jmtrin/kevin-core";
 import { contractDigest, describeContract } from "@jmtrin/kevin-core";
 import { fingerprint } from "@jmtrin/kevin-core";
-import { probeHost, summarize } from "./host.js";
+import { projectDirFromInput, probeHost, summarize } from "./host.js";
 import { kevinApprove } from "@jmtrin/kevin-core";
 import { buildAudit } from "@jmtrin/kevin-core";
 import { buildKevinBench } from "@jmtrin/kevin-core";
@@ -86,111 +86,19 @@ export interface KevinPluginOptions {
 // added twice, so `references_registered` never doubles.
 const registeredReferences = new Set<string>();
 
-/**
- * v0.4.0 (K4-021) — settings surfaced by `kevin_config` (plan §8.8).
- * Unknown keys are rejected on `set` unless `strict: false`.
- */
-export const KEVIN_CONFIG_KEYS = [
-	"quality_gate_enabled",
-	"lesson_snippet_injection",
-	"patternminer_enabled",
-	"cross_project_enabled",
-	"llm_reflection_enabled",
-	"tool_calls_dedup_enabled",
-	// v0.5.0 (K5-003 / plan §8.13) — omitting these makes `kevin_config set`
-	// return { error: "unknown_key" } while `kevin_config list` still shows
-	// the keys seeded by migration 006.
-	"deterministic_retrieval",
-	"pre_prompt_budget_tokens",
-	"archive_after_days",
-	// v0.6.0 (K6-003 / plan §8.14) — the five keys seeded by migration 007
-	// section 5. Omitting these makes `kevin_config set` return
-	// { error: "unknown_key" } while `kevin_config list` still shows them.
-	"curation_enabled",
-	"agents_md_path",
-	"skill_emission_enabled",
-	"reference_emission_enabled",
-	"injection_confidence_floor",
-	// v0.7.0 (K7-003 / plan §8.10) — the four keys seeded by migration 008
-	// section 5. Three feature flags plus the error lesson mode enum.
-	// Omitting these makes `kevin_config set` return { error: "unknown_key" }
-	// while `kevin_config list` still shows them.
-	"repo_truth_enabled",
-	"convention_mining_enabled",
-	"conflict_detection_enabled",
-	"error_lesson_mode",
-	// v0.8.0 (K8-003 / plan §8.10) — the five keys seeded by migration 009
-	// section 5. Omitting these makes `kevin_config set` return
-	// { error: "unknown_key" } while `kevin_config list` still shows them.
-	// shared_layer_enabled must be compared with === "1" (it is TEXT, and
-	// '0' is truthy); shared_confidence_floor is a string read with
-	// Number.parseFloat and clamped to [0, 1] (conventions, §2).
-	"shared_layer_enabled",
-	"okf_path",
-	"share_requires_approval",
-	"author_identity_mode",
-	"shared_confidence_floor",
-	// v0.9.0 (K9-003 / plan §8.10) — the four keys seeded by migration 010
-	// section 5. Omitting these makes `kevin_config set` return
-	// { error: "unknown_key" } while `kevin_config list` still shows them.
-	// hook_liveness_enabled and the two registration/history flags must be
-	// compared with === "1" (they are TEXT, and '0' is truthy);
-	// dead_hook_report_threshold is a string read with Number.parseInt and
-	// clamped to [1, 1000], NaN defaulting to 3 (conventions, §2; D9-09).
-	"hook_liveness_enabled",
-	"native_registration_enabled",
-	"host_probe_history_enabled",
-	"dead_hook_report_threshold",
-	// v1.0.0 (K10-005 / plan §6) — the four keys seeded by migration 011
-	// section 4. Omitting these makes `kevin_config set` return
-	// { error: "unknown_key" } while `kevin_config list` still shows them.
-	"perf_enabled",
-	"perf_ring_capacity",
-	"perf_flush_on_idle",
-	"contract_report_enabled",
-	// v1.2.0 (K12-001 / plan §4) — the single setting seeded by runtime
-	// (no migration this release). Omitting makes `kevin_config set`
-	// return { error: "unknown_key" } while `kevin_config list` still
-	// shows it.
-	"tui_snapshots_enabled",
-	// v1.4.0 (K14-006 / plan §4) — the three MCP bridge settings seeded by migration 013
-	// Omitting makes `kevin_config set` return { error: "unknown_key" } while list shows them.
-	"mcp_write_enabled",
-	"mcp_approve_enabled",
-	"mcp_repo_override",
-	// v1.5.0 (K15-001 / plan §4) — the four Diaspora settings (no migration this release)
-	// skills_canonical_dir is a path, others are TEXT flags compared with === "1".
-	"skills_canonical_dir",
-	"skills_mirror_claude",
-	"skills_mirror_cursor",
-	// v2.0.0 (K16-013 / plan §4.4) — Commonwealth settings (retirement of import_host_memory handled via removals)
-	"sources_enabled",
-	"source_claude_memory",
-	"source_codex_memories",
-	"source_opencode_native",
-	"okf_write_version",
-	"source_deletion_sync",
-] as const;
-// v2.0.0 (K16-004 / plan §5.1) — removed settings contract
-export const REMOVED_SETTINGS = {
-	import_host_memory: {
-		since: "2.0.0",
-		replacement: "sources_enabled + source_claude_memory/source_codex_memories",
-	},
-} as const;
-
-// v1.1.0 (K11-007 / D11-08) — no new settings in 1.1.0; thresholds are constants (D11-03)
-
-// v0.7.0 (K7-003 / plan §5.6, D7-12) — the explicit VALUE domain for
-// `error_lesson_mode`. The setting is TEXT and must be compared with
-// `=== "triage_only"`, never by truthiness; the domain here is enforced by
-// `kevin_config set` so a typo (`"triage"`, `"0"`, `"false"`) is rejected
-// at the surface rather than silently changing every installation's
-// behaviour on the next reflection.
-export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
-
-/** Plugin release version — single source is @jmtrin/kevin-core (B-003 drift fix). */
-export { KEVIN_VERSION };
+// v2.2.0 (K22-002 / plan §4.1, D22-02) — public metadata now lives in ./config.js
+// (subpath `@jmtrin/opencode-kevin/config`). The entrypoint exports ONLY the factory;
+// every other export broke the host loader (BUG-01/02/03). Internal uses import
+// from here; external consumers use the `./config` subpath.
+import {
+	ERROR_LESSON_MODE_VALUES,
+	KEVIN_CONFIG_KEYS,
+	REMOVED_SETTINGS,
+} from "./config.js";
+// v2.2.0 (K22-002) — performRekey moved to ./config.js (BUG-02: the host
+// invoked the entrypoint export as a second plugin factory). The single call
+// site stays in the kevin_project tool handler (K8-009 source scan).
+import { performRekey } from "./config.js";
 
 function resolveMigrationsDir(): string {
 	// K13-008 (D13-04): migrations now owned by @jmtrin/kevin-core.
@@ -224,185 +132,6 @@ function resolveMigrationsDir(): string {
 	return join(here, "..", "..", "core", "migrations");
 }
 
-// v0.8.0 (K8-009 / plan §5.1, D8-03) — `kevin_project rekey`.
-// The only call site in this file is the `kevin_project` tool handler; the
-// acceptance for K8-009 asserts exactly that by source scan. Re-keying is
-// explicit, human-confirmed, and transactional — it never runs at init, on
-// session.idle, or from a migration hook, because silently merging two
-// corpora in a monorepo is unrecoverable and undiffable.
-export interface RekeyCounts {
-	memories: number;
-	shared_entries: number;
-	okf_imports: number;
-}
-
-export interface RekeyResult {
-	action: "rekey";
-	ok: boolean;
-	reason?: string;
-	/** Present on a dry run (no `confirm`): nothing was mutated. */
-	dry_run?: boolean;
-	/** The resolved id the corpus would move to. */
-	to_repo_id?: string;
-	/** Per source repo_id, the rows that would move (from-value → counts). */
-	from?: Record<string, RekeyCounts>;
-	/** Total rows that would move, per table. */
-	rows?: RekeyCounts;
-	/** A monorepo collision was detected (refused unless `force`). */
-	collision?: boolean;
-	/** Present on a successful confirmed run. */
-	rekeyed?: boolean;
-}
-
-const REKEY_TABLES = ["memories", "shared_entries", "okf_imports"] as const;
-
-export function performRekey(
-	store: Store,
-	toRepoId: string,
-	opts: { confirm: boolean; force?: boolean },
-): RekeyResult {
-	if (!/^[0-9a-f]{16}$/.test(toRepoId)) return { action: "rekey", ok: false, reason: "invalid repo_id" } as RekeyResult;
-	// The 009 migration carries the repo_id column AND the shared-layer
-	// tables; without it there is nothing to re-key.
-	if (!hasRepoIdColumn(store)) {
-		return {
-			action: "rekey",
-			ok: false,
-			reason:
-				"la migracion 009 no se ha aplicado: no existe repo_id (ni shared_entries/okf_imports) sobre el que re-key",
-		};
-	}
-
-	// Rows that would move: every scoped row stored under a repo_id
-	// different from the target. NULL-repo_id rows are global by design
-	// and never move.
-	const groupRows = (table: string): { repo_id: string; c: number }[] =>
-		store
-			.prepare(
-				`SELECT repo_id, COUNT(*) AS c FROM ${table}
-				 WHERE repo_id IS NOT NULL AND repo_id != ? GROUP BY repo_id`,
-			)
-			.all(toRepoId) as { repo_id: string; c: number }[];
-
-	const from: Record<string, RekeyCounts> = {};
-	const rows: RekeyCounts = {
-		memories: 0,
-		shared_entries: 0,
-		okf_imports: 0,
-	};
-	for (const table of REKEY_TABLES) {
-		for (const r of groupRows(table)) {
-			rows[table] += r.c;
-			from[r.repo_id] ??= {
-				memories: 0,
-				shared_entries: 0,
-				okf_imports: 0,
-			};
-			from[r.repo_id][table] = r.c;
-		}
-	}
-	const total = rows.memories + rows.shared_entries + rows.okf_imports;
-	if (total === 0) {
-		return {
-			action: "rekey",
-			ok: true,
-			rekeyed: false,
-			to_repo_id: toRepoId,
-			rows,
-			from,
-		};
-	}
-
-	// Monorepo collision (D8-03): rows already at the target repo_id
-	// belong to a different project_id set than the rows that would move.
-	// shared_entries and okf_imports carry no project_id, so memories is
-	// the only witness.
-	const pidSet = (sql: string, ...params: unknown[]): Set<string> => {
-		const out = new Set<string>();
-		for (const r of store.prepare(sql).all(...params) as {
-			project_id: string | null;
-		}[]) {
-			if (r.project_id !== null) out.add(r.project_id);
-		}
-		return out;
-	};
-	const targetPids = pidSet(
-		"SELECT DISTINCT project_id FROM memories WHERE repo_id = ?",
-		toRepoId,
-	);
-	const movePids = pidSet(
-		"SELECT DISTINCT project_id FROM memories WHERE repo_id IS NOT NULL AND repo_id != ?",
-		toRepoId,
-	);
-	const collision =
-		targetPids.size > 0 &&
-		!(
-			movePids.size === targetPids.size &&
-			[...movePids].every((p) => targetPids.has(p))
-		);
-
-	if (!opts.confirm) {
-		return {
-			action: "rekey",
-			ok: true,
-			dry_run: true,
-			to_repo_id: toRepoId,
-			rows,
-			from,
-			collision,
-		};
-	}
-	if (collision && opts.force !== true) {
-		return {
-			action: "rekey",
-			ok: false,
-			reason:
-				"monorepo collision: el repo_id destino ya contiene memorias de un conjunto de project_id distinto; pasa force: true solo si quieres fusionarlos",
-			to_repo_id: toRepoId,
-			rows,
-			collision: true,
-		};
-	}
-
-	// One transaction: the row moves and the rekey_events counter move
-	// together — a mid-way failure rolls both back and the database is
-	// completely unchanged.
-	try {
-		store.transaction(() => {
-			for (const table of REKEY_TABLES) {
-				store
-					.prepare(
-						`UPDATE ${table} SET repo_id = ?
-						 WHERE repo_id IS NOT NULL AND repo_id != ?`,
-					)
-					.run(toRepoId, toRepoId);
-			}
-			store
-				.prepare(
-					`INSERT INTO kevin_metrics (key, value, updated_at)
-					 VALUES ('rekey_events', 1, datetime('now'))
-					 ON CONFLICT(key) DO UPDATE SET
-					   value = value + 1,
-					   updated_at = datetime('now')`,
-				)
-				.run();
-		});
-	} catch (err) {
-		return {
-			action: "rekey",
-			ok: false,
-			reason: `rekey fallo y se revirtio completamente: ${(err as { message?: string })?.message ?? "unknown error"}`,
-		};
-	}
-	return {
-		action: "rekey",
-		ok: true,
-		rekeyed: true,
-		to_repo_id: toRepoId,
-		rows,
-		from,
-	};
-}
 
 export const KevinPlugin: Plugin = async (input, options) => {
 	const opts = (options ?? {}) as KevinPluginOptions;
@@ -438,18 +167,44 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	} catch {
 		// pre-003 DB without kevin_settings — nothing to seed
 	}
+	// v2.2.0 (K22-005 / plan §4.5, D22-06) — MCP bridge settings: migration
+	// 016 seeds fresh DBs; these runtime seeds heal existing 015 DBs so
+	// `kevin_config list` shows all 44 KEVIN_CONFIG_KEYS (BUG-05: set
+	// accepted the trio while list omitted it).
+	try {
+		const ins = store.prepare(
+			"INSERT OR IGNORE INTO kevin_settings (key, value) VALUES (?, ?)",
+		);
+		ins.run("mcp_write_enabled", "0");
+		ins.run("mcp_approve_enabled", "0");
+		ins.run("mcp_repo_override", "");
+	} catch {
+		// pre-003 DB without kevin_settings — nothing to seed
+	}
 	const metrics = new Metrics(store);
 	// v0.4.0 (K4-019): the plugin hooks expose no project field, so the
 	// project id is derived once from the plugin host's working directory
 	// (plan §5.7 fallback; D2-11 project scoping wired into the live path).
+	// v2.2.0 (K22-004): "working directory" is the instance's projectDir
+	// (input.directory ?? input.worktree), never the server cwd.
 	// v0.8.0 (K8-006 / plan §5.1): the repository identity resolves once at
 	// init, next to the project id, and never on a hot path.
 	// v0.9.0 (K9-004/K9-006 / plan §5.1-5.2, D9-12/D9-13): the host surface
 	// is probed once at construction — frozen, never re-probed — and feeds
 	// the identity chain as the third source, above `path` and below
 	// `declared`/`remote`.
-	const host = await probeHost(input);
-	const identity = RepoIdentity.resolve(process.cwd(), host);
+	// v2.2.0 (K22-004 / plan §4.4, D22-03): the instance's project directory.
+	// Under OpenCode Desktop one server process hosts N instances and
+	// `process.cwd()` is the SERVER's directory, not the project's — so the
+	// directory comes from the host's own documented fields
+	// (`input.directory ?? input.worktree`, via projectDirFromInput), with
+	// `process.cwd()` as terminal fallback only (CLI single-project mode,
+	// where they coincide). `opts.projectRoot` keeps winning as the test
+	// override. Everything per-project below derives from this one value.
+	const projectDir =
+		opts.projectRoot ?? projectDirFromInput(input) ?? process.cwd();
+	const host = await probeHost(input, { projectDir });
+	const identity = RepoIdentity.resolve(projectDir, host);
 	const projectId = identity.projectId;
 	const repoId = identity.repoId;
 	const identitySource = identity.source;
@@ -505,7 +260,9 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	});
 	// v0.7.0 (K7-009 / plan §5.1, D7-13) — the repository truth scanner reads
 	// the JSON project files. Runs once at init, gated by repo_truth_enabled.
-	const projectRoot = opts.projectRoot ?? process.cwd();
+	// v2.2.0 (K22-004): projectRoot follows the instance's projectDir, never
+	// the bare server cwd (Desktop fix; CLI mode is identical).
+	const projectRoot = opts.projectRoot ?? projectDir;
 	const materializerRoot =
 		opts.materializerRoot ?? join(homedir(), ".opencode-kevin");
 	const kevinEnv: KevinEnv = { projectRoot, dataRoot: materializerRoot };
@@ -781,8 +538,12 @@ export const KevinPlugin: Plugin = async (input, options) => {
 	// point of return: transparent (identical keys/arity/returns/errors),
 	// recording fires on the success path only. With hook_liveness_enabled
 	// '0' the wrapper returns this same object untouched.
-	return liveness.wrap({
-		tool: {
+	// v2.2.0 (K22-006 / plan §4.6, D22-05) — the tool map lives in a named
+	// const (not inline in the wrap call) so kevin_status derives
+	// `tool_count` from it: counts are computed, never written (Principle 66).
+	// NonNullable: the literal always defines every tool; the annotation
+	// keeps the exact contextual check the inline literal had.
+	const tools: NonNullable<Hooks["tool"]> = {
 			kevin_save: tool({
 				description:
 					"Guarda una memoria en el conocimiento persistente de Kevin (error, pattern, decision o context).",
@@ -1180,18 +941,23 @@ export const KevinPlugin: Plugin = async (input, options) => {
 						v08 = undefined;
 					}
 					return {
-						title: "Estado de Kevin",
+						// v2.2.0 (K22-007) — English-only user-visible strings.
+						title: "Kevin status",
 						output: JSON.stringify({
 							memories: memoryCount.c,
-							// v0.6.0 (K6-020) — tool ladder 13 → 16
-							// (13 v0.5 + kevin_propose + kevin_approve +
-							// kevin_publish). The frozen ladder is verified
-							// monotone across releases; K6-024 extends this
-							// block with the remaining v0.6 fields. v0.8.0
-							// (K8-025) — 18 v0.7 + kevin_project +
-							// kevin_native = 23. v1.0.0 (K10-018) — +kevin_contract +kevin_bench = 25.
-							// v1.1.0 (K11-007) — +kevin_forget = 26.
-							tool_count: 26,
+						// v0.6.0 (K6-020) — tool ladder 13 → 16
+						// (13 v0.5 + kevin_propose + kevin_approve +
+						// kevin_publish). The frozen ladder is verified
+						// monotone across releases; K6-024 extends this
+						// block with the remaining v0.6 fields. v0.8.0
+						// (K8-025) — 18 v0.7 + kevin_project +
+						// kevin_native = 23. v1.0.0 (K10-018) — +kevin_contract +kevin_bench = 25.
+						// v1.1.0 (K11-007) — +kevin_forget = 26.
+						// v2.0.0 (K16-019) — +kevin_sources = 27.
+						// v2.2.0 (K22-006 / plan §4.6, D22-05) — derived
+						// from the live tool map; the ladder above is
+						// history, the count below cannot desynchronize.
+						tool_count: Object.keys(tools).length,
 							v07,
 							memories_reflector: memoriesReflector,
 							memories_agent: memoriesAgent,
@@ -2172,7 +1938,10 @@ export const KevinPlugin: Plugin = async (input, options) => {
 					};
 				},
 			}),
-		},
+		};
+
+	return liveness.wrap({
+		tool: tools,
 
 		"tool.execute.before": async (hookInput, output) => {
 			// v1.0.0 (K10-012) — perf measures the synchronous hold time;

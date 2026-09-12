@@ -3,14 +3,15 @@
  *
  * README is the user-facing contract for every setting. A key seeded by
  * migrations but absent from the docs is a documentation defect. This guard
- * derives the key list from the source of truth (plugin/index.ts) and asserts
+ * derives the key list from the source of truth (plugin/config.ts) and asserts
  * its presence in README.md verbatim.
  */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { KEVIN_CONFIG_KEYS } from "../../packages/plugin/src/index.js";
+// v2.2.0 (K22-002) — public metadata moved to the `./config` subpath.
+import { KEVIN_CONFIG_KEYS } from "../../packages/plugin/src/config.js";
 
 describe("K9-023 — every KEVIN_CONFIG_KEYS appears in README.md", () => {
 	it("README documents all 27 config keys including the four v0.9.0 natives", () => {

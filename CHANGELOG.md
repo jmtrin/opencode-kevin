@@ -4,6 +4,19 @@ All notable changes to Kevin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-09-11
+
+### Harbor — loadable entrypoint + per-instance identity (Relay successor, contract v2 minor)
+
+- **Entrypoint split (K22-002, D22-02)** — public metadata (`KEVIN_CONFIG_KEYS`, `REMOVED_SETTINGS`, `ERROR_LESSON_MODE_VALUES`, `KEVIN_VERSION`, `performRekey` + `RekeyCounts`/`RekeyResult`) moved from the plugin entrypoint to the additive `./config` subpath (`@jmtrin/opencode-kevin/config`); the entrypoint exports only `KevinPlugin` + `default` (same reference) so the legacy host loader registers the plugin instead of throwing `Plugin export is not a function` (BUG-01/02/03). `KEVIN_CONFIG_KEYS`/`ERROR_LESSON_MODE_VALUES` re-export core (single source, BUG-11). No compatibility re-export by design.
+- **Loader contract guard (K22-003, BUG-04)** — new `tests/unit/plugin-loader-contract.test.ts` (compiled entrypoint, exact-two-exports + same-ref); `verify-pack` property P8 (byte-identity + predicate) + smoke CS3 (installed artifact); versions/schema in `verify-pack` derived from workspace files (BUG-12c).
+- **Desktop identity (K22-004, D22-03/D22-04)** — factory derives `projectDir = input.directory ?? input.worktree ?? process.cwd()` (`opts.projectRoot` still overrides); `RepoIdentity.resolve(projectDir, host)`; host-probe cache keyed per directory (BUG-08); plugin-root walk-up tries the project chain then the server cwd. Precedence `declared > remote > host > path` unchanged. New `tests/integration/desktop_two_instances.test.ts` (4 tests); cwd-coupled asserts in `kevin_share`/`kevin_sync`/`rekey_session`/`repo_identity_init` updated with citations.
+- **MCP trio seeds (K22-005, D22-06)** — migration `016_v22_harbor.sql` (3× `INSERT OR IGNORE` + marker) + factory runtime seeds; fresh `kevin_config list` = 44 keys; key-equality test extended to three-way (migrations ∪ runtime == constant == list); terminal pins rolled 015→016 (`migrate_012`, `migrate_015`, `migration_matrix` + trio block, `verify_install_enumeration`, `tool_calls_ts_ms` exclusion).
+- **Derived tool count (K22-006, D22-05)** — tool map extracted to `const tools` (`NonNullable<Hooks["tool"]>`); `kevin_status.tool_count` = `Object.keys(tools).length` (27); ladder comment extended; 6 asserts at 27 (+ no-literal scan guard); `CONTRACT.md` C-03 prose fixed (golden already 27, untouched).
+- **Hygiene (K22-007, minimal scope)** — 3 `performRekey` messages + `kevin_status` title translated to English; `tests/unit/english_strings.test.ts` pins the removed markers; `tests/unit/metadata_single_source.test.ts` pins core↔config↔package.json agreement (tool descriptions + Retrospective labels deferred).
+- **Contract (K22-008, D22-07)** — C-07 `015→016` (+ `CONTRACT.md` prose); golden `v2.json` regenerated (single-hunk diff); succession red-probe re-run.
+- **Packaging (K22-010)** — versions `2.2.0` (core/plugin/tui/mcp + root + lockfile), `KEVIN_VERSION 2.2.0`, exact cross-pins; engines unchanged (node everywhere, `opencode` on plugin+tui only).
+
 ## [2.1.0] - 2026-08-30
 
 ### Relay — deletion sync + native probe + gate re-evaluated (Commonwealth successor, contract v2 minor)

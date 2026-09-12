@@ -895,3 +895,5 @@ for the leader; Kevin's active-user base on the order of low hundreds (downloads
 **Status update 2026-08-30:** v2.0.0 Commonwealth shipped — 27 tools, 43 settings, 67 metrics, 014 migrations, principles 55-59, decisions D16-01..D16-11 cited (see docs/Kevin_v2.0.0_Plan.md / docs/Kevin_v2.0.0_Task.md).
 
 **Status update 2026-08-30:** v2.1.0 Relay shipped — 27 tools (gate not taken), 44 settings, 68 metrics, 015 migrations, principles 60-63, decisions D21-01..D21-05 cited (see docs/Kevin_v2.1.0_Plan.md / docs/Kevin_v2.1.0_Task.md + docs/Kevin_v2.1.0_Defaults_Outcome.md).
+
+**Status update 2026-09-11:** v2.2.0 Harbor shipped — 27 tools (derived count), 44 settings (MCP trio seeded), 68 metrics, 016 migrations, principles 64-69, decisions D22-01..D22-08 cited (see docs/Kevin_v2.2.0_Plan.md / docs/Kevin_v2.2.0_Task.md + docs/MIGRATION_2.2.0.md).

@@ -9,13 +9,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolve } from "@jmtrin/kevin-core";
 import { Store } from "@jmtrin/kevin-core";
 import { fingerprint } from "@jmtrin/kevin-core";
-import { KevinPlugin } from "../../packages/plugin/src/index.js";
 import { computeEntryId } from "@jmtrin/kevin-core";
+import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
 let drops: string[] = [];
@@ -38,9 +38,14 @@ afterEach(() => {
 function makeMigrationsDir(): string {
 	const dir = join(tmpRoot, "packages/core/migrations");
 	mkdirSync(dir, { recursive: true });
-	for (const file of readdirSync(join(process.cwd(), "packages/core/migrations"))) {
+	for (const file of readdirSync(
+		join(process.cwd(), "packages/core/migrations"),
+	)) {
 		if (file.startsWith("00") || file === "009_v08_team.sql") {
-			copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
+			copyFileSync(
+				join(process.cwd(), "packages/core/migrations", file),
+				join(dir, file),
+			);
 		}
 	}
 	return dir;
@@ -86,13 +91,27 @@ function writeGitRemote(projectRoot: string): void {
 }
 
 // The plugin resolves the session identity once at init against the
-// process working directory (K4-019 / K8-006) — the same id the SharedLayer
-// bridge, MemoryService and Curator are built with.
-const SESSION_ID = resolve(process.cwd()).repoId;
+// instance's project directory (v2.2.0 K22-004 / plan §4.4, D22-03;
+// K4-019/K8-006 heritage) — the same id the SharedLayer bridge,
+// MemoryService and Curator are built with. These tests write a real git
+// remote into projectRoot, so `resolve(projectRoot)` (remote wins over host
+// and path alike) replicates the session id exactly; seeds must carry it,
+// never the server cwd.
 
-// Seed a curated local memory under the session id — the exact shape
-// kevin_share's no-memory_ids auto-selection looks for.
-function seedCuratedLocal(dbPath: string, id: string): void {
+// Seed a curated local memory — the exact shape kevin_share's
+// no-memory_ids auto-selection looks for. Scoped on the session id by
+// default; pass an explicit scope to simulate a corpus stored under a
+// legacy/foreign scope (what rekey exists to move).
+function seedCuratedLocal(
+	dbPath: string,
+	id: string,
+	projectRoot: string,
+	scope?: { repoId: string; projectId: string },
+): void {
+	const session = scope ?? {
+		repoId: resolve(projectRoot).repoId,
+		projectId: resolve(projectRoot).projectId,
+	};
 	const s = new Store({ path: dbPath });
 	s.prepare(
 		`INSERT INTO memories
@@ -101,7 +120,7 @@ function seedCuratedLocal(dbPath: string, id: string): void {
 		  origin, layer, repo_id)
 		 VALUES (?, 'rule', ?, 'project', 0.3, ?, 6, 0, datetime('now'),
 		  datetime('now'), 'active', 1, 1, 'pattern', 'local', ?)`,
-	).run(id, `local rule ${id}`, resolve(process.cwd()).projectId, SESSION_ID);
+	).run(id, `local rule ${id}`, session.projectId, session.repoId);
 	s.close();
 }
 
@@ -151,7 +170,15 @@ describe("BUG-001/002 — the session identity follows a confirmed rekey", () =>
 		const live = resolve(projectRoot);
 		expect(live.source).toBe("remote");
 
-		seedCuratedLocal(dbPath, "m-share-1");
+		seedCuratedLocal(dbPath, "m-share-1", projectRoot);
+		// A second row under the legacy path scope (foreign to the session):
+		// the dry run must report it as would-move and the confirmed rekey
+		// must move it (rekeyed: true). v2.2.0 (K22-004): the old cwd scope
+		// is meaningless here — the path fingerprint is the legacy shape.
+		seedCuratedLocal(dbPath, "m-share-foreign", projectRoot, {
+			repoId: fingerprint(projectRoot),
+			projectId: fingerprint(projectRoot),
+		});
 
 		// Pre-rekey: auto-selection finds the memory under the session id.
 		const before = await runShare(hooks);
@@ -162,7 +189,7 @@ describe("BUG-001/002 — the session identity follows a confirmed rekey", () =>
 		const dry = await runRekey(hooks, false);
 		expect(dry.ok).toBe(true);
 		expect(dry.dry_run).toBe(true);
-		expect((await runStatus(hooks)).v08.repo_id).toBe(SESSION_ID);
+		expect((await runStatus(hooks)).v08.repo_id).toBe(live.repoId);
 
 		// Confirmed rekey: rows move AND the session follows them.
 		const res = await runRekey(hooks, true);
@@ -199,7 +226,7 @@ describe("BUG-003 — a confirmed rekey heals a stale #repo file header", () => 
 			join(okfDir, "knowledge.okf"),
 			`#okf 2\r\n#repo ${stored}\r\n#generated-by opencode-kevin/0.8.0\r\n${entryLine}\r\n`,
 		);
-		seedCuratedLocal(dbPath, "m-share-2");
+		seedCuratedLocal(dbPath, "m-share-2", projectRoot);
 
 		// Pre-rekey the bridge is on the session id and the file claims the
 		// path id: the export must refuse with repo_mismatch.

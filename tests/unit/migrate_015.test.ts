@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest";
 const migrationsDir = join(process.cwd(), "packages/core/migrations");
 
 describe("K21-008 migration 015_v21_relay", () => {
-  it("fresh DB reaches 015 and seeds source_deletions_total + source_deletion_sync", async () => {
+  // v2.2.0 (K22-005): 016_v22_harbor is now terminal — fresh runs end at
+  // 016. The 015-content assertions below still pin what 015 contributes;
+  // terminal pins live in migrate_016.test.ts.
+  it("fresh DB reaches 016 via 015 and seeds source_deletions_total + source_deletion_sync", async () => {
     const store = new Store({ path: ":memory:" });
     const result = await new Migrate(store, migrationsDir).run();
-    expect(result.to).toBe("015");
+    expect(result.to).toBe("016");
     expect(result.applied).toContain("015");
     const ver = store.prepare("SELECT version FROM schema_version WHERE version='015'").get() as { version: string } | undefined;
     expect(ver?.version).toBe("015");
@@ -25,7 +28,8 @@ describe("K21-008 migration 015_v21_relay", () => {
     await new Migrate(store, migrationsDir).run();
     const second = await new Migrate(store, migrationsDir).run();
     expect(second.applied).toEqual([]);
-    expect(second.from).toBe("015");
-    expect(second.to).toBe("015");
+    // v2.2.0 (K22-005): terminal is 016 now.
+    expect(second.from).toBe("016");
+    expect(second.to).toBe("016");
   });
 });

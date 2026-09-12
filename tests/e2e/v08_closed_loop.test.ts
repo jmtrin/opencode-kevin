@@ -89,11 +89,12 @@ function gitFixture(dir: string): void {
 	);
 }
 
-// The plugin resolves identity against process.cwd() (K4-019 / K8-006), so
-// both instances share PLUGIN_REPO_ID; the fixture assertion below is what
-// pins the design property (one repoId, two projectIds).
-const PLUGIN_REPO_ID = resolve(process.cwd()).repoId;
-const PLUGIN_PROJECT_ID = resolve(process.cwd()).projectId;
+// The session identity is per-project (v2.2.0 K22-004 / plan §4.4, D22-03):
+// each instance resolves against its own directory, never the server cwd.
+// The fixtures below write identical remotes, so `resolve(dir)` (remote
+// wins over host and path alike) replicates each session id exactly; seeds
+// and direct core constructions must carry it — the design property (one
+// repoId, two projectIds) is asserted in-test, not via module constants.
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
@@ -122,6 +123,7 @@ function openStore(dbPath: string): Store {
 function seedCuratedMemory(
 	dbPath: string,
 	opts: { id: string; content: string; evidence?: number },
+	ids: { repoId: string; projectId: string },
 ): void {
 	const store = openStore(dbPath);
 	store
@@ -133,13 +135,7 @@ function seedCuratedMemory(
 			 VALUES (?, 'rule', ?, 'project', 0.3, ?, ?, 0, datetime('now'),
 			  datetime('now'), 'active', 1, 1, 'pattern', 'local', ?)`,
 		)
-		.run(
-			opts.id,
-			opts.content,
-			PLUGIN_PROJECT_ID,
-			opts.evidence ?? 6,
-			PLUGIN_REPO_ID,
-		);
+		.run(opts.id, opts.content, ids.projectId, opts.evidence ?? 6, ids.repoId);
 	store.close();
 }
 
@@ -183,7 +179,13 @@ describe("K8-024 — two-clone closed-loop e2e (plan §5.5, exit criterion)", ()
 
 		const statement = "Always use the repository pattern for the data layer";
 		// 1. In A: create + curate a memory, then share it (confirm writes).
-		seedCuratedMemory(dbA, { id: "mem-1", content: statement, evidence: 6 });
+		// v2.2.0 (K22-004): seeds carry A's session id (remote fixture).
+		const idA2 = resolve(dirA);
+		seedCuratedMemory(
+			dbA,
+			{ id: "mem-1", content: statement, evidence: 6 },
+			{ repoId: idA2.repoId, projectId: idA2.projectId },
+		);
 		const share = await pluginA.tool?.kevin_share.execute(
 			{ memory_ids: ["mem-1"], dry_run: false, confirm: true } as never,
 			{
@@ -237,7 +239,9 @@ describe("K8-024 — two-clone closed-loop e2e (plan §5.5, exit criterion)", ()
 		expect(projected).toBeDefined();
 		expect(projected?.layer).toBe("shared");
 		expect(projected?.status).toBe("active");
-		const svcB = new MemoryService(memoryB, null, PLUGIN_REPO_ID);
+		// v2.2.0 (K22-004): B's session id (remote fixture), not the server cwd.
+		const idB2 = resolve(dirB);
+		const svcB = new MemoryService(memoryB, null, idB2.repoId);
 		const relevant = svcB.getRelevant({
 			query: "repository pattern",
 			maxTokens: 2000,
@@ -270,8 +274,9 @@ describe("K8-024 — two-clone closed-loop e2e (plan §5.5, exit criterion)", ()
 		// copies back to A, and A's sync archives the projection.
 		const layerB = new SharedLayer({
 			store: openStore(dbB),
-			repoId: PLUGIN_REPO_ID,
-			projectId: PLUGIN_PROJECT_ID,
+			// v2.2.0 (K22-004): B's session ids (remote fixture).
+			repoId: idB2.repoId,
+			projectId: idB2.projectId,
 			version: "0.8.0",
 			writer: new ArtifactWriter(openStore(dbB), "test-project"),
 		});

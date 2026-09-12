@@ -191,4 +191,4 @@ export const KEVIN_CONFIG_KEYS = [
 	"source_deletion_sync",
 ] as const;
 export const ERROR_LESSON_MODE_VALUES = ["all", "triage_only"] as const;
-export const KEVIN_VERSION = "2.1.0";
+export const KEVIN_VERSION = "2.2.0";

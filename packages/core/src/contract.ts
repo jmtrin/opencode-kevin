@@ -444,7 +444,7 @@ export function describeContract(_input?: ContractInput): PublicContract {
 			stability: "forward-only",
 			since: "0.1.0",
 			value: {
-				schema_version: "015",
+				schema_version: "016",
 				migrations_forward_only: true,
 			},
 		},

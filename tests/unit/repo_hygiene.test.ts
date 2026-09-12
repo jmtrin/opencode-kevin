@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { KEVIN_VERSION } from "../../packages/plugin/src/index.js";
+// v2.2.0 (K22-002) — public metadata moved to the `./config` subpath.
+import { KEVIN_VERSION } from "../../packages/plugin/src/config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");

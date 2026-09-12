@@ -48,6 +48,7 @@ git-friendly file — deterministically, locally, with zero network calls.
 - [Why Kevin](#-why-kevin)
 - [The Kevin loop](#-the-kevin-loop)
 - [Quick start](#-quick-start)
+- [What's new in 2.2.0 — Harbor](#-whats-new-in-220--harbor)
 - [What's new in 2.1.0 — Relay](#-whats-new-in-210--relay)
 - [What's new in 2.0.0 — Commonwealth](#-whats-new-in-200--commonwealth)
 - [What's new in 1.5.0 — Diaspora](#-whats-new-in-150--diaspora)
@@ -181,6 +182,19 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 ├── knowledge.okf       ← single-file when okf_write_version='2' (opt-in, legacy)
 └── knowledge/          ← sharded dir when okf_write_version='3' (default): knowledge.okf (primary ≤2000) + knowledge-002.okf …
 ```
+
+---
+
+## 🆕 What's new in 2.2.0 — "Harbor"
+
+> 2.2.0 docks — the plugin loads and every Desktop instance belongs to its project.
+
+- 🔌 **Loadable entrypoint (K22-002)** — the plugin `main` exports only the `KevinPlugin` factory; public metadata (`KEVIN_CONFIG_KEYS`, `REMOVED_SETTINGS`, `ERROR_LESSON_MODE_VALUES`, `KEVIN_VERSION`, `performRekey`) moved to the additive `./config` subpath (`@jmtrin/opencode-kevin/config`). Fixes v2.1.0 never registering its tools (`Plugin export is not a function`); new loader-contract test + `verify-pack` property 8 guard it.
+- 🏠 **Per-instance identity (K22-004)** — every project directory resolves its own `project_id`/`repo_id` under OpenCode Desktop (was: every instance shared the server home); CLI single-project mode byte-identical; `kevin_export` isolation proven per project.
+- 🧾 **Truthful seeds and counts (K22-005/K22-006)** — migration `016` seeds the MCP trio so fresh `kevin_config list` shows all 44 keys; `kevin_status.tool_count` derives from the live tool map (27).
+- 📦 **Migration `016`** — schema `015→016`, additive seeds only. See `docs/MIGRATION_2.2.0.md`.
+
+**Upgrade:** `npm i @jmtrin/kevin-core@2.2.0 @jmtrin/opencode-kevin@2.2.0 @jmtrin/opencode-kevin-tui@2.2.0 @jmtrin/kevin-mcp@2.2.0` — DB auto-migrates to `016`; metadata imports move to `@jmtrin/opencode-kevin/config`.
 
 ---
 

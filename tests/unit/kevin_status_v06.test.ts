@@ -1,9 +1,9 @@
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Store } from "@jmtrin/kevin-core";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Store } from "@jmtrin/kevin-core";
 import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 const MIGRATIONS_007 = [
@@ -80,10 +80,12 @@ async function boot(
 }
 
 describe("K6-024 — kevin_status v0.6 fields", () => {
-	it("on a 007 database: tool_count 23, schema 007, curation on, emissions unavailable on a v1 host, zero pending", async () => {
+	it("on a 007 database: tool_count 27, schema 007, curation on, emissions unavailable on a v1 host, zero pending", async () => {
 		await boot(MIGRATIONS_007, {});
 		const status = await runStatus(makeCtx("s-1"));
-		expect(status.tool_count).toBe(26);
+		// v2.2.0 (K22-006): tool_count derives from the live tool map (27
+		// with kevin_sources since 2.0.0) — never a literal.
+		expect(status.tool_count).toBe(27);
 		expect(status.v06).toEqual({
 			schema_version: "007",
 			curation_enabled: "1",
@@ -138,7 +140,8 @@ describe("K6-024 — kevin_status v0.6 fields", () => {
 		);
 
 		const status = await runStatus(makeCtx("s-2"));
-		expect(status.tool_count).toBe(26);
+		// v2.2.0 (K22-006): derived from the live tool map.
+		expect(status.tool_count).toBe(27);
 		expect(status.v06?.schema_version).toBe("007");
 		expect(status.v06?.skill_emission).toBe("on");
 		expect(status.v06?.reference_emission).toBe("on");
@@ -157,7 +160,8 @@ describe("K6-024 — kevin_status v0.6 fields", () => {
 			{},
 		);
 		const status = await runStatus(makeCtx("s-3"));
-		expect(status.tool_count).toBe(26);
+		// v2.2.0 (K22-006): derived from the live tool map.
+		expect(status.tool_count).toBe(27);
 		expect(status.v06).toBeUndefined();
 	});
 });

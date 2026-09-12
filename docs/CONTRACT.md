@@ -34,7 +34,7 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** frozen
 - **Since:** 0.2.0
-- **Covers:** the 26 registered tool names (`kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_project`, `kevin_audit`, `kevin_doctor`, `kevin_native`, `kevin_retrospective`, `kevin_why`, `kevin_feedback`, `kevin_trace`, `kevin_export`, `kevin_import`, `kevin_config`, `kevin_facts`, `kevin_conflicts`, `kevin_propose`, `kevin_publish`, `kevin_approve`, `kevin_share`, `kevin_sync`, `kevin_forget` + `kevin_bench`, `kevin_contract` since 1.0.0) and their Zod argument shapes via `tool.schema`.
+- **Covers:** the 27 registered tool names (`kevin_save`, `kevin_query`, `kevin_get`, `kevin_recall`, `kevin_status`, `kevin_project`, `kevin_audit`, `kevin_doctor`, `kevin_native`, `kevin_retrospective`, `kevin_why`, `kevin_feedback`, `kevin_trace`, `kevin_export`, `kevin_import`, `kevin_config`, `kevin_facts`, `kevin_conflicts`, `kevin_propose`, `kevin_publish`, `kevin_approve`, `kevin_share`, `kevin_sync`, `kevin_forget` + `kevin_bench`, `kevin_contract` since 1.0.0 + `kevin_sources` since 2.0.0) and their Zod argument shapes via `tool.schema`.
 - **Consumer may rely on:** tool names are stable; argument shapes are additive only in 1.x.
 
 ## C-04 — Setting keys, types and defaults
@@ -62,7 +62,7 @@ The following five rules govern every deprecation (§5.4):
 
 - **Stability:** forward-only
 - **Since:** 0.1.0
-- **Covers:** schema version `015`, migrations are forward-only (`packages/core/migrations/*.sql` apply in order, never rewritten; moved from `migrations/` in v1.3.0 Bedrock, `013_v14_bridge` adds `channel` + 5 MCP metrics in 1.4.0, `014_v2_commonwealth` adds MemorySources + OKF v3 in 2.0.0, `015_v21_relay` adds `memories.source` + `source_deletions_total` + `source_deletion_sync` in 2.1.0).
+- **Covers:** schema version `016`, migrations are forward-only (`packages/core/migrations/*.sql` apply in order, never rewritten; moved from `migrations/` in v1.3.0 Bedrock, `013_v14_bridge` adds `channel` + 5 MCP metrics in 1.4.0, `014_v2_commonwealth` adds MemorySources + OKF v3 in 2.0.0, `015_v21_relay` adds `memories.source` + `source_deletions_total` + `source_deletion_sync` in 2.1.0, `016_v22_harbor` seeds `mcp_write_enabled`, `mcp_approve_enabled`, `mcp_repo_override` in 2.2.0).
 - **Consumer may rely on:** forward-only migrations; `Migrate.run()` idempotent (version-gated; `ALTER TABLE ADD COLUMN` in 015 is applied once via `schema_version`).
 
 ## C-08 — Filesystem locations

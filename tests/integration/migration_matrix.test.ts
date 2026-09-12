@@ -58,7 +58,7 @@ function upgradedCopy(version: string): Store {
 	return store;
 }
 
-describe("K10-028 — every historical schema_version upgrades to 015 (K21-008)", () => {
+describe("K10-028 — every historical schema_version upgrades to 016 (K22-005)", () => {
 	it("eleven fixtures exist, one per version 001..011", () => {
 		for (const v of VERSIONS) expect(fixturePath(v)).toBeTruthy();
 		const names = readdirSync(
@@ -68,7 +68,7 @@ describe("K10-028 — every historical schema_version upgrades to 015 (K21-008)"
 	});
 
 	for (const v of VERSIONS) {
-		it(`v${v}: one Migrate.run() reaches '015' with rows intact; dual _ms backfill + metric seeds; second run is no-op (K21-008)`, async () => {
+		it(`v${v}: one Migrate.run() reaches '016' with rows intact; dual _ms backfill + metric seeds + MCP trio seeds; second run is no-op (K22-005)`, async () => {
 			const store = upgradedCopy(v);
 			const result = await new Migrate(
 				store,
@@ -81,7 +81,7 @@ describe("K10-028 — every historical schema_version upgrades to 015 (K21-008)"
 					"SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
 				)
 				.get() as { version: string };
-			expect(versionRow.version).toBe("015");
+			expect(versionRow.version).toBe("016");
 
 			const mem = store
 				.prepare("SELECT type, content FROM memories WHERE id = ?")
@@ -108,8 +108,8 @@ describe("K10-028 — every historical schema_version upgrades to 015 (K21-008)"
 				join(process.cwd(), "packages/core/migrations"),
 			).run();
 			expect(second.applied).toEqual([]);
-			expect(second.from).toBe("015");
-			expect(second.to).toBe("015");
+			expect(second.from).toBe("016");
+			expect(second.to).toBe("016");
 
 			const memAgain = store
 				.prepare("SELECT content FROM memories WHERE id = ?")
@@ -159,6 +159,22 @@ describe("K10-028 — every historical schema_version upgrades to 015 (K21-008)"
 			const idxNames = idx.map((r) => r.name);
 			expect(idxNames).toContain("idx_tool_calls_ts_ms");
 			expect(idxNames).toContain("idx_injections_injected_ms");
+			// v2.2.0 (K22-005) — 016 MCP trio seeds present with safe
+			// defaults on every upgraded fixture (the BUG-05 scenario).
+			for (const [key, value] of [
+				["mcp_write_enabled", "0"],
+				["mcp_approve_enabled", "0"],
+				["mcp_repo_override", ""],
+			] as const) {
+				const trio = store
+					.prepare("SELECT value FROM kevin_settings WHERE key = ?")
+					.get(key) as { value: string } | undefined;
+				expect(
+					trio,
+					`v${v}: setting ${key} should exist after 016`,
+				).toBeDefined();
+				expect(trio?.value).toBe(value);
+			}
 		});
 	}
 });

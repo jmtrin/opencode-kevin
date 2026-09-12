@@ -2,6 +2,7 @@ import {
 	copyFileSync,
 	mkdirSync,
 	mkdtempSync,
+	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -12,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 describe("K7-021 — kevin_status v0.7", () => {
-	it("reports 23 tools, schema 008 and Project Truth fields", async () => {
+	it("reports 27 tools, schema 008 and Project Truth fields", async () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-status-v07-"));
 		const migrationsDir = join(root, "packages/core/migrations");
 		mkdirSync(migrationsDir, { recursive: true });
@@ -42,7 +43,7 @@ describe("K7-021 — kevin_status v0.7", () => {
 			tool_count: number;
 			v07: { schema_version: string; error_lesson_mode: string };
 		};
-		expect(status.tool_count).toBe(26);
+		expect(status.tool_count).toBe(27); // v2.2.0 (K22-006): derived from the live tool map
 		expect(status.v07.schema_version).toBe("008");
 		expect(status.v07.error_lesson_mode).toBe("all");
 		await hooks.dispose?.();
@@ -51,7 +52,7 @@ describe("K7-021 — kevin_status v0.7", () => {
 });
 
 describe("K8-025 — kevin_status v0.8 identity and shared-layer fields", () => {
-	it("reports 23 tools and the four v0.8 fields on a 009 database", async () => {
+	it("reports 27 tools and the four v0.8 fields on a 009 database", async () => {
 		const root = mkdtempSync(join(tmpdir(), "kevin-status-v08-"));
 		const projectDir = join(root, "proj");
 		mkdirSync(join(projectDir, ".git"), { recursive: true });
@@ -95,7 +96,7 @@ describe("K8-025 — kevin_status v0.8 identity and shared-layer fields", () => 
 				shared_entries: number;
 			};
 		};
-		expect(status.tool_count).toBe(26);
+		expect(status.tool_count).toBe(27); // v2.2.0 (K22-006): derived from the live tool map
 		expect(status.v08.repo_id).toMatch(/^[0-9a-f]{16}$/);
 		// The accepted proof of "never a raw remote URL": the fixture origin
 		// must not appear anywhere in the output, only its derived hash.
@@ -105,5 +106,16 @@ describe("K8-025 — kevin_status v0.8 identity and shared-layer fields", () => 
 		expect(status.v08.shared_entries).toBe(0);
 		await hooks.dispose?.();
 		rmSync(root, { recursive: true, force: true });
+	});
+
+	it("tool_count is derived: no numeric literal in the status payload source (K22-006)", () => {
+		// Principle 66 — a count naming a live collection cannot be a
+		// literal; this scan fails any reintroduction of `tool_count: N`.
+		const src = readFileSync(
+			join(process.cwd(), "packages/plugin/src/index.ts"),
+			"utf8",
+		);
+		expect(src).not.toMatch(/tool_count:\s*\d+/);
+		expect(src).toContain("Object.keys(tools).length");
 	});
 });

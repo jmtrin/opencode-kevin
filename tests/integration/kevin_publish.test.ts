@@ -180,9 +180,9 @@ describe("K6-020 — kevin_publish regenerates the pull bundles (D6-01/D6-07)", 
 		expect(existsSync(join(root, "refs", "rule-npm.md"))).toBe(true);
 	});
 
-	it("kevin_status reports 16 tools", async () => {
+	it("kevin_status reports 27 tools", async () => {
 		await bootPlugin();
 		const status = await callTool("kevin_status");
-		expect(status.tool_count).toBe(26); // v0.9.0 (K9-024): 23 tools
+		expect(status.tool_count).toBe(27); // v2.2.0 (K22-006): derived from the live tool map (kevin_sources since 2.0.0)
 	});
 });

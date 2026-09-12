@@ -183,6 +183,16 @@ kevin_doctor    → health report: hooks, deps, perf, verdict
 
 ---
 
+## 🆕 What's new in 2.2.0 — "Harbor"
+
+> 2.2.0 docks — the plugin loads and every Desktop instance belongs to its project.
+
+- 🔌 **Public metadata moves to `@jmtrin/opencode-kevin/config`** — `KEVIN_CONFIG_KEYS`, `REMOVED_SETTINGS`, `ERROR_LESSON_MODE_VALUES`, `KEVIN_VERSION` and `performRekey` (+ `RekeyCounts`/`RekeyResult`) are imported from the new `./config` subpath; the entrypoint exports only the `KevinPlugin` factory (the host loader rejects any other export — v2.1.0 never registered its tools). `KevinPlugin` imports are unchanged; there is no compatibility re-export by design. Full notes in `docs/MIGRATION_2.2.0.md`.
+- 🏠 **Per-instance identity** — under OpenCode Desktop each project resolves its own `project_id`/`repo_id` (was: all instances shared the server home); `kevin_export` is isolated per project; CLI mode unchanged; `opts.projectRoot` still overrides.
+- 🧾 **Truthful seeds and counts** — migration `016` seeds `mcp_write_enabled`/`mcp_approve_enabled`/`mcp_repo_override` (fresh `kevin_config list` = 44 keys); `kevin_status.tool_count` derives from the live tool map (27 with `kevin_sources`).
+
+---
+
 ## 🆕 What's new in 2.0.0 — "Commonwealth"
 
 > 2.0.0 unites — OKF v3 sharding + MemorySources.

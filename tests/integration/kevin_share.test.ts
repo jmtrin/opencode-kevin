@@ -8,11 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolve } from "@jmtrin/kevin-core";
 import { Store } from "@jmtrin/kevin-core";
 import { fnv1a64 } from "@jmtrin/kevin-core";
+import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { probeHost } from "../../packages/plugin/src/host.js";
 import { KevinPlugin } from "../../packages/plugin/src/index.js";
 
 let tmpRoot: string;
@@ -47,7 +48,10 @@ function makeMigrationsDir(): string {
 		"009_v08_team.sql",
 	];
 	for (const file of files) {
-		copyFileSync(join(process.cwd(), "packages/core/migrations", file), join(dir, file));
+		copyFileSync(
+			join(process.cwd(), "packages/core/migrations", file),
+			join(dir, file),
+		);
 	}
 	return dir;
 }
@@ -78,21 +82,29 @@ async function boot(
 	});
 }
 
-// The plugin's init-time identity resolves against process.cwd(), the
-// repository the test runner lives in; candidates are selected under
-// that repo_id, so the seeds must carry it too.
-const PLUGIN_REPO_ID = resolve(process.cwd()).repoId;
-const PLUGIN_PROJECT_ID = resolve(process.cwd()).projectId;
+// The session identity is per-project (v2.2.0 K22-004 / plan §4.4, D22-03):
+// replicate the factory exactly (probeHost + resolve against the instance
+// directory) so seeds land under the id the session is scoped on — never
+// the server cwd.
+async function sessionIds(
+	projectRoot: string,
+): Promise<{ repoId: string; projectId: string }> {
+	const host = await probeHost({ directory: projectRoot } as PluginInput);
+	const identity = resolve(projectRoot, host);
+	return { repoId: identity.repoId, projectId: identity.projectId };
+}
 
-function seedMemory(
+async function seedMemory(
 	dbPath: string,
+	projectRoot: string,
 	opts: {
 		id: string;
 		content: string;
 		evidence?: number;
 		curated?: number;
 	} = { id: "mem-1", content: "share me", evidence: 3 },
-): void {
+): Promise<void> {
+	const ids = await sessionIds(projectRoot);
 	const s = new Store({ path: dbPath });
 	s.prepare(
 		`INSERT INTO memories
@@ -104,10 +116,10 @@ function seedMemory(
 	).run(
 		opts.id,
 		opts.content,
-		PLUGIN_PROJECT_ID,
+		ids.projectId,
 		opts.evidence ?? 3,
 		opts.curated ?? 1,
-		PLUGIN_REPO_ID,
+		ids.repoId,
 	);
 	s.close();
 }
@@ -140,7 +152,10 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "default dry run rule" });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "default dry run rule",
+		});
 
 		const res = await runShare(hooks, {});
 		expect(res.dry_run).toBe(true);
@@ -155,7 +170,10 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "confirmed share rule" });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "confirmed share rule",
+		});
 
 		const res = await runShare(hooks, { dry_run: false, confirm: true });
 		expect(res.outcome).toBe("written");
@@ -178,7 +196,11 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "uncurated rule", curated: 0 });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "uncurated rule",
+			curated: 0,
+		});
 
 		const res = await runShare(hooks, { memory_ids: ["mem-1"] });
 		expect(res.refused).toBe("not_curated");
@@ -190,7 +212,11 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "weak rule", evidence: 0 });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "weak rule",
+			evidence: 0,
+		});
 
 		const res = await runShare(hooks, { memory_ids: ["mem-1"] });
 		expect(res.refused).toBe("below_floor");
@@ -202,7 +228,10 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "valid rule" });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "valid rule",
+		});
 
 		const bogus = await runShare(hooks, {
 			memory_ids: ["mem-1", "no-such-id"],
@@ -222,7 +251,10 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "noop rule" });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "noop rule",
+		});
 
 		const first = await runShare(hooks, { dry_run: false, confirm: true });
 		expect(first.outcome).toBe("written");
@@ -241,8 +273,16 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "weak", content: "weak rule", evidence: 0 });
-		seedMemory(dbPath, { id: "strong", content: "strong rule", evidence: 4 });
+		await seedMemory(dbPath, projectRoot, {
+			id: "weak",
+			content: "weak rule",
+			evidence: 0,
+		});
+		await seedMemory(dbPath, projectRoot, {
+			id: "strong",
+			content: "strong rule",
+			evidence: 4,
+		});
 
 		const res = await runShare(hooks, {});
 		const ids = res.memory_ids as string[];
@@ -255,7 +295,10 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "gated rule" });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "gated rule",
+		});
 
 		const res = await runShare(hooks, { dry_run: false });
 		expect(res.confirm_required).toBe(true);
@@ -267,8 +310,14 @@ describe("K8-021 — kevin_share (plan §5.5)", () => {
 		drops.push(projectRoot);
 		const dbPath = join(tmpRoot, "kevin.db");
 		const hooks = await boot(projectRoot);
-		seedMemory(dbPath, { id: "mem-1", content: "counted rule" });
-		seedMemory(dbPath, { id: "mem-2", content: "counted rule two" });
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-1",
+			content: "counted rule",
+		});
+		await seedMemory(dbPath, projectRoot, {
+			id: "mem-2",
+			content: "counted rule two",
+		});
 
 		const res = await runShare(hooks, { dry_run: false, confirm: true });
 		expect(res.outcome).toBe("written");

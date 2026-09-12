@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
 	type HostSurface,
 	probeHost,
+	projectDirFromInput,
 	resetHostProbeCache,
 	summarize,
 } from "../../packages/plugin/src/host.js";
@@ -154,6 +155,29 @@ describe("probeHost", () => {
 		expect(() => {
 			(first as { flavour: string }).flavour = "v1+v2";
 		}).toThrow(TypeError);
+	});
+});
+
+describe("projectDirFromInput (v2.2.0 K22-004 audit fix)", () => {
+	it("prefers directory over worktree, nested project object first", () => {
+		expect(projectDirFromInput({ directory: "/d", worktree: "/w" })).toBe("/d");
+		expect(
+			projectDirFromInput({
+				project: { id: null, worktree: "/pw", directory: "/pd" },
+				directory: "/d",
+			}),
+		).toBe("/pd");
+		expect(projectDirFromInput({ worktree: "/w" })).toBe("/w");
+	});
+
+	it("treats empty strings as absent (falls through to worktree, then null)", () => {
+		expect(projectDirFromInput({ directory: "" })).toBeNull();
+		expect(projectDirFromInput({ directory: "", worktree: "" })).toBeNull();
+		expect(projectDirFromInput({ directory: "", worktree: "/fallback" })).toBe(
+			"/fallback",
+		);
+		expect(projectDirFromInput({})).toBeNull();
+		expect(projectDirFromInput(undefined)).toBeNull();
 	});
 });
 

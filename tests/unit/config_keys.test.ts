@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	KEVIN_CONFIG_KEYS,
-	KevinPlugin,
-} from "../../packages/plugin/src/index.js";
+import { KevinPlugin } from "../../packages/plugin/src/index.js";
+// v2.2.0 (K22-002) — public metadata moved to the `./config` subpath;
+// the entrypoint exports only the factory (BUG-01).
+import { KEVIN_CONFIG_KEYS } from "../../packages/plugin/src/config.js";
 
 let tmpRoot: string;
 let hooks: Awaited<ReturnType<typeof KevinPlugin>>;
